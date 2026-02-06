@@ -1,0 +1,95 @@
+# AGENTS.md
+
+## Project Overview
+
+- Frameworks: Next.js 16 (App Router), React 19, TypeScript, Convex, Tailwind CSS v4.
+- Backend: Convex functions and schema in `convex/`.
+- Frontend: routes/components in `app/` and `components/`.
+- Generated Convex artifacts: `convex/_generated/*` (do not hand-edit).
+
+## Commands
+
+- `pnpm dev` -> starts frontend and backend together.
+- `pnpm dev:frontend` -> runs `next dev`.
+- `pnpm dev:backend` -> runs `convex dev`.
+- `pnpm build` -> runs `next build`.
+- `pnpm start` -> runs `next start`.
+- `pnpm lint` -> `eslint . --ignore-pattern "convex/_generated/**"`
+- `pnpm exec eslint app/page.tsx` -> lint one file manually.
+- `pnpm exec eslint app convex` -> lint a directory manually.
+- `pnpm exec convex dev` -> local Convex development.
+- `pnpm exec convex dashboard` -> open Convex dashboard.
+- `pnpm exec convex -h` -> CLI help.
+- `pnpm test <test-path-or-pattern>` -> typical single-test pattern once a test runner is added.
+
+## Practical validation before handoff
+
+- Always run: `pnpm lint`
+- Run for runtime-impacting edits: `pnpm build`
+- For Convex function/schema edits, verify `pnpm dev:backend` starts cleanly.
+
+## Repository Layout
+
+- `app/` - Next.js App Router pages/layout.
+- `components/` - shared React components.
+- `convex/` - Convex schema and backend functions.
+- `convex/_generated/` - generated API/types.
+- `public/` - static assets.
+
+## Code Style Guidelines
+
+### Naming conventions
+
+- Components: `PascalCase`.
+- Variables/functions/hooks: `camelCase`.
+- Constants: `UPPER_SNAKE_CASE` only when truly constant.
+- Convex function names should be descriptive and behavior-focused.
+- Follow Next.js file conventions (`page.tsx`, `layout.tsx`, etc.).
+
+### React / Next.js patterns
+
+- Default to server components; add `"use client"` only when required.
+- Use `useEffect` for side effects and always include cleanup when needed.
+- Use Next primitives (`next/link`, `next/image`) instead of raw HTML equivalents where appropriate.
+- Keep route-level data loading near route boundaries.
+
+### Error handling
+
+- Fail fast on invalid assumptions and missing required state.
+- Throw explicit, actionable errors.
+- Never silently swallow exceptions.
+- Use fire-and-forget async calls only when intentionally non-blocking.
+
+### State and data flow
+
+- Keep temporary UI state local unless sharing is necessary.
+- Prefer Convex reactive hooks (`useQuery`, `useMutation`, `usePreloadedQuery`) in client components.
+- Keep backend contracts stable and explicit.
+
+### Convex Guidelines
+
+- Use object-form Convex registration syntax (`query({ ... })`, `mutation({ ... })`, etc.).
+- Include validators for arguments and return values on Convex functions.
+- Use `returns: v.null()` when the function returns `null`.
+- Use `query`/`mutation`/`action` for public APIs.
+- Use `internalQuery`/`internalMutation`/`internalAction` for private APIs.
+- Use `api` and `internal` function references for calls.
+- Prefer indexed queries (`withIndex`) rather than filter-heavy scans.
+- Use `v.int64()` (not deprecated `v.bigint()`).
+- For Node-runtime actions, add `"use node"`.
+- Do not use `ctx.db` directly inside actions.
+
+### Convex backend patterns
+
+- Keep schema definitions in `convex/schema.ts`.
+- Use validators from `convex/values` for Convex function arguments and returns.
+- Use generated API references from `convex/_generated/api` when calling functions.
+- Queries/mutations own DB access; actions are for orchestration/external I/O.
+- Never manually edit `convex/_generated/*`.
+
+## Guidelines
+
+- Do not commit secrets from `.env*` files.
+- Preserve lint ignore behavior for generated Convex files unless intentionally changing tooling.
+- Read nearby files before editing to match local patterns.
+- If uncertain, choose consistency with existing code over novelty.
