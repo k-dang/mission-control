@@ -1,5 +1,6 @@
 import { ConvexError, v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { internalAction, mutation, query } from "./_generated/server";
 
 const statusValidator = v.union(
   v.literal("TODO"),
@@ -70,6 +71,20 @@ export const createTodo = mutation({
   },
 });
 
+export const logTodoStatusTransition = internalAction({
+  args: {
+    todoId: v.id("todos"),
+    fromStatus: statusValidator,
+    toStatus: statusValidator,
+    timestampMs: v.number(),
+  },
+  returns: v.null(),
+  handler: async (_ctx, args) => {
+    console.log("Todo status transition", args);
+    return null;
+  },
+});
+
 export const moveTodoToInProgress = mutation({
   args: {
     todoId: v.id("todos"),
@@ -96,7 +111,18 @@ export const moveTodoToInProgress = mutation({
       });
     }
 
+    const fromStatus = todo.status;
     await ctx.db.patch("todos", args.todoId, { status: "INPROGRESS" });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.myFunctions.logTodoStatusTransition,
+      {
+        todoId: args.todoId,
+        fromStatus,
+        toStatus: "INPROGRESS",
+        timestampMs: Date.now(),
+      },
+    );
     return null;
   },
 });

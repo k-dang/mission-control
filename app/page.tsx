@@ -1,17 +1,35 @@
 "use client";
 
-import { useState, type DragEvent, type FormEvent } from "react";
+import { useState, useRef, useCallback, type DragEvent, type FormEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Id } from "../convex/_generated/dataModel";
 import { getErrorMessage } from "@/lib/errors";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import {
   Plus,
-  Newspaper,
+  Zap,
   AlertCircle,
   Loader2,
+  ArrowRight,
+  Maximize2,
 } from "lucide-react";
+
+const STAT_COLORS = {
+  todo: "oklch(0.75 0.15 55)",
+  inprogress: "oklch(0.65 0.17 250)",
+  completed: "oklch(0.68 0.14 155)",
+};
 
 export default function Home() {
   const todos = useQuery(api.myFunctions.listTodos);
@@ -20,10 +38,24 @@ export default function Home() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [quickTitle, setQuickTitle] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  const resetForm = useCallback(() => {
+    setTitle("");
+    setDescription("");
+    setFormError(null);
+  }, []);
+
+  const handleOpenChange = useCallback((open: boolean) => {
+    setDialogOpen(open);
+    if (!open) resetForm();
+  }, [resetForm]);
 
   const handleCreateTodo = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -40,12 +72,24 @@ export default function Home() {
         title,
         description: description.trim() ? description : undefined,
       });
-      setTitle("");
-      setDescription("");
+      resetForm();
+      setDialogOpen(false);
     } catch (error: unknown) {
       setFormError(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleQuickAdd = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!quickTitle.trim()) return;
+
+    try {
+      await createTodo({ title: quickTitle });
+      setQuickTitle("");
+    } catch (error: unknown) {
+      setDropError(getErrorMessage(error));
     }
   };
 
@@ -77,120 +121,248 @@ export default function Home() {
 
   if (!todos) {
     return (
-      <main className="grain-overlay flex min-h-screen items-center justify-center">
-        <div className="flex items-center gap-3 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <p className="font-sans text-sm">Loading board&hellip;</p>
+      <main className="grain-overlay relative flex min-h-screen flex-col">
+        <div className="ambient-bg" />
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 md:p-10">
+          {/* Skeleton header */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 animate-pulse rounded-lg bg-muted/40" />
+              <div className="h-8 w-48 animate-pulse rounded-lg bg-muted/40" />
+            </div>
+            <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
+          </div>
+          {/* Skeleton columns */}
+          <div className="grid gap-5 md:grid-cols-3">
+            {[0, 1, 2].map((col) => (
+              <div
+                key={col}
+                className="rounded-xl border border-border/30 bg-card/20 p-4"
+              >
+                <div className="mb-4 flex items-center gap-2">
+                  <div className="h-7 w-7 animate-pulse rounded-lg bg-muted/30" />
+                  <div className="h-4 w-24 animate-pulse rounded bg-muted/30" />
+                </div>
+                <div className="space-y-3">
+                  {[0, 1].map((card) => (
+                    <div
+                      key={card}
+                      className="h-16 animate-pulse rounded-lg bg-muted/15"
+                      style={{ animationDelay: `${(col * 2 + card) * 150}ms` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="grain-overlay mx-auto flex min-h-screen max-w-6xl flex-col gap-8 p-6 md:p-10">
-      <header className="space-y-2">
-        <div className="flex items-center gap-3">
-          <Newspaper className="h-8 w-8 text-primary" />
-          <h1 className="text-4xl font-bold tracking-tight text-foreground">
-            The Board
-          </h1>
-        </div>
-        <p className="text-sm text-muted-foreground">
-          Create tasks in{" "}
-          <span className="font-medium text-col-todo">TODO</span> and drag them
-          to{" "}
-          <span className="font-medium text-col-inprogress">IN PROGRESS</span>.
-        </p>
-      </header>
+    <main className="grain-overlay relative flex min-h-screen flex-col">
+      <div className="ambient-bg" />
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 md:p-10">
+        <header className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Zap className="h-7 w-7 text-primary" />
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h1 className="font-mono text-xl font-bold uppercase tracking-[0.12em] text-foreground">
+                    Mission Control
+                  </h1>
+                  <div className="status-beacon" />
+                </div>
+                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Task orchestration system
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-4">
+              {/* Stat pills */}
+              <div className="hidden items-center gap-2 sm:flex">
+                <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: STAT_COLORS.todo }}
+                  />
+                  <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                    {todos.todo.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: STAT_COLORS.inprogress }}
+                  />
+                  <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                    {todos.inprogress.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                  <span
+                    className="inline-block h-1.5 w-1.5 rounded-full"
+                    style={{ background: STAT_COLORS.completed }}
+                  />
+                  <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                    {todos.completed.length}
+                  </span>
+                </div>
+              </div>
+              <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+                <DialogTrigger asChild>
+                  <Button variant="glow" size="sm">
+                    <Plus className="h-4 w-4" />
+                    New Task
+                  </Button>
+                </DialogTrigger>
+                <DialogContent
+                  className="glass-card border-border/50 bg-card/80 backdrop-blur-xl"
+                  onOpenAutoFocus={(e) => {
+                    e.preventDefault();
+                    titleInputRef.current?.focus();
+                  }}
+                >
+                  <DialogHeader>
+                    <DialogTitle>Create a new task</DialogTitle>
+                    <DialogDescription>
+                      Add a task to your TODO column.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form
+                    id="create-todo-form"
+                    onSubmit={handleCreateTodo}
+                    className="grid gap-4"
+                  >
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                        Title
+                      </span>
+                      <input
+                        ref={titleInputRef}
+                        value={title}
+                        onChange={(event) => setTitle(event.target.value)}
+                        placeholder="What needs to be done?"
+                        className="rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                        Description{" "}
+                        <span className="normal-case tracking-normal text-muted-foreground/50">
+                          (optional)
+                        </span>
+                      </span>
+                      <textarea
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        placeholder="Add details"
+                        rows={3}
+                        className="resize-none rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+                      />
+                    </label>
+                    {formError ? (
+                      <div className="flex items-center gap-2 text-sm text-destructive">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <p>{formError}</p>
+                      </div>
+                    ) : null}
+                  </form>
+                  <DialogFooter>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" disabled={isSubmitting}>
+                        Cancel
+                      </Button>
+                    </DialogTrigger>
+                    <Button
+                      type="submit"
+                      form="create-todo-form"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                      {isSubmitting ? "Adding..." : "Add Task"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
 
-      <form
-        onSubmit={handleCreateTodo}
-        className="glass-card rounded-xl p-5"
-      >
-        <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-              Title
-            </span>
-            <input
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="What needs to be done?"
-              className="rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
-            />
-          </label>
-          <label className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-              Description{" "}
-              <span className="normal-case tracking-normal text-muted-foreground/50">
-                (optional)
-              </span>
-            </span>
-            <input
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="Add details"
-              className="rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="flex h-10 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+          {/* Quick add bar */}
+          <form onSubmit={handleQuickAdd} className="flex items-center gap-2">
+            <div className="quick-add-bar flex flex-1 items-center gap-2 rounded-xl px-4 py-2.5">
+              <Plus className="h-4 w-4 shrink-0 text-muted-foreground/40" />
+              <input
+                value={quickTitle}
+                onChange={(e) => setQuickTitle(e.target.value)}
+                placeholder="Quick add a task..."
+                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
+              />
+              {quickTitle.trim() && (
+                <button
+                  type="submit"
+                  className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                >
+                  <ArrowRight className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setDialogOpen(true)}
+              title="Expand to full form"
+            >
+              <Maximize2 className="h-3.5 w-3.5" />
+            </Button>
+          </form>
+        </header>
+
+        {dropError ? (
+          <div
+            className="flex items-center gap-2 text-sm text-destructive"
+            role="status"
           >
-            {isSubmitting ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Plus className="h-4 w-4" />
-            )}
-            {isSubmitting ? "Adding..." : "Add Task"}
-          </button>
-        </div>
-        {formError ? (
-          <div className="mt-3 flex items-center gap-2 text-sm text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
-            <p>{formError}</p>
+            <p>{dropError}</p>
           </div>
         ) : null}
-      </form>
 
-      {dropError ? (
-        <div
-          className="flex items-center gap-2 text-sm text-destructive"
-          role="status"
-        >
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          <p>{dropError}</p>
-        </div>
-      ) : null}
-
-      <section className="grid gap-4 md:grid-cols-3">
-        <KanbanColumn
-          status="TODO"
-          todos={todos.todo}
-          draggable
-          onDragStart={handleDragStart}
-        />
-        <KanbanColumn
-          status="INPROGRESS"
-          todos={todos.inprogress}
-          draggable={false}
-          onDragStart={handleDragStart}
-          onDragOver={(event) => {
-            event.preventDefault();
-            setIsDropTargetActive(true);
-          }}
-          onDragLeave={() => setIsDropTargetActive(false)}
-          onDrop={handleDropOnInProgress}
-          isDropTarget={isDropTargetActive}
-        />
-        <KanbanColumn
-          status="COMPLETED"
-          todos={todos.completed}
-          draggable={false}
-          onDragStart={handleDragStart}
-        />
-      </section>
+        <section className="grid gap-5 md:grid-cols-3">
+          <KanbanColumn
+            status="TODO"
+            todos={todos.todo}
+            draggable
+            onDragStart={handleDragStart}
+          />
+          <KanbanColumn
+            status="INPROGRESS"
+            todos={todos.inprogress}
+            draggable={false}
+            onDragStart={handleDragStart}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setIsDropTargetActive(true);
+            }}
+            onDragLeave={() => setIsDropTargetActive(false)}
+            onDrop={handleDropOnInProgress}
+            isDropTarget={isDropTargetActive}
+          />
+          <KanbanColumn
+            status="COMPLETED"
+            todos={todos.completed}
+            draggable={false}
+            onDragStart={handleDragStart}
+          />
+        </section>
+      </div>
     </main>
   );
 }

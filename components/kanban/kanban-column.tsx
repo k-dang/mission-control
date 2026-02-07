@@ -1,8 +1,10 @@
 import type { DragEvent } from "react";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { CircleDot, Timer, CheckCircle2 } from "lucide-react";
+import { CircleDot, Timer, CheckCircle2, Inbox, ArrowRight, PartyPopper } from "lucide-react";
 import { TodoCard } from "./todo-card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
 const COLUMN_CONFIG: Record<
   Doc<"todos">["status"],
   {
@@ -10,25 +12,37 @@ const COLUMN_CONFIG: Record<
     icon: typeof CircleDot;
     colorClass: string;
     emptyText: string;
+    emptySubtext: string;
+    emptyIcon: typeof Inbox;
+    accentClass: string;
   }
 > = {
   TODO: {
     label: "TODO",
     icon: CircleDot,
     colorClass: "text-col-todo",
-    emptyText: "No tasks yet — add one above",
+    emptyText: "No tasks yet",
+    emptySubtext: "Add one with the quick bar above",
+    emptyIcon: Inbox,
+    accentClass: "column-accent-TODO",
   },
   INPROGRESS: {
     label: "IN PROGRESS",
     icon: Timer,
     colorClass: "text-col-inprogress",
-    emptyText: "Drop TODO cards here",
+    emptyText: "Nothing in progress",
+    emptySubtext: "Drag a TODO card here to start",
+    emptyIcon: ArrowRight,
+    accentClass: "column-accent-INPROGRESS",
   },
   COMPLETED: {
     label: "COMPLETED",
     icon: CheckCircle2,
     colorClass: "text-col-completed",
-    emptyText: "Nothing completed yet",
+    emptyText: "Nothing completed",
+    emptySubtext: "Finished tasks appear here",
+    emptyIcon: PartyPopper,
+    accentClass: "column-accent-COMPLETED",
   },
 };
 
@@ -53,6 +67,7 @@ export function KanbanColumn({
 }) {
   const config = COLUMN_CONFIG[status];
   const Icon = config.icon;
+  const EmptyIcon = config.emptyIcon;
 
   return (
     <section
@@ -61,44 +76,60 @@ export function KanbanColumn({
       onDrop={onDrop}
       className={cn(
         "rounded-xl border border-border/50 bg-card/40 p-4 transition-all duration-200",
-        isDropTarget && "drop-glow border-primary/30",
+        config.accentClass,
+        isDropTarget && (status === "INPROGRESS" ? "drop-glow-inprogress border-col-inprogress/30" : "drop-glow border-primary/30"),
       )}
     >
-      <div className="mb-4 rounded-lg p-3">
+      <div className="mb-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon className={cn("h-4 w-4", config.colorClass)} />
+          <div className="flex items-center gap-2.5">
+            <div
+              className={cn(
+                "flex h-7 w-7 items-center justify-center rounded-lg",
+                "bg-surface-glass backdrop-blur-sm",
+              )}
+            >
+              <Icon className={cn("h-3.5 w-3.5", config.colorClass)} />
+            </div>
             <h2
               className={cn(
-                "text-sm font-bold uppercase tracking-widest",
+                "font-mono text-xs font-bold uppercase tracking-[0.15em]",
                 config.colorClass,
               )}
             >
               {config.label}
             </h2>
           </div>
-          <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+          <span className="rounded-full bg-muted/60 px-2.5 py-0.5 font-mono text-[10px] font-semibold text-muted-foreground">
             {todos.length}
           </span>
         </div>
       </div>
-      <div className="space-y-3">
-        {todos.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border/50 p-3 text-center text-sm text-muted-foreground">
-            {config.emptyText}
-          </p>
-        ) : (
-          todos.map((todo, i) => (
-            <TodoCard
-              key={todo._id}
-              todo={todo}
-              draggable={draggable}
-              onDragStart={onDragStart}
-              index={i}
-            />
-          ))
-        )}
-      </div>
+      <ScrollArea className="max-h-[calc(100vh-320px)]">
+        <div className="space-y-3 pr-1">
+          {todos.length === 0 ? (
+            <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/40 p-6 text-center">
+              <EmptyIcon className="h-5 w-5 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground/60">
+                {config.emptyText}
+              </p>
+              <p className="text-xs text-muted-foreground/35">
+                {config.emptySubtext}
+              </p>
+            </div>
+          ) : (
+            todos.map((todo, i) => (
+              <TodoCard
+                key={todo._id}
+                todo={todo}
+                draggable={draggable}
+                onDragStart={onDragStart}
+                index={i}
+              />
+            ))
+          )}
+        </div>
+      </ScrollArea>
     </section>
   );
 }
