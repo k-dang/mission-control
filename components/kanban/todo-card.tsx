@@ -28,9 +28,9 @@ export function TodoCard({
       draggable={draggable}
       onDragStart={(event) => onDragStart(event, todo._id)}
       className={cn(
-        "group glass-card rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2",
+        "group glass-card todo-card rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2",
         draggable
-          ? "cursor-grab active:cursor-grabbing active:scale-[0.98] active:rotate-[0.5deg]"
+          ? "cursor-grab active:cursor-grabbing"
           : "cursor-default",
         isCompleted && "opacity-60",
       )}

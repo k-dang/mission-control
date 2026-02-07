@@ -75,7 +75,7 @@ export function KanbanColumn({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={cn(
-        "rounded-xl border border-border/50 bg-card/40 p-4 transition-all duration-200",
+        "rounded-xl border border-border/50 bg-card/40 p-4 transition-all duration-200 md:flex md:min-h-0 md:flex-col md:overflow-hidden",
         config.accentClass,
         isDropTarget && (status === "INPROGRESS" ? "drop-glow-inprogress border-col-inprogress/30" : "drop-glow border-primary/30"),
       )}
@@ -105,7 +105,7 @@ export function KanbanColumn({
           </span>
         </div>
       </div>
-      <ScrollArea className="max-h-[calc(100vh-320px)]">
+      <ScrollArea className="max-h-[calc(100vh-320px)] md:flex-1 md:min-h-0 md:max-h-none">
         <div className="space-y-3 pr-1">
           {todos.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/40 p-6 text-center">

@@ -147,6 +147,17 @@
   box-shadow: 0 4px 24px oklch(0 0 0 / 15%);
 }
 
+/* Todo cards keep a static appearance on hover (no lift/transition). */
+.todo-card {
+  transition: none;
+}
+.todo-card:hover {
+  background: var(--surface-glass);
+  border-color: oklch(1 0 0 / 8%);
+  transform: none;
+  box-shadow: none;
+}
+
 /* Column accent borders */
 .column-accent-TODO {
   border-top: 2px solid var(--col-todo);
