@@ -1,4 +1,4 @@
-import type { DragEvent } from "react";
+import { useRef, type DragEvent } from "react";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
@@ -15,23 +15,39 @@ export function TodoCard({
   draggable,
   onDragStart,
   index,
+  onClick,
 }: {
   todo: Doc<"todos">;
   draggable: boolean;
   onDragStart: (event: DragEvent<HTMLDivElement>, todoId: Id<"todos">) => void;
   index: number;
+  onClick?: (todo: Doc<"todos">) => void;
 }) {
   const isCompleted = todo.status === "COMPLETED";
+  const isDragging = useRef(false);
 
   return (
     <div
       draggable={draggable}
-      onDragStart={(event) => onDragStart(event, todo._id)}
+      onDragStart={(event) => {
+        isDragging.current = true;
+        onDragStart(event, todo._id);
+      }}
+      onDragEnd={() => {
+        isDragging.current = false;
+      }}
+      onClick={() => {
+        if (!isDragging.current && onClick) {
+          onClick(todo);
+        }
+      }}
       className={cn(
         "group glass-card todo-card rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2",
         draggable
           ? "cursor-grab active:cursor-grabbing"
-          : "cursor-default",
+          : onClick
+            ? "cursor-pointer"
+            : "cursor-default",
         isCompleted && "opacity-60",
       )}
       style={{ animationDelay: `${index * 50}ms`, animationFillMode: "both" }}
@@ -70,6 +86,17 @@ export function TodoCard({
           {formatRelativeTime(todo._creationTime)}
         </span>
       </div>
+      {todo.sandboxUrl && (
+        <a
+          href={todo.sandboxUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-xs text-[--col-inprogress] underline hover:opacity-80"
+        >
+          Open Sandbox →
+        </a>
+      )}
       {/* Future: agent-working indicator
       <div className="flex items-center gap-1.5 text-col-agent">
         <Sparkles className="h-3 w-3" />

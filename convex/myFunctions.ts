@@ -1,6 +1,6 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalAction, mutation, query } from "./_generated/server";
+import { internalAction, internalMutation, mutation, query } from "./_generated/server";
 
 const statusValidator = v.union(
   v.literal("TODO"),
@@ -14,6 +14,9 @@ const todoValidator = v.object({
   title: v.string(),
   description: v.optional(v.string()),
   status: statusValidator,
+  githubUrl: v.optional(v.string()),
+  sandboxId: v.optional(v.string()),
+  sandboxUrl: v.optional(v.string()),
 });
 
 export const listTodos = query({
@@ -50,11 +53,13 @@ export const createTodo = mutation({
   args: {
     title: v.string(),
     description: v.optional(v.string()),
+    githubUrl: v.optional(v.string()),
   },
   returns: v.id("todos"),
   handler: async (ctx, args) => {
     const title = args.title.trim();
     const description = args.description?.trim();
+    const githubUrl = args.githubUrl?.trim();
 
     if (!title) {
       throw new ConvexError({
@@ -66,6 +71,7 @@ export const createTodo = mutation({
     return await ctx.db.insert("todos", {
       title,
       description: description ? description : undefined,
+      githubUrl: githubUrl ? githubUrl : undefined,
       status: "TODO",
     });
   },
@@ -157,6 +163,119 @@ export const moveTodoToInProgress = mutation({
         timestampMs: Date.now(),
       },
     );
+    if (todo.githubUrl) {
+      await ctx.scheduler.runAfter(0, internal.sandbox.spawnSandboxForTodo, {
+        todoId: args.todoId,
+        githubUrl: todo.githubUrl,
+      });
+    }
+    return null;
+  },
+});
+
+export const updateTodo = mutation({
+  args: {
+    todoId: v.id("todos"),
+    title: v.optional(v.string()),
+    description: v.optional(v.string()),
+    status: v.optional(statusValidator),
+    githubUrl: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const todo = await ctx.db.get(args.todoId);
+    if (!todo) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Todo not found",
+      });
+    }
+
+    const patch: Record<string, unknown> = {};
+
+    if (args.title !== undefined) {
+      const trimmed = args.title.trim();
+      if (!trimmed) {
+        throw new ConvexError({
+          code: "INVALID_TITLE",
+          message: "Title cannot be empty",
+        });
+      }
+      patch.title = trimmed;
+    }
+
+    if (args.description !== undefined) {
+      patch.description = args.description.trim() || undefined;
+    }
+
+    if (args.githubUrl !== undefined) {
+      patch.githubUrl = args.githubUrl.trim() || undefined;
+    }
+
+    if (args.status !== undefined && args.status !== todo.status) {
+      const fromStatus = todo.status;
+      patch.status = args.status;
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.myFunctions.logTodoStatusTransition,
+        {
+          todoId: args.todoId,
+          fromStatus,
+          toStatus: args.status,
+          timestampMs: Date.now(),
+        },
+      );
+
+      if (
+        args.status === "INPROGRESS" &&
+        (args.githubUrl?.trim() || todo.githubUrl)
+      ) {
+        await ctx.scheduler.runAfter(0, internal.sandbox.spawnSandboxForTodo, {
+          todoId: args.todoId,
+          githubUrl: args.githubUrl?.trim() || todo.githubUrl!,
+        });
+      }
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch(args.todoId, patch);
+    }
+
+    return null;
+  },
+});
+
+export const deleteTodo = mutation({
+  args: {
+    todoId: v.id("todos"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const todo = await ctx.db.get(args.todoId);
+    if (!todo) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Todo not found",
+      });
+    }
+    await ctx.db.delete(args.todoId);
+    return null;
+  },
+});
+
+export const saveSandboxResult = internalMutation({
+  args: {
+    todoId: v.id("todos"),
+    sandboxId: v.string(),
+    sandboxUrl: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.todoId, {
+      sandboxId: args.sandboxId,
+      sandboxUrl: args.sandboxUrl,
+    });
     return null;
   },
 });

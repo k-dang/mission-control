@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback, type DragEvent, type FormEvent } from "react";
+import { useState, useRef, useCallback, useEffect, type DragEvent, type FormEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
-import type { Id } from "../convex/_generated/dataModel";
+import type { Doc, Id } from "../convex/_generated/dataModel";
 import { getErrorMessage } from "@/lib/errors";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import {
@@ -15,6 +15,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { TaskDetailPanel } from "@/components/kanban/task-detail-panel";
 import { Button } from "@/components/ui/button";
 import {
   Plus,
@@ -38,17 +40,20 @@ export default function Home() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [githubUrl, setGithubUrl] = useState("https://github.com/k-dang/mission-control");
   const [quickTitle, setQuickTitle] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedTodoId, setSelectedTodoId] = useState<Id<"todos"> | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = useCallback(() => {
     setTitle("");
     setDescription("");
+    setGithubUrl("");
     setFormError(null);
   }, []);
 
@@ -71,6 +76,7 @@ export default function Home() {
       await createTodo({
         title,
         description: description.trim() ? description : undefined,
+        githubUrl: githubUrl.trim() ? githubUrl : undefined,
       });
       resetForm();
       setDialogOpen(false);
@@ -118,6 +124,24 @@ export default function Home() {
       setDropError(getErrorMessage(error));
     }
   };
+
+  const handleCardClick = useCallback((todo: Doc<"todos">) => {
+    setSelectedTodoId(todo._id);
+  }, []);
+
+  const sheetOpen = selectedTodoId !== null;
+  const resolvedTodo = todos
+    ? [...todos.todo, ...todos.inprogress, ...todos.completed].find(
+        (t) => t._id === selectedTodoId,
+      ) ?? null
+    : null;
+
+  // Auto-close sheet if todo was deleted
+  useEffect(() => {
+    if (selectedTodoId && todos && !resolvedTodo) {
+      setSelectedTodoId(null);
+    }
+  }, [selectedTodoId, todos, resolvedTodo]);
 
   if (!todos) {
     return (
@@ -263,6 +287,21 @@ export default function Home() {
                         className="resize-none rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
                       />
                     </label>
+                    <label className="flex flex-col gap-1.5">
+                      <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                        GitHub URL{" "}
+                        <span className="normal-case tracking-normal text-muted-foreground/50">
+                          (optional)
+                        </span>
+                      </span>
+                      <input
+                        value={githubUrl}
+                        onChange={(event) => setGithubUrl(event.target.value)}
+                        placeholder="https://github.com/owner/repo"
+                        type="url"
+                        className="rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+                      />
+                    </label>
                     {formError ? (
                       <div className="flex items-center gap-2 text-sm text-destructive">
                         <AlertCircle className="h-4 w-4 shrink-0" />
@@ -341,6 +380,7 @@ export default function Home() {
             todos={todos.todo}
             draggable
             onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
           />
           <KanbanColumn
             status="INPROGRESS"
@@ -354,15 +394,38 @@ export default function Home() {
             onDragLeave={() => setIsDropTargetActive(false)}
             onDrop={handleDropOnInProgress}
             isDropTarget={isDropTargetActive}
+            onCardClick={handleCardClick}
           />
           <KanbanColumn
             status="COMPLETED"
             todos={todos.completed}
             draggable={false}
             onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
           />
         </section>
       </div>
+
+      <Sheet
+        open={sheetOpen}
+        onOpenChange={(open) => {
+          if (!open) setSelectedTodoId(null);
+        }}
+      >
+        <SheetContent
+          side="right"
+          className="glass-card border-l-border/50 bg-card/80 backdrop-blur-xl w-full sm:max-w-lg"
+          showCloseButton={true}
+        >
+          {resolvedTodo && (
+            <TaskDetailPanel
+              key={resolvedTodo._id}
+              todo={resolvedTodo}
+              onClose={() => setSelectedTodoId(null)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </main>
   );
 }

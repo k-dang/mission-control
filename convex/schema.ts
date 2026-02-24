@@ -10,5 +10,8 @@ export default defineSchema({
       v.literal("INPROGRESS"),
       v.literal("COMPLETED"),
     ),
+    githubUrl: v.optional(v.string()),
+    sandboxId: v.optional(v.string()),
+    sandboxUrl: v.optional(v.string()),
   }).index("by_status", ["status"]),
 });

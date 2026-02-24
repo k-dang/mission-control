@@ -55,6 +55,7 @@ export function KanbanColumn({
   onDragLeave,
   onDrop,
   isDropTarget,
+  onCardClick,
 }: {
   status: Doc<"todos">["status"];
   todos: Doc<"todos">[];
@@ -64,6 +65,7 @@ export function KanbanColumn({
   onDragLeave?: () => void;
   onDrop?: (event: DragEvent<HTMLDivElement>) => void;
   isDropTarget?: boolean;
+  onCardClick?: (todo: Doc<"todos">) => void;
 }) {
   const config = COLUMN_CONFIG[status];
   const Icon = config.icon;
@@ -125,6 +127,7 @@ export function KanbanColumn({
                 draggable={draggable}
                 onDragStart={onDragStart}
                 index={i}
+                onClick={onCardClick}
               />
             ))
           )}
