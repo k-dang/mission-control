@@ -54,8 +54,8 @@ export function TaskDetailPanel({
   todo: Doc<"todos">;
   onClose: () => void;
 }) {
-  const updateTodo = useMutation(api.myFunctions.updateTodo);
-  const deleteTodo = useMutation(api.myFunctions.deleteTodo);
+  const updateTodo = useMutation(api.todos.update);
+  const deleteTodo = useMutation(api.todos.remove);
 
   const [editTitle, setEditTitle] = useState(todo.title);
   const [editDescription, setEditDescription] = useState(

@@ -34,9 +34,9 @@ const STAT_COLORS = {
 };
 
 export default function Home() {
-  const todos = useQuery(api.myFunctions.listTodos);
-  const createTodo = useMutation(api.myFunctions.createTodo);
-  const moveTodoToInProgress = useMutation(api.myFunctions.moveTodoToInProgress);
+  const todos = useQuery(api.todos.listByStatus);
+  const createTodo = useMutation(api.todos.create);
+  const moveTodoToInProgress = useMutation(api.todos.moveToInProgress);
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");

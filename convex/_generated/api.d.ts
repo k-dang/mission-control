@@ -8,8 +8,10 @@
  * @module
  */
 
-import type * as myFunctions from "../myFunctions.js";
 import type * as sandbox from "../sandbox.js";
+import type * as sandboxStorage from "../sandboxStorage.js";
+import type * as todoNotifications from "../todoNotifications.js";
+import type * as todos from "../todos.js";
 
 import type {
   ApiFromModules,
@@ -18,8 +20,10 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  myFunctions: typeof myFunctions;
   sandbox: typeof sandbox;
+  sandboxStorage: typeof sandboxStorage;
+  todoNotifications: typeof todoNotifications;
+  todos: typeof todos;
 }>;
 
 /**
