@@ -1,6 +1,20 @@
 import { v } from "convex/values";
 import { internalMutation } from "./_generated/server";
 
+export const clearSandboxResult = internalMutation({
+  args: {
+    todoId: v.id("todos"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch("todos", args.todoId, {
+      sandboxId: undefined,
+      sandboxUrl: undefined,
+    });
+    return null;
+  },
+});
+
 export const saveSandboxResult = internalMutation({
   args: {
     todoId: v.id("todos"),

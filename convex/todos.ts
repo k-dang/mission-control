@@ -220,6 +220,17 @@ export const update = mutation({
           githubUrl: args.githubUrl?.trim() || todo.githubUrl!,
         });
       }
+
+      if (args.status === "COMPLETED" && todo.sandboxId) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.sandbox.shutdownSandboxForTodo,
+          {
+            todoId: args.todoId,
+            sandboxId: todo.sandboxId,
+          },
+        );
+      }
     }
 
     if (Object.keys(patch).length > 0) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect, type DragEvent, type FormEvent } from "react";
+import { useState, useRef, useCallback, useEffect, type DragEvent, type SubmitEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
@@ -62,7 +62,7 @@ export default function Home() {
     if (!open) resetForm();
   }, [resetForm]);
 
-  const handleCreateTodo = async (event: FormEvent<HTMLFormElement>) => {
+  const handleCreateTodo = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFormError(null);
 
@@ -87,7 +87,7 @@ export default function Home() {
     }
   };
 
-  const handleQuickAdd = async (event: FormEvent<HTMLFormElement>) => {
+  const handleQuickAdd = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!quickTitle.trim()) return;
 

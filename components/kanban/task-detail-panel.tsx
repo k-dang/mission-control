@@ -105,6 +105,9 @@ export function TaskDetailPanel({
   const handleStatusChange = (status: Doc<"todos">["status"]) => {
     if (status !== todo.status) {
       updateTodo({ todoId: todo._id, status });
+      if (status === "COMPLETED" && todo.status === "INPROGRESS") {
+        onClose();
+      }
     }
   };
 

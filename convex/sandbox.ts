@@ -5,6 +5,41 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 
+export const shutdownSandboxForTodo = internalAction({
+  args: {
+    todoId: v.id("todos"),
+    sandboxId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    try {
+      const sandbox = await Sandbox.get({
+        sandboxId: args.sandboxId,
+        token: process.env.VERCEL_TOKEN,
+        teamId: process.env.VERCEL_TEAM_ID,
+        projectId: process.env.VERCEL_PROJECT_ID,
+      });
+      await sandbox.stop();
+      console.info("Sandbox stopped for todo", {
+        todoId: args.todoId,
+        sandboxId: args.sandboxId,
+      });
+    } catch (error) {
+      console.warn("Failed to stop sandbox", {
+        todoId: args.todoId,
+        sandboxId: args.sandboxId,
+        error,
+      });
+    }
+
+    await ctx.runMutation(internal.sandboxStorage.clearSandboxResult, {
+      todoId: args.todoId,
+    });
+
+    return null;
+  },
+});
+
 export const spawnSandboxForTodo = internalAction({
   args: {
     todoId: v.id("todos"),
