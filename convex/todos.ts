@@ -17,6 +17,7 @@ const todoValidator = v.object({
   githubUrl: v.optional(v.string()),
   sandboxId: v.optional(v.string()),
   sandboxUrl: v.optional(v.string()),
+  prUrl: v.optional(v.string()),
 });
 
 export const getById = internalQuery({
@@ -31,6 +32,7 @@ export const getById = internalQuery({
       githubUrl: v.optional(v.string()),
       sandboxId: v.optional(v.string()),
       sandboxUrl: v.optional(v.string()),
+      prUrl: v.optional(v.string()),
     }),
     v.null()
   ),
@@ -46,6 +48,7 @@ export const getById = internalQuery({
       githubUrl: todo.githubUrl,
       sandboxId: todo.sandboxId,
       sandboxUrl: todo.sandboxUrl,
+      prUrl: todo.prUrl,
     };
   },
 });

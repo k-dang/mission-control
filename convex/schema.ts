@@ -13,5 +13,6 @@ export default defineSchema({
     githubUrl: v.optional(v.string()),
     sandboxId: v.optional(v.string()),
     sandboxUrl: v.optional(v.string()),
+    prUrl: v.optional(v.string()),
   }).index("by_status", ["status"]),
 });

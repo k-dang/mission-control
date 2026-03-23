@@ -10,6 +10,7 @@ export const clearSandboxResult = internalMutation({
     await ctx.db.patch("todos", args.todoId, {
       sandboxId: undefined,
       sandboxUrl: undefined,
+      prUrl: undefined,
     });
     return null;
   },
@@ -26,6 +27,20 @@ export const saveSandboxResult = internalMutation({
     await ctx.db.patch("todos", args.todoId, {
       sandboxId: args.sandboxId,
       sandboxUrl: args.sandboxUrl,
+    });
+    return null;
+  },
+});
+
+export const savePrUrl = internalMutation({
+  args: {
+    todoId: v.id("todos"),
+    prUrl: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch("todos", args.todoId, {
+      prUrl: args.prUrl,
     });
     return null;
   },

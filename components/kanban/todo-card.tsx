@@ -97,12 +97,17 @@ export function TodoCard({
           Open Sandbox →
         </a>
       )}
-      {/* Future: agent-working indicator
-      <div className="flex items-center gap-1.5 text-col-agent">
-        <Sparkles className="h-3 w-3" />
-        <span className="text-[10px] font-medium">Agent working...</span>
-      </div>
-      */}
+      {todo.prUrl && (
+        <a
+          href={todo.prUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-xs text-[--col-inprogress] underline hover:opacity-80"
+        >
+          Open PR →
+        </a>
+      )}
     </div>
   );
 }
