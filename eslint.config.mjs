@@ -4,6 +4,7 @@ import nextTypescript from "eslint-config-next/typescript";
 import convexPlugin from "@convex-dev/eslint-plugin";
 
 export default defineConfig([
+  { ignores: ["opensrc/**"] },
   ...nextCoreWebVitals,
   ...nextTypescript,
   ...convexPlugin.configs.recommended,
