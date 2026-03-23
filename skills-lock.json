@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "sandbox": {
+      "source": "vercel/sandbox",
+      "sourceType": "github",
+      "computedHash": "fd5de99df5f4abd16839c3c99d60fc7b6b541a82b82647352a7ba77280e8beed"
+    }
+  }
+}
