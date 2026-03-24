@@ -39,12 +39,19 @@ const STATUS_OPTIONS: {
     colorClass: "text-col-completed",
     bgClass: "bg-col-completed",
   },
+  {
+    value: "FAILED",
+    label: "FAILED",
+    colorClass: "text-col-failed",
+    bgClass: "bg-col-failed",
+  },
 ];
 
 const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
   TODO: "bg-col-todo",
   INPROGRESS: "bg-col-inprogress",
   COMPLETED: "bg-col-completed",
+  FAILED: "bg-col-failed",
 };
 
 export function TaskDetailPanel({

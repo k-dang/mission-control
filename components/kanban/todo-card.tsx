@@ -8,6 +8,7 @@ const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
   TODO: "bg-col-todo",
   INPROGRESS: "bg-col-inprogress",
   COMPLETED: "bg-col-completed",
+  FAILED: "bg-col-failed",
 };
 
 export function TodoCard({

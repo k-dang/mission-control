@@ -32,6 +32,24 @@ export const saveSandboxResult = internalMutation({
   },
 });
 
+export const markFailed = internalMutation({
+  args: {
+    todoId: v.id("todos"),
+    error: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.patch("todos", args.todoId, {
+      status: "FAILED",
+    });
+    console.error("Todo marked as FAILED", {
+      todoId: args.todoId,
+      error: args.error,
+    });
+    return null;
+  },
+});
+
 export const savePrUrl = internalMutation({
   args: {
     todoId: v.id("todos"),

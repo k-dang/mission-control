@@ -6,6 +6,7 @@ const statusValidator = v.union(
   v.literal("TODO"),
   v.literal("INPROGRESS"),
   v.literal("COMPLETED"),
+  v.literal("FAILED"),
 );
 
 const todoValidator = v.object({

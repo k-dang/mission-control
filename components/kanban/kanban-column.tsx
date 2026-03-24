@@ -1,7 +1,15 @@
 import type { DragEvent } from "react";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
-import { CircleDot, Timer, CheckCircle2, Inbox, ArrowRight, PartyPopper } from "lucide-react";
+import {
+  CircleDot,
+  Timer,
+  CheckCircle2,
+  Inbox,
+  ArrowRight,
+  PartyPopper,
+  CircleAlert,
+} from "lucide-react";
 import { TodoCard } from "./todo-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
@@ -43,6 +51,15 @@ const COLUMN_CONFIG: Record<
     emptySubtext: "Finished tasks appear here",
     emptyIcon: PartyPopper,
     accentClass: "column-accent-COMPLETED",
+  },
+  FAILED: {
+    label: "FAILED",
+    icon: CircleAlert,
+    colorClass: "text-col-failed",
+    emptyText: "No failed tasks",
+    emptySubtext: "Errors from automation show here",
+    emptyIcon: CircleAlert,
+    accentClass: "column-accent-FAILED",
   },
 };
 

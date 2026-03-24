@@ -27,6 +27,7 @@
   --color-col-todo: var(--col-todo);
   --color-col-inprogress: var(--col-inprogress);
   --color-col-completed: var(--col-completed);
+  --color-col-failed: var(--col-failed);
   --color-col-agent: var(--col-agent);
   --color-surface-glass: var(--surface-glass);
   --color-glow-amber: var(--glow-amber);
@@ -64,6 +65,7 @@
   --col-todo: oklch(0.75 0.15 55);
   --col-inprogress: oklch(0.65 0.17 250);
   --col-completed: oklch(0.68 0.14 155);
+  --col-failed: oklch(0.58 0.22 25);
   --col-agent: oklch(0.65 0.18 300);
   --surface-glass: oklch(1 0 0 / 4%);
   --glow-amber: oklch(0.75 0.15 55 / 20%);
@@ -93,6 +95,7 @@
   --col-todo: oklch(0.75 0.15 55);
   --col-inprogress: oklch(0.65 0.17 250);
   --col-completed: oklch(0.68 0.14 155);
+  --col-failed: oklch(0.62 0.2 25);
   --col-agent: oklch(0.65 0.18 300);
   --surface-glass: oklch(1 0 0 / 4%);
   --glow-amber: oklch(0.75 0.15 55 / 20%);
@@ -164,6 +167,10 @@
 .column-accent-COMPLETED {
   border-top: 2px solid var(--col-completed);
   box-shadow: inset 0 1px 12px oklch(0.68 0.14 155 / 6%);
+}
+.column-accent-FAILED {
+  border-top: 2px solid var(--col-failed);
+  box-shadow: inset 0 1px 12px oklch(0.58 0.22 25 / 6%);
 }
 
 /* Drop target glows */

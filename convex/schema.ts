@@ -9,6 +9,7 @@ export default defineSchema({
       v.literal("TODO"),
       v.literal("INPROGRESS"),
       v.literal("COMPLETED"),
+      v.literal("FAILED"),
     ),
     githubUrl: v.optional(v.string()),
     sandboxId: v.optional(v.string()),

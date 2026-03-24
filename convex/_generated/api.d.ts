@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as opencode from "../opencode.js";
 import type * as sandbox from "../sandbox.js";
 import type * as sandboxStorage from "../sandboxStorage.js";
 import type * as todoNotifications from "../todoNotifications.js";
@@ -20,6 +21,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  opencode: typeof opencode;
   sandbox: typeof sandbox;
   sandboxStorage: typeof sandboxStorage;
   todoNotifications: typeof todoNotifications;

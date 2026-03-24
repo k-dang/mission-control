@@ -33,14 +33,19 @@ const STAT_COLORS = {
   completed: "oklch(0.68 0.14 155)",
 };
 
+const CREATE_TODO_DEFAULT_GITHUB_URL = "https://github.com/k-dang/mission-control";
+const CREATE_TODO_DEFAULT_TITLE = "Adding a new FAILED column";
+const CREATE_TODO_DEFAULT_DESCRIPTION =
+  "Add a new FAILED column so failed tasks have a dedicated place in the workflow.";
+
 export default function Home() {
   const todos = useQuery(api.todos.listByStatus);
   const createTodo = useMutation(api.todos.create);
   const moveTodoToInProgress = useMutation(api.todos.moveToInProgress);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [githubUrl, setGithubUrl] = useState("https://github.com/k-dang/mission-control");
+  const [title, setTitle] = useState(CREATE_TODO_DEFAULT_TITLE);
+  const [description, setDescription] = useState(CREATE_TODO_DEFAULT_DESCRIPTION);
+  const [githubUrl, setGithubUrl] = useState(CREATE_TODO_DEFAULT_GITHUB_URL);
   const [quickTitle, setQuickTitle] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
@@ -51,9 +56,9 @@ export default function Home() {
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = useCallback(() => {
-    setTitle("");
-    setDescription("");
-    setGithubUrl("");
+    setTitle(CREATE_TODO_DEFAULT_TITLE);
+    setDescription(CREATE_TODO_DEFAULT_DESCRIPTION);
+    setGithubUrl(CREATE_TODO_DEFAULT_GITHUB_URL);
     setFormError(null);
   }, []);
 
