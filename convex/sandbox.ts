@@ -83,6 +83,16 @@ export const spawnSandboxForTodo = internalAction({
       teamId: VERCEL_TEAM_ID,
       projectId: VERCEL_PROJECT_ID,
       token: VERCEL_TOKEN,
+      // Allow git clone, OpenCode installer, AI Gateway, and PR flow before opencode.ts tightens policy with credential brokering.
+      networkPolicy: {
+        allow: [
+          "github.com",
+          "*.github.com",
+          "api.github.com",
+          "opencode.ai",
+          "ai-gateway.vercel.sh",
+        ],
+      },
     });
 
     const sandboxUrl = sandbox.domain(3000);
