@@ -10,11 +10,8 @@ const OPENCODE_PORT = 4096;
 const OPENCODE_BIN = "/home/vercel-sandbox/.opencode/bin/opencode";
 const OPENCODE_CONFIG_PATH =
   "/home/vercel-sandbox/.config/opencode/opencode.json";
-/** Default matches Vercel AI Gateway + OpenCode docs. */
 const DEFAULT_VERCEL_MODEL = "anthropic/claude-sonnet-4.6";
-/** Upstream mounts health at `/global/health` (see GlobalRoutes in opencode server). */
 const OPENCODE_HEALTH_PATH = "/global/health";
-/** Matches Vercel KB: wait for OpenCode DB migration before hitting `/global/health`. */
 const HEALTH_START_WAIT_MS = 8000;
 
 async function sleep(ms: number) {
@@ -22,7 +19,6 @@ async function sleep(ms: number) {
 }
 
 function buildOpencodeConfigJson(modelId: string) {
-  // API key is injected via sandbox network policy (credential brokering), not stored in the VM.
   return JSON.stringify(
     {
       $schema: "https://opencode.ai/config.json",
@@ -73,9 +69,7 @@ export const runOpencodeForTodo = internalAction({
         projectId: process.env.VERCEL_PROJECT_ID,
       });
 
-      console.info("Installing OpenCode in sandbox (official installer)", {
-        todoId: args.todoId,
-      });
+      console.info("Installing OpenCode", { todoId: args.todoId });
       const install = await sandbox.runCommand({
         cmd: "bash",
         args: ["-c", "curl -fsSL https://opencode.ai/install | bash"],
@@ -101,9 +95,7 @@ export const runOpencodeForTodo = internalAction({
 
       const serverPassword = randomBytes(24).toString("base64url");
 
-      console.info("Starting OpenCode server with basic auth", {
-        todoId: args.todoId,
-      });
+      console.info("Starting OpenCode server", { todoId: args.todoId });
       await sandbox.runCommand({
         cmd: "bash",
         args: [
@@ -120,32 +112,25 @@ export const runOpencodeForTodo = internalAction({
         "base64",
       );
 
-      let res: Response;
-      try {
-        res = await fetch(`${publicUrl}${OPENCODE_HEALTH_PATH}`, {
-          headers: { Authorization: `Basic ${auth}` },
-        });
-      } catch (fetchErr) {
-        throw new Error(
-          `OpenCode health fetch failed: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`,
-        );
-      }
+      const res = await fetch(`${publicUrl}${OPENCODE_HEALTH_PATH}`, {
+        headers: { Authorization: `Basic ${auth}` },
+      });
 
       if (!res.ok) {
         throw new Error(`OpenCode /global/health returned ${res.status}`);
       }
 
-      const health = (await res.json()) as { healthy?: boolean; version?: string };
-      console.log(health);
-
-      if (health.healthy !== true) {
+      const health = await res.json();
+      if (
+        typeof health !== "object" ||
+        health === null ||
+        !("healthy" in health) ||
+        health.healthy !== true
+      ) {
         throw new Error("OpenCode health check did not report healthy");
       }
 
-      console.info(
-        "Restricting sandbox egress to AI Gateway (credential brokering)",
-        { todoId: args.todoId },
-      );
+      console.info("Updating network policy", { todoId: args.todoId });
       await sandbox.updateNetworkPolicy({
         allow: {
           "ai-gateway.vercel.sh": [
@@ -160,11 +145,10 @@ export const runOpencodeForTodo = internalAction({
         },
       });
 
-      console.info("OpenCode install and server verification succeeded", {
+      console.info("OpenCode ready", {
         todoId: args.todoId,
         cliVersion: versionText,
         health,
-        healthUrl: `${publicUrl}${OPENCODE_HEALTH_PATH}`,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
