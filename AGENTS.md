@@ -28,14 +28,6 @@
 - Run for runtime-impacting edits: `pnpm build`
 - For Convex function/schema edits, verify `pnpm dev:backend` starts cleanly.
 
-## Repository Layout
-
-- `app/` - Next.js App Router pages/layout.
-- `components/` - shared React components.
-- `convex/` - Convex schema and backend functions.
-- `convex/_generated/` - generated API/types.
-- `public/` - static assets.
-
 ## Code Style Guidelines
 
 ### Naming conventions
@@ -45,20 +37,6 @@
 - Constants: `UPPER_SNAKE_CASE` only when truly constant.
 - Convex function names should be descriptive and behavior-focused.
 - Follow Next.js file conventions (`page.tsx`, `layout.tsx`, etc.).
-
-### React / Next.js patterns
-
-- Default to server components; add `"use client"` only when required.
-- Use `useEffect` for side effects and always include cleanup when needed.
-- Use Next primitives (`next/link`, `next/image`) instead of raw HTML equivalents where appropriate.
-- Keep route-level data loading near route boundaries.
-
-### Error handling
-
-- Fail fast on invalid assumptions and missing required state.
-- Throw explicit, actionable errors.
-- Never silently swallow exceptions.
-- Use fire-and-forget async calls only when intentionally non-blocking.
 
 ### State and data flow
 
@@ -116,3 +94,11 @@ npx opensrc <owner>/<repo>      # GitHub repo (e.g., npx opensrc vercel/ai)
 ```
 
 <!-- opensrc:end -->
+
+<!-- BEGIN:nextjs-agent-rules -->
+ 
+# Next.js: ALWAYS read docs before coding
+ 
+Before any Next.js work, find and read the relevant doc in `node_modules/next/dist/docs/`. Your training data is outdated — the docs are the source of truth.
+ 
+<!-- END:nextjs-agent-rules -->
