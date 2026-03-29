@@ -9,18 +9,16 @@ const OPENCODE_PORT = 4096;
 const OPENCODE_BIN = "/home/vercel-sandbox/.opencode/bin/opencode";
 const OPENCODE_CONFIG_PATH =
   "/home/vercel-sandbox/.config/opencode/opencode.json";
-const DEFAULT_VERCEL_MODEL = "anthropic/claude-sonnet-4.6";
+const DEFAULT_VERCEL_MODEL = "moonshotai/kimi-k2.5";
 const OPENCODE_HEALTH_PATH = "/global/health";
 const HEALTH_TIMEOUT_MS = 30_000;
-const HEALTH_POLL_INTERVAL_MS = 1_000;
+const HEALTH_POLL_INTERVAL_MS = 3_000;
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function isHealthyResponse(
-  health: unknown,
-): health is { healthy: true } {
+function isHealthyResponse(health: unknown): health is { healthy: true } {
   return (
     typeof health === "object" &&
     health !== null &&
@@ -42,7 +40,11 @@ async function waitForOpencodeHealth(publicUrl: string) {
 
       if (!res.ok) {
         lastFailure = `health endpoint returned ${res.status}`;
-        console.info("OpenCode health check pending", { attempt, status: res.status, url: healthUrl });
+        console.info("OpenCode health check pending", {
+          attempt,
+          status: res.status,
+          url: healthUrl,
+        });
       } else {
         const health = await res.json();
         if (isHealthyResponse(health)) {
@@ -53,7 +55,11 @@ async function waitForOpencodeHealth(publicUrl: string) {
           return health;
         }
         lastFailure = "health endpoint did not report healthy";
-        console.info("OpenCode health check pending", { attempt, reason: lastFailure, url: healthUrl });
+        console.info("OpenCode health check pending", {
+          attempt,
+          reason: lastFailure,
+          url: healthUrl,
+        });
       }
     } catch (error) {
       lastFailure =
@@ -73,14 +79,14 @@ async function waitForOpencodeHealth(publicUrl: string) {
   );
 }
 
-function buildOpencodeConfigJson(modelId: string) {
+function buildOpencodeConfigJson(aiGatewayApiKey: string, modelId: string) {
   return JSON.stringify(
     {
       $schema: "https://opencode.ai/config.json",
       enabled_providers: ["vercel"],
       provider: {
         vercel: {
-          options: {},
+          options: { apiKey: aiGatewayApiKey },
           models: { [modelId]: {} },
         },
       },
@@ -108,8 +114,8 @@ export const runOpencodeForTodo = internalAction({
     }
 
     try {
-      const aiGatewayApiKey = process.env.AI_GATEWAY_API_KEY;
-      if (!aiGatewayApiKey?.trim()) {
+      const AI_GATEWAY_API_KEY = process.env.AI_GATEWAY_API_KEY;
+      if (!AI_GATEWAY_API_KEY?.trim()) {
         throw new Error(
           "AI_GATEWAY_API_KEY is required for OpenCode with Vercel AI Gateway (set in Convex env)",
         );
@@ -138,7 +144,7 @@ export const runOpencodeForTodo = internalAction({
       const versionText = (await version.output()).toString().trim();
       console.log("OpenCode version:", versionText);
 
-      const opencodeConfig = buildOpencodeConfigJson(DEFAULT_VERCEL_MODEL);
+      const opencodeConfig = buildOpencodeConfigJson(AI_GATEWAY_API_KEY, DEFAULT_VERCEL_MODEL);
       await sandbox.writeFiles([
         {
           path: OPENCODE_CONFIG_PATH,
