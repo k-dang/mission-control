@@ -1,6 +1,5 @@
 "use node";
 
-import { randomBytes } from "node:crypto";
 import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -12,10 +11,66 @@ const OPENCODE_CONFIG_PATH =
   "/home/vercel-sandbox/.config/opencode/opencode.json";
 const DEFAULT_VERCEL_MODEL = "anthropic/claude-sonnet-4.6";
 const OPENCODE_HEALTH_PATH = "/global/health";
-const HEALTH_START_WAIT_MS = 8000;
+const HEALTH_TIMEOUT_MS = 30_000;
+const HEALTH_POLL_INTERVAL_MS = 1_000;
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isHealthyResponse(
+  health: unknown,
+): health is { healthy: true } {
+  return (
+    typeof health === "object" &&
+    health !== null &&
+    "healthy" in health &&
+    health.healthy === true
+  );
+}
+
+async function waitForOpencodeHealth(publicUrl: string) {
+  const deadline = Date.now() + HEALTH_TIMEOUT_MS;
+  let lastFailure = "no response received";
+  let attempt = 0;
+  const healthUrl = `${publicUrl}${OPENCODE_HEALTH_PATH}`;
+
+  while (Date.now() < deadline) {
+    attempt += 1;
+    try {
+      const res = await fetch(healthUrl);
+
+      if (!res.ok) {
+        lastFailure = `health endpoint returned ${res.status}`;
+        console.info("OpenCode health check pending", { attempt, status: res.status, url: healthUrl });
+      } else {
+        const health = await res.json();
+        if (isHealthyResponse(health)) {
+          console.info("OpenCode health check passed", {
+            attempt,
+            url: healthUrl,
+          });
+          return health;
+        }
+        lastFailure = "health endpoint did not report healthy";
+        console.info("OpenCode health check pending", { attempt, reason: lastFailure, url: healthUrl });
+      }
+    } catch (error) {
+      lastFailure =
+        error instanceof Error ? error.message : "health check failed";
+      console.info("OpenCode health check pending", {
+        attempt,
+        reason: lastFailure,
+        url: healthUrl,
+      });
+    }
+
+    await sleep(HEALTH_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(
+    `OpenCode did not become healthy within ${HEALTH_TIMEOUT_MS}ms: ${lastFailure}`,
+  );
 }
 
 function buildOpencodeConfigJson(modelId: string) {
@@ -51,8 +106,6 @@ export const runOpencodeForTodo = internalAction({
       });
       return null;
     }
-
-    const sandboxId = todo.sandboxId;
 
     try {
       const aiGatewayApiKey = process.env.AI_GATEWAY_API_KEY;
@@ -93,57 +146,31 @@ export const runOpencodeForTodo = internalAction({
         },
       ]);
 
-      const serverPassword = randomBytes(24).toString("base64url");
-
       console.info("Starting OpenCode server", { todoId: args.todoId });
       await sandbox.runCommand({
-        cmd: "bash",
-        args: [
-          "-lc",
-          `nohup "${OPENCODE_BIN}" serve --hostname 0.0.0.0 --port ${OPENCODE_PORT} > /tmp/opencode.log 2>&1 &`,
-        ],
-        env: { OPENCODE_SERVER_PASSWORD: serverPassword },
+        cmd: OPENCODE_BIN,
+        args: ["serve", "--hostname", "0.0.0.0", "--port", `${OPENCODE_PORT}`],
+        detached: true,
       });
 
-      await sleep(HEALTH_START_WAIT_MS);
+      const publicUrl = sandbox.domain(OPENCODE_PORT);
+      const health = await waitForOpencodeHealth(publicUrl);
 
-      const publicUrl = `https://${sandbox.domain(OPENCODE_PORT)}`;
-      const auth = Buffer.from(`opencode:${serverPassword}`, "utf8").toString(
-        "base64",
-      );
-
-      const res = await fetch(`${publicUrl}${OPENCODE_HEALTH_PATH}`, {
-        headers: { Authorization: `Basic ${auth}` },
-      });
-
-      if (!res.ok) {
-        throw new Error(`OpenCode /global/health returned ${res.status}`);
-      }
-
-      const health = await res.json();
-      if (
-        typeof health !== "object" ||
-        health === null ||
-        !("healthy" in health) ||
-        health.healthy !== true
-      ) {
-        throw new Error("OpenCode health check did not report healthy");
-      }
-
-      console.info("Updating network policy", { todoId: args.todoId });
-      await sandbox.updateNetworkPolicy({
-        allow: {
-          "ai-gateway.vercel.sh": [
-            {
-              transform: [
-                {
-                  headers: { "x-api-key": aiGatewayApiKey },
-                },
-              ],
-            },
-          ],
-        },
-      });
+      // Only available in Pro or Enterprise plans
+      // console.info("Updating network policy", { todoId: args.todoId });
+      // await sandbox.updateNetworkPolicy({
+      //   allow: {
+      //     "ai-gateway.vercel.sh": [
+      //       {
+      //         transform: [
+      //           {
+      //             headers: { "x-api-key": aiGatewayApiKey },
+      //           },
+      //         ],
+      //       },
+      //     ],
+      //   },
+      // });
 
       console.info("OpenCode ready", {
         todoId: args.todoId,
@@ -152,13 +179,14 @@ export const runOpencodeForTodo = internalAction({
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
+      console.error("OpenCode failed", { todoId: args.todoId, error: message });
       await ctx.runMutation(internal.sandboxStorage.markFailed, {
         todoId: args.todoId,
         error: message,
       });
       await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
         todoId: args.todoId,
-        sandboxId,
+        sandboxId: todo.sandboxId,
       });
       throw error;
     }

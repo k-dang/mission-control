@@ -42,10 +42,6 @@ export const markFailed = internalMutation({
     await ctx.db.patch("todos", args.todoId, {
       status: "FAILED",
     });
-    console.error("Todo marked as FAILED", {
-      todoId: args.todoId,
-      error: args.error,
-    });
     return null;
   },
 });
