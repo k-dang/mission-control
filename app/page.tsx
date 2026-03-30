@@ -27,7 +27,6 @@ import { TaskDetailPanel } from "@/components/kanban/task-detail-panel";
 import { Button } from "@/components/ui/button";
 import {
   Plus,
-  Zap,
   AlertCircle,
   Loader2,
   ArrowRight,
@@ -252,53 +251,38 @@ export default function Home() {
     <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
       <div className="ambient-bg" />
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
-        <header className="space-y-4">
+        <header className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Zap className="h-7 w-7 text-primary" />
-              <div>
-                <div className="flex items-center gap-2.5">
-                  <h1 className="font-mono text-xl font-bold uppercase tracking-[0.12em] text-foreground">
-                    Mission Control
-                  </h1>
-                  <div className="status-beacon" />
-                </div>
-                <p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                  Task orchestration system
-                </p>
+            {/* Stat pills */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: STAT_COLORS.todo }}
+                />
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                  {todos.todo.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: STAT_COLORS.inprogress }}
+                />
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                  {todos.inprogress.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: STAT_COLORS.completed }}
+                />
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                  {todos.completed.length}
+                </span>
               </div>
             </div>
-            <div className="flex items-center gap-4">
-              {/* Stat pills */}
-              <div className="hidden items-center gap-2 sm:flex">
-                <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
-                  <span
-                    className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{ background: STAT_COLORS.todo }}
-                  />
-                  <span className="font-mono text-[10px] font-semibold text-muted-foreground">
-                    {todos.todo.length}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
-                  <span
-                    className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{ background: STAT_COLORS.inprogress }}
-                  />
-                  <span className="font-mono text-[10px] font-semibold text-muted-foreground">
-                    {todos.inprogress.length}
-                  </span>
-                </div>
-                <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
-                  <span
-                    className="inline-block h-1.5 w-1.5 rounded-full"
-                    style={{ background: STAT_COLORS.completed }}
-                  />
-                  <span className="font-mono text-[10px] font-semibold text-muted-foreground">
-                    {todos.completed.length}
-                  </span>
-                </div>
-              </div>
               <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
                 <DialogTrigger asChild>
                   <Button variant="glow" size="sm">
@@ -394,7 +378,6 @@ export default function Home() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
-            </div>
           </div>
 
           {/* Quick add bar */}
