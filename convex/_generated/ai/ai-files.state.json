@@ -1,0 +1,33 @@
+{
+  "guidelinesHash": "294b619f8246c26bd6bfb6a57122503f0e2149872fc6b26609b7a95bfefaf2b8",
+  "agentsMdSectionHash": "bbf30bd25ceea0aefd279d62e1cb2b4c207fcb712b69adf26f3d02b296ffc7b2",
+  "claudeMdHash": "bbf30bd25ceea0aefd279d62e1cb2b4c207fcb712b69adf26f3d02b296ffc7b2",
+  "agentSkillsSha": "dc8ff761cfe4da450af2ea8a9ec708f737064bed",
+  "installedSkillNames": [
+    "avoid-feature-creep",
+    "components-guide",
+    "convex",
+    "convex-agents",
+    "convex-best-practices",
+    "convex-component-authoring",
+    "convex-create-component",
+    "convex-cron-jobs",
+    "convex-file-storage",
+    "convex-functions",
+    "convex-helpers-guide",
+    "convex-http-actions",
+    "convex-migration-helper",
+    "convex-migrations",
+    "convex-performance-audit",
+    "convex-quickstart",
+    "convex-realtime",
+    "convex-schema-validator",
+    "convex-security-audit",
+    "convex-security-check",
+    "convex-setup-auth",
+    "function-creator",
+    "migration-helper",
+    "sandbox",
+    "schema-builder"
+  ]
+}
