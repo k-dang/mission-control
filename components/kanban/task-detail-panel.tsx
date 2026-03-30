@@ -123,10 +123,7 @@ export function TaskDetailPanel({
     onClose();
   };
 
-  const handleKeyDownRevert = (
-    e: KeyboardEvent,
-    revert: () => void,
-  ) => {
+  const handleKeyDownRevert = (e: KeyboardEvent, revert: () => void) => {
     if (e.key === "Escape") {
       revert();
       (e.target as HTMLElement).blur();
@@ -277,24 +274,6 @@ export function TaskDetailPanel({
                 </a>
               )}
             </div>
-
-            {todo.sandboxUrl && (
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-muted-foreground/60">
-                  SANDBOX
-                </span>
-                <a
-                  href={todo.sandboxUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 truncate text-sm text-[--col-inprogress] hover:opacity-80"
-                >
-                  {todo.sandboxUrl}
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                </a>
-              </div>
-            )}
-
             {todo.prUrl && (
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/60">
@@ -311,7 +290,6 @@ export function TaskDetailPanel({
                 </a>
               </div>
             )}
-
           </div>
         </div>
       </div>

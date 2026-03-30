@@ -63,12 +63,8 @@ export const spawnSandboxForTodo = internalAction({
       });
       return null;
     }
-    const {
-      VERCEL_TEAM_ID,
-      VERCEL_PROJECT_ID,
-      VERCEL_TOKEN,
-      GITHUB_TOKEN,
-    } = process.env;
+    const { VERCEL_TEAM_ID, VERCEL_PROJECT_ID, VERCEL_TOKEN, GITHUB_TOKEN } =
+      process.env;
     if (!VERCEL_TEAM_ID || !VERCEL_PROJECT_ID || !VERCEL_TOKEN) {
       throw new Error("Missing required Vercel sandbox environment variables");
     }
@@ -76,7 +72,7 @@ export const spawnSandboxForTodo = internalAction({
     if (GITHUB_TOKEN) sandboxEnv.GITHUB_TOKEN = GITHUB_TOKEN;
     const sandbox = await Sandbox.create({
       source: { type: "git", url: args.githubUrl },
-      ports: [3000, 4096],
+      ports: [4096],
       runtime: "node24",
       timeout: 10 * 60 * 1000,
       env: Object.keys(sandboxEnv).length > 0 ? sandboxEnv : undefined,
@@ -85,12 +81,9 @@ export const spawnSandboxForTodo = internalAction({
       token: VERCEL_TOKEN,
     });
 
-    const sandboxUrl = sandbox.domain(3000);
-
     await ctx.runMutation(internal.sandboxStorage.saveSandboxResult, {
       todoId: args.todoId,
       sandboxId: sandbox.sandboxId,
-      sandboxUrl,
     });
 
     await ctx.scheduler.runAfter(0, internal.opencode.runOpencodeForTodo, {

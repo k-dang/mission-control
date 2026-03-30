@@ -87,17 +87,6 @@ export function TodoCard({
           {formatRelativeTime(todo._creationTime)}
         </span>
       </div>
-      {todo.sandboxUrl && (
-        <a
-          href={todo.sandboxUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-xs text-[--col-inprogress] underline hover:opacity-80"
-        >
-          Open Sandbox →
-        </a>
-      )}
       {todo.prUrl && (
         <a
           href={todo.prUrl}

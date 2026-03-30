@@ -17,7 +17,6 @@ const todoValidator = v.object({
   status: statusValidator,
   githubUrl: v.optional(v.string()),
   sandboxId: v.optional(v.string()),
-  sandboxUrl: v.optional(v.string()),
   prUrl: v.optional(v.string()),
 });
 
@@ -32,10 +31,9 @@ export const getById = internalQuery({
       status: statusValidator,
       githubUrl: v.optional(v.string()),
       sandboxId: v.optional(v.string()),
-      sandboxUrl: v.optional(v.string()),
       prUrl: v.optional(v.string()),
     }),
-    v.null()
+    v.null(),
   ),
   handler: async (ctx, args) => {
     const todo = await ctx.db.get("todos", args.todoId);
@@ -48,7 +46,6 @@ export const getById = internalQuery({
       status: todo.status,
       githubUrl: todo.githubUrl,
       sandboxId: todo.sandboxId,
-      sandboxUrl: todo.sandboxUrl,
       prUrl: todo.prUrl,
     };
   },

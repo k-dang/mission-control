@@ -123,7 +123,6 @@ function buildTodoPrompt(
   }
 
   lines.push(
-    "",
     "Expected outcome:",
     "1. Make the code changes needed to complete the task.",
     "2. Run relevant validation commands for the change.",
