@@ -1,6 +1,7 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalQuery, mutation, query } from "./_generated/server";
+import { requireAuthenticated } from "./authHelpers";
 
 const statusValidator = v.union(
   v.literal("TODO"),
@@ -59,6 +60,8 @@ export const listByStatus = query({
     completed: v.array(todoValidator),
   }),
   handler: async (ctx) => {
+    await requireAuthenticated(ctx);
+
     const [todo, inprogress, completed] = await Promise.all([
       ctx.db
         .query("todos")
@@ -89,6 +92,8 @@ export const create = mutation({
   },
   returns: v.id("todos"),
   handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+
     const title = args.title.trim();
     const description = args.description?.trim();
     const githubUrl = args.githubUrl?.trim();
@@ -115,6 +120,8 @@ export const moveToInProgress = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+
     const todo = await ctx.db.get("todos", args.todoId);
 
     if (!todo) {
@@ -167,6 +174,8 @@ export const update = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+
     const todo = await ctx.db.get("todos", args.todoId);
     if (!todo) {
       throw new ConvexError({
@@ -248,6 +257,8 @@ export const remove = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+
     const todo = await ctx.db.get("todos", args.todoId);
     if (!todo) {
       throw new ConvexError({

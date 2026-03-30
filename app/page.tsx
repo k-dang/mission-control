@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect, type DragEvent, type SubmitEvent } from "react";
-import { useMutation, useQuery } from "convex/react";
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  type DragEvent,
+  type SubmitEvent,
+} from "react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
 import { getErrorMessage } from "@/lib/errors";
@@ -33,18 +40,22 @@ const STAT_COLORS = {
   completed: "oklch(0.68 0.14 155)",
 };
 
-const CREATE_TODO_DEFAULT_GITHUB_URL = "https://github.com/k-dang/mission-control";
+const CREATE_TODO_DEFAULT_GITHUB_URL =
+  "https://github.com/k-dang/mission-control";
 const CREATE_TODO_DEFAULT_TITLE = "Adding a new FAILED column";
 const CREATE_TODO_DEFAULT_DESCRIPTION =
   "Add a new FAILED column so failed tasks have a dedicated place in the workflow.";
 
 export default function Home() {
-  const todos = useQuery(api.todos.listByStatus);
+  const { isLoading, isAuthenticated } = useConvexAuth();
+  const todos = useQuery(api.todos.listByStatus, isAuthenticated ? {} : "skip");
   const createTodo = useMutation(api.todos.create);
   const moveTodoToInProgress = useMutation(api.todos.moveToInProgress);
 
   const [title, setTitle] = useState(CREATE_TODO_DEFAULT_TITLE);
-  const [description, setDescription] = useState(CREATE_TODO_DEFAULT_DESCRIPTION);
+  const [description, setDescription] = useState(
+    CREATE_TODO_DEFAULT_DESCRIPTION,
+  );
   const [githubUrl, setGithubUrl] = useState(CREATE_TODO_DEFAULT_GITHUB_URL);
   const [quickTitle, setQuickTitle] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
@@ -52,7 +63,9 @@ export default function Home() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDropTargetActive, setIsDropTargetActive] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [selectedTodoId, setSelectedTodoId] = useState<Id<"todos"> | null>(null);
+  const [selectedTodoId, setSelectedTodoId] = useState<Id<"todos"> | null>(
+    null,
+  );
   const titleInputRef = useRef<HTMLInputElement>(null);
 
   const resetForm = useCallback(() => {
@@ -62,10 +75,13 @@ export default function Home() {
     setFormError(null);
   }, []);
 
-  const handleOpenChange = useCallback((open: boolean) => {
-    setDialogOpen(open);
-    if (!open) resetForm();
-  }, [resetForm]);
+  const handleOpenChange = useCallback(
+    (open: boolean) => {
+      setDialogOpen(open);
+      if (!open) resetForm();
+    },
+    [resetForm],
+  );
 
   const handleCreateTodo = async (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -136,9 +152,9 @@ export default function Home() {
 
   const sheetOpen = selectedTodoId !== null;
   const resolvedTodo = todos
-    ? [...todos.todo, ...todos.inprogress, ...todos.completed].find(
+    ? ([...todos.todo, ...todos.inprogress, ...todos.completed].find(
         (t) => t._id === selectedTodoId,
-      ) ?? null
+      ) ?? null)
     : null;
 
   // Auto-close sheet if todo was deleted
@@ -147,6 +163,49 @@ export default function Home() {
       setSelectedTodoId(null);
     }
   }, [selectedTodoId, todos, resolvedTodo]);
+
+  if (isLoading) {
+    return (
+      <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
+        <div className="ambient-bg" />
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 animate-pulse rounded-lg bg-muted/40" />
+              <div className="h-8 w-48 animate-pulse rounded-lg bg-muted/40" />
+            </div>
+            <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
+          </div>
+          <div className="grid gap-5 md:grid-cols-3">
+            {[0, 1, 2].map((col) => (
+              <div
+                key={col}
+                className="rounded-xl border border-border/30 bg-card/20 p-4"
+              >
+                <div className="mb-4 flex items-center gap-2">
+                  <div className="h-7 w-7 animate-pulse rounded-lg bg-muted/30" />
+                  <div className="h-4 w-24 animate-pulse rounded bg-muted/30" />
+                </div>
+                <div className="space-y-3">
+                  {[0, 1].map((card) => (
+                    <div
+                      key={card}
+                      className="h-16 animate-pulse rounded-lg bg-muted/15"
+                      style={{ animationDelay: `${(col * 2 + card) * 150}ms` }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return null;
+  }
 
   if (!todos) {
     return (

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as authHelpers from "../authHelpers.js";
 import type * as opencode from "../opencode.js";
 import type * as sandbox from "../sandbox.js";
 import type * as sandboxStorage from "../sandboxStorage.js";
@@ -21,6 +22,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  authHelpers: typeof authHelpers;
   opencode: typeof opencode;
   sandbox: typeof sandbox;
   sandboxStorage: typeof sandboxStorage;
