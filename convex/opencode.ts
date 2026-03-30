@@ -1,5 +1,6 @@
 "use node";
 
+import { createOpencodeClient } from "@opencode-ai/sdk";
 import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -9,6 +10,7 @@ const OPENCODE_PORT = 4096;
 const OPENCODE_BIN = "/home/vercel-sandbox/.opencode/bin/opencode";
 const OPENCODE_CONFIG_PATH =
   "/home/vercel-sandbox/.config/opencode/opencode.json";
+const OPENCODE_PROVIDER_ID = "vercel";
 const DEFAULT_VERCEL_MODEL = "moonshotai/kimi-k2.5";
 const OPENCODE_HEALTH_PATH = "/global/health";
 const HEALTH_TIMEOUT_MS = 30_000;
@@ -32,6 +34,8 @@ async function waitForOpencodeHealth(publicUrl: string) {
   let lastFailure = "no response received";
   let attempt = 0;
   const healthUrl = `${publicUrl}${OPENCODE_HEALTH_PATH}`;
+
+  await sleep(HEALTH_POLL_INTERVAL_MS);
 
   while (Date.now() < deadline) {
     attempt += 1;
@@ -97,6 +101,52 @@ function buildOpencodeConfigJson(aiGatewayApiKey: string, modelId: string) {
   );
 }
 
+function buildTodoPrompt(
+  title: string,
+  description?: string,
+  githubUrl?: string,
+) {
+  const lines = [
+    "Understand the codebase before making changes, then implement the requested task with minimal, correct edits.",
+    "Run the most relevant validation for the files you change before you finish.",
+    "Task:",
+    title.trim(),
+  ];
+
+  const trimmedDescription = description?.trim();
+  if (trimmedDescription) {
+    lines.push("", "Additional context:", trimmedDescription);
+  }
+
+  if (githubUrl?.trim()) {
+    lines.push("", "Repository:", githubUrl.trim());
+  }
+
+  lines.push(
+    "",
+    "Expected outcome:",
+    "1. Make the code changes needed to complete the task.",
+    "2. Run relevant validation commands for the change.",
+    "3. Summarize what you changed and any follow-up risks or notes.",
+  );
+
+  return lines.join("\n");
+}
+
+function getOpencodeErrorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
+}
+
 export const runOpencodeForTodo = internalAction({
   args: {
     todoId: v.id("todos"),
@@ -144,7 +194,10 @@ export const runOpencodeForTodo = internalAction({
       const versionText = (await version.output()).toString().trim();
       console.log("OpenCode version:", versionText);
 
-      const opencodeConfig = buildOpencodeConfigJson(AI_GATEWAY_API_KEY, DEFAULT_VERCEL_MODEL);
+      const opencodeConfig = buildOpencodeConfigJson(
+        AI_GATEWAY_API_KEY,
+        DEFAULT_VERCEL_MODEL,
+      );
       await sandbox.writeFiles([
         {
           path: OPENCODE_CONFIG_PATH,
@@ -159,8 +212,49 @@ export const runOpencodeForTodo = internalAction({
         detached: true,
       });
 
-      const publicUrl = sandbox.domain(OPENCODE_PORT);
-      const health = await waitForOpencodeHealth(publicUrl);
+      const opencodePublicUrl = sandbox.domain(OPENCODE_PORT);
+      const health = await waitForOpencodeHealth(opencodePublicUrl);
+      const client = createOpencodeClient({ baseUrl: opencodePublicUrl });
+      const session = await client.session.create({
+        body: { title: todo.title },
+      });
+      if (session.error || !session.data) {
+        throw new Error(
+          `Failed to create OpenCode session: ${getOpencodeErrorMessage(session.error)}`,
+        );
+      }
+
+      console.info("OpenCode ready", {
+        todoId: args.todoId,
+        cliVersion: versionText,
+        health: health,
+        url: opencodePublicUrl,
+      });
+
+      const prompt = await client.session.prompt({
+        path: { id: session.data.id },
+        body: {
+          model: {
+            providerID: OPENCODE_PROVIDER_ID,
+            modelID: DEFAULT_VERCEL_MODEL,
+          },
+          parts: [
+            {
+              type: "text",
+              text: buildTodoPrompt(
+                todo.title,
+                todo.description,
+                todo.githubUrl,
+              ),
+            },
+          ],
+        },
+      });
+      if (prompt.error) {
+        throw new Error(
+          `Failed to submit OpenCode prompt: ${getOpencodeErrorMessage(prompt.error)}`,
+        );
+      }
 
       // Only available in Pro or Enterprise plans
       // console.info("Updating network policy", { todoId: args.todoId });
@@ -177,12 +271,6 @@ export const runOpencodeForTodo = internalAction({
       //     ],
       //   },
       // });
-
-      console.info("OpenCode ready", {
-        todoId: args.todoId,
-        cliVersion: versionText,
-        health,
-      });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error("OpenCode failed", { todoId: args.todoId, error: message });
