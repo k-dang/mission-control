@@ -46,3 +46,6 @@ next-env.d.ts
 
 # opensrc - source code for packages
 opensrc/
+
+# clerk configuration (can include secrets)
+/.clerk/
