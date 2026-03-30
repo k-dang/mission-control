@@ -13,8 +13,8 @@ const OPENCODE_CONFIG_PATH =
 const OPENCODE_PROVIDER_ID = "vercel";
 const DEFAULT_VERCEL_MODEL = "moonshotai/kimi-k2.5";
 const OPENCODE_HEALTH_PATH = "/global/health";
-const HEALTH_TIMEOUT_MS = 30_000;
-const HEALTH_POLL_INTERVAL_MS = 3_000;
+const HEALTH_TIMEOUT_MS = 20_000;
+const HEALTH_POLL_INTERVAL_MS = 4_000;
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
