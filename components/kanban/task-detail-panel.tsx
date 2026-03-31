@@ -1,19 +1,19 @@
 "use client";
 
 import { useState, useRef, useEffect, type KeyboardEvent } from "react";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
+import { getErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
 import {
   SheetHeader,
   SheetTitle,
-  SheetFooter,
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Trash2, ExternalLink, Clock } from "lucide-react";
+import { ExternalLink, Clock, Loader2 } from "lucide-react";
 
 const STATUS_OPTIONS: {
   value: Doc<"todos">["status"];
@@ -63,6 +63,7 @@ export function TaskDetailPanel({
 }) {
   const updateTodo = useMutation(api.todos.update);
   const deleteTodo = useMutation(api.todos.remove);
+  const createPullRequest = useAction(api.github.createPullRequestForTodo);
 
   const [editTitle, setEditTitle] = useState(todo.title);
   const [editDescription, setEditDescription] = useState(
@@ -70,6 +71,8 @@ export function TaskDetailPanel({
   );
   const [editGithubUrl, setEditGithubUrl] = useState(todo.githubUrl ?? "");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [prError, setPrError] = useState<string | null>(null);
+  const [isCreatingPr, setIsCreatingPr] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
@@ -123,6 +126,25 @@ export function TaskDetailPanel({
     onClose();
   };
 
+  const canCreatePr = Boolean(todo.githubUrl && todo.sandboxId && !todo.prUrl);
+
+  const handleCreatePr = async () => {
+    if (!canCreatePr || isCreatingPr) {
+      return;
+    }
+
+    setPrError(null);
+    setIsCreatingPr(true);
+
+    try {
+      await createPullRequest({ todoId: todo._id });
+    } catch (error: unknown) {
+      setPrError(getErrorMessage(error));
+    } finally {
+      setIsCreatingPr(false);
+    }
+  };
+
   const handleKeyDownRevert = (e: KeyboardEvent, revert: () => void) => {
     if (e.key === "Escape") {
       revert();
@@ -154,13 +176,6 @@ export function TaskDetailPanel({
               {currentStatusOption.label}
             </span>
           </div>
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            className="rounded-md p-1.5 text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
-            title="Delete task"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
         </div>
         <SheetTitle className="sr-only">{todo.title}</SheetTitle>
         <SheetDescription className="sr-only">
@@ -290,28 +305,60 @@ export function TaskDetailPanel({
                 </a>
               </div>
             )}
+            {canCreatePr && (
+              <div className="flex items-center gap-3 pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCreatePr}
+                  disabled={isCreatingPr}
+                >
+                  {isCreatingPr ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  {isCreatingPr ? "Creating PR..." : "Create PR"}
+                </Button>
+                {prError ? (
+                  <p className="text-xs text-destructive">{prError}</p>
+                ) : null}
+              </div>
+            )}
           </div>
+        </div>
+
+        {/* Delete */}
+        <div className="pt-2">
+          {showDeleteConfirm ? (
+            <div className="flex items-center gap-3">
+              <span className="font-mono text-[10px] text-muted-foreground/60 uppercase tracking-widest">
+                Delete this task?
+              </span>
+              <button
+                onClick={handleDelete}
+                className="font-mono text-[10px] uppercase tracking-widest text-destructive hover:underline"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-muted-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              Delete task
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Delete confirmation */}
-      {showDeleteConfirm && (
-        <SheetFooter className="border-t border-border/30">
-          <p className="text-sm text-muted-foreground">Delete this task?</p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(false)}
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" size="sm" onClick={handleDelete}>
-              Delete
-            </Button>
-          </div>
-        </SheetFooter>
-      )}
     </div>
   );
 }
