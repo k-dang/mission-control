@@ -25,6 +25,8 @@ import {
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TaskDetailPanel } from "@/components/kanban/task-detail-panel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Plus,
   AlertCircle,
@@ -312,12 +314,12 @@ export default function Home() {
                       <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
                         Title
                       </span>
-                      <input
+                      <Input
                         ref={titleInputRef}
                         value={title}
                         onChange={(event) => setTitle(event.target.value)}
                         placeholder="What needs to be done?"
-                        className="rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+                        className="bg-background/50 border-border/50"
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
@@ -327,12 +329,12 @@ export default function Home() {
                           (optional)
                         </span>
                       </span>
-                      <textarea
+                      <Textarea
                         value={description}
                         onChange={(event) => setDescription(event.target.value)}
                         placeholder="Add details"
                         rows={3}
-                        className="resize-none rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+                        className="resize-none bg-background/50 border-border/50"
                       />
                     </label>
                     <label className="flex flex-col gap-1.5">
@@ -342,12 +344,12 @@ export default function Home() {
                           (optional)
                         </span>
                       </span>
-                      <input
+                      <Input
                         value={githubUrl}
                         onChange={(event) => setGithubUrl(event.target.value)}
                         placeholder="https://github.com/owner/repo"
                         type="url"
-                        className="rounded-md border border-border/50 bg-background/50 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30"
+                        className="bg-background/50 border-border/50"
                       />
                     </label>
                     {formError ? (
@@ -391,12 +393,14 @@ export default function Home() {
                 className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
               />
               {quickTitle.trim() && (
-                <button
+                <Button
                   type="submit"
-                  className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
+                  size="sm"
+                  variant="ghost"
+                  className="h-auto bg-primary/10 px-2 py-1 text-primary hover:bg-primary/20"
                 >
                   <ArrowRight className="h-3 w-3" />
-                </button>
+                </Button>
               )}
             </div>
             <Button

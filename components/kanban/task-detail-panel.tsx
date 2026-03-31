@@ -13,39 +13,71 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { ExternalLink, Clock, Loader2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { ExternalLink, Clock, Loader2, Circle, RotateCw, CheckCircle2, XCircle } from "lucide-react";
 
 const STATUS_OPTIONS: {
   value: Doc<"todos">["status"];
   label: string;
   colorClass: string;
   bgClass: string;
+  icon: LucideIcon;
 }[] = [
   {
     value: "TODO",
     label: "TODO",
     colorClass: "text-col-todo",
     bgClass: "bg-col-todo",
+    icon: Circle,
   },
   {
     value: "INPROGRESS",
     label: "IN PROGRESS",
     colorClass: "text-col-inprogress",
     bgClass: "bg-col-inprogress",
+    icon: RotateCw,
   },
   {
     value: "COMPLETED",
     label: "COMPLETED",
     colorClass: "text-col-completed",
     bgClass: "bg-col-completed",
+    icon: CheckCircle2,
   },
   {
     value: "FAILED",
     label: "FAILED",
     colorClass: "text-col-failed",
     bgClass: "bg-col-failed",
+    icon: XCircle,
   },
 ];
+
+const STATUS_META: Record<
+  Doc<"todos">["status"],
+  { bg: string; border: string; shadow: string }
+> = {
+  TODO: {
+    bg: "oklch(0.75 0.15 55 / 13%)",
+    border: "oklch(0.75 0.15 55 / 45%)",
+    shadow: "0 0 12px oklch(0.75 0.15 55 / 18%)",
+  },
+  INPROGRESS: {
+    bg: "oklch(0.65 0.17 250 / 13%)",
+    border: "oklch(0.65 0.17 250 / 45%)",
+    shadow: "0 0 12px oklch(0.65 0.17 250 / 18%)",
+  },
+  COMPLETED: {
+    bg: "oklch(0.68 0.14 155 / 13%)",
+    border: "oklch(0.68 0.14 155 / 45%)",
+    shadow: "0 0 12px oklch(0.68 0.14 155 / 18%)",
+  },
+  FAILED: {
+    bg: "oklch(0.62 0.2 25 / 13%)",
+    border: "oklch(0.62 0.2 25 / 45%)",
+    shadow: "0 0 12px oklch(0.62 0.2 25 / 18%)",
+  },
+};
 
 const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
   TODO: "bg-col-todo",
@@ -210,20 +242,35 @@ export function TaskDetailPanel({
           <label className="mb-2 block font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
             Status
           </label>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {STATUS_OPTIONS.map((opt) => {
               const isActive = opt.value === todo.status;
+              const meta = STATUS_META[opt.value];
+              const Icon = opt.icon;
               return (
                 <button
                   key={opt.value}
                   onClick={() => handleStatusChange(opt.value)}
                   className={cn(
-                    "rounded-full px-3 py-1 font-mono text-[10px] font-bold uppercase tracking-wider transition-all",
+                    "flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
                     isActive
-                      ? `${opt.bgClass} text-background`
-                      : "border border-border/50 text-muted-foreground hover:border-border hover:text-foreground",
+                      ? opt.colorClass
+                      : "text-muted-foreground/40 hover:text-muted-foreground/70",
                   )}
+                  style={
+                    isActive
+                      ? {
+                          background: meta.bg,
+                          border: `1px solid ${meta.border}`,
+                          boxShadow: meta.shadow,
+                        }
+                      : {
+                          background: "transparent",
+                          border: "1px solid oklch(1 0 0 / 8%)",
+                        }
+                  }
                 >
+                  <Icon className="h-2.5 w-2.5" />
                   {opt.label}
                 </button>
               );
@@ -334,18 +381,22 @@ export function TaskDetailPanel({
               <span className="font-mono text-[10px] text-muted-foreground/60 uppercase tracking-widest">
                 Delete this task?
               </span>
-              <button
+              <Button
+                variant="link"
+                size="sm"
                 onClick={handleDelete}
-                className="font-mono text-[10px] uppercase tracking-widest text-destructive hover:underline"
+                className="h-auto p-0 font-mono text-[10px] uppercase tracking-widest text-destructive"
               >
                 Confirm
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="link"
+                size="sm"
                 onClick={() => setShowDeleteConfirm(false)}
-                className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-muted-foreground"
+                className="h-auto p-0 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-muted-foreground"
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           ) : (
             <Button
