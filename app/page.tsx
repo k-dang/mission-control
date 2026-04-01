@@ -26,6 +26,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TaskDetailPanel } from "@/components/kanban/task-detail-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Plus,
@@ -310,48 +311,60 @@ export default function Home() {
                     onSubmit={handleCreateTodo}
                     className="grid gap-4"
                   >
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                    <div className="flex flex-col gap-1.5">
+                      <Label
+                        htmlFor="create-todo-title"
+                        className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
+                      >
                         Title
-                      </span>
+                      </Label>
                       <Input
+                        id="create-todo-title"
                         ref={titleInputRef}
                         value={title}
                         onChange={(event) => setTitle(event.target.value)}
                         placeholder="What needs to be done?"
                         className="bg-background/50 border-border/50"
                       />
-                    </label>
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label
+                        htmlFor="create-todo-description"
+                        className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
+                      >
                         Description{" "}
                         <span className="normal-case tracking-normal text-muted-foreground/50">
                           (optional)
                         </span>
-                      </span>
+                      </Label>
                       <Textarea
+                        id="create-todo-description"
                         value={description}
                         onChange={(event) => setDescription(event.target.value)}
                         placeholder="Add details"
                         rows={3}
                         className="resize-none bg-background/50 border-border/50"
                       />
-                    </label>
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label
+                        htmlFor="create-todo-github-url"
+                        className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
+                      >
                         GitHub URL{" "}
                         <span className="normal-case tracking-normal text-muted-foreground/50">
                           (optional)
                         </span>
-                      </span>
+                      </Label>
                       <Input
+                        id="create-todo-github-url"
                         value={githubUrl}
                         onChange={(event) => setGithubUrl(event.target.value)}
                         placeholder="https://github.com/owner/repo"
                         type="url"
                         className="bg-background/50 border-border/50"
                       />
-                    </label>
+                    </div>
                     {formError ? (
                       <div className="flex items-center gap-2 text-sm text-destructive">
                         <AlertCircle className="h-4 w-4 shrink-0" />
@@ -386,11 +399,11 @@ export default function Home() {
           <form onSubmit={handleQuickAdd} className="flex items-center gap-2">
             <div className="quick-add-bar flex flex-1 items-center gap-2 rounded-xl px-4 py-2.5">
               <Plus className="h-4 w-4 shrink-0 text-muted-foreground/40" />
-              <input
+              <Input
                 value={quickTitle}
                 onChange={(e) => setQuickTitle(e.target.value)}
                 placeholder="Quick add a task..."
-                className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none"
+                className="h-auto min-h-0 flex-1 border-0 bg-transparent px-0 py-0 text-sm text-foreground shadow-none placeholder:text-muted-foreground/40 focus-visible:border-transparent focus-visible:ring-0"
               />
               {quickTitle.trim() && (
                 <Button

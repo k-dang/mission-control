@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, type KeyboardEvent } from "react";
+import { useState, useRef, useId, type KeyboardEvent } from "react";
 import { useAction, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
@@ -13,6 +13,9 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import type { LucideIcon } from "lucide-react";
 import { ExternalLink, Clock, Loader2, Circle, RotateCw, CheckCircle2, XCircle } from "lucide-react";
 
@@ -107,16 +110,9 @@ export function TaskDetailPanel({
   const [isCreatingPr, setIsCreatingPr] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
-  const descriptionRef = useRef<HTMLTextAreaElement>(null);
-
-  // Auto-resize textarea
-  useEffect(() => {
-    const el = descriptionRef.current;
-    if (el) {
-      el.style.height = "auto";
-      el.style.height = `${el.scrollHeight}px`;
-    }
-  }, [editDescription]);
+  const statusSectionLabelId = useId();
+  const descriptionFieldId = useId();
+  const githubUrlFieldId = useId();
 
   const commitTitle = () => {
     const trimmed = editTitle.trim();
@@ -213,7 +209,7 @@ export function TaskDetailPanel({
         <SheetDescription className="sr-only">
           Task detail panel for editing
         </SheetDescription>
-        <input
+        <Input
           ref={titleRef}
           value={editTitle}
           onChange={(e) => setEditTitle(e.target.value)}
@@ -224,7 +220,7 @@ export function TaskDetailPanel({
             }
             handleKeyDownRevert(e, () => setEditTitle(todo.title));
           }}
-          className="mt-1 w-full border-b border-transparent bg-transparent text-lg font-semibold text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-b-primary/40"
+          className="mt-1 h-auto rounded-none border-0 border-b border-transparent bg-transparent px-0 text-lg font-semibold shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-b-primary/40 focus-visible:ring-0"
         />
       </SheetHeader>
 
@@ -238,10 +234,13 @@ export function TaskDetailPanel({
         </div>
 
         {/* Status pills */}
-        <div>
-          <label className="mb-2 block font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+        <div role="group" aria-labelledby={statusSectionLabelId}>
+          <Label
+            id={statusSectionLabelId}
+            className="mb-2 block font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground"
+          >
             Status
-          </label>
+          </Label>
           <div className="flex flex-wrap gap-2">
             {STATUS_OPTIONS.map((opt) => {
               const isActive = opt.value === todo.status;
@@ -280,11 +279,14 @@ export function TaskDetailPanel({
 
         {/* Description */}
         <div>
-          <label className="mb-2 block font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+          <Label
+            htmlFor={descriptionFieldId}
+            className="mb-2 block font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground"
+          >
             Description
-          </label>
-          <textarea
-            ref={descriptionRef}
+          </Label>
+          <Textarea
+            id={descriptionFieldId}
             value={editDescription}
             onChange={(e) => setEditDescription(e.target.value)}
             onBlur={commitDescription}
@@ -294,23 +296,30 @@ export function TaskDetailPanel({
               )
             }
             placeholder="Add a description..."
-            rows={1}
-            className="w-full resize-none border-b border-transparent bg-transparent text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-b-primary/40"
+            className={cn(
+              "min-h-16 resize-none rounded-none border-0 border-b border-transparent bg-transparent px-0 py-2 text-sm shadow-none",
+              "text-foreground outline-none transition-colors placeholder:text-muted-foreground/40",
+              "focus-visible:border-b-primary/40 focus-visible:ring-0",
+            )}
           />
         </div>
 
         {/* Links */}
         <div className="space-y-3">
-          <label className="block font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground">
+          <Label
+            htmlFor={githubUrlFieldId}
+            className="block font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground"
+          >
             Links
-          </label>
+          </Label>
 
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] text-muted-foreground/60">
                 GITHUB
               </span>
-              <input
+              <Input
+                id={githubUrlFieldId}
                 value={editGithubUrl}
                 onChange={(e) => setEditGithubUrl(e.target.value)}
                 onBlur={commitGithubUrl}
@@ -323,7 +332,7 @@ export function TaskDetailPanel({
                   );
                 }}
                 placeholder="https://github.com/owner/repo"
-                className="min-w-0 flex-1 truncate border-b border-transparent bg-transparent text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/40 focus:border-b-primary/40"
+                className="h-auto min-w-0 flex-1 truncate rounded-none border-0 border-b border-transparent bg-transparent px-0 text-sm shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-b-primary/40 focus-visible:ring-0"
               />
               {editGithubUrl.trim() && (
                 <a
