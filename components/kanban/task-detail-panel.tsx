@@ -186,7 +186,7 @@ export function TaskDetailPanel({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <SheetHeader className="border-b border-border/30 pb-4">
+      <SheetHeader className="border-b border-border/30 pb-4 pt-8">
         <div className="flex items-center justify-between pr-8">
           <div className="flex items-center gap-2">
             <span
@@ -220,7 +220,7 @@ export function TaskDetailPanel({
             }
             handleKeyDownRevert(e, () => setEditTitle(todo.title));
           }}
-          className="mt-1 h-auto rounded-none border-0 border-b border-transparent bg-transparent px-0 text-lg font-semibold shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-b-primary/40 focus-visible:ring-0"
+          className="mt-1 h-auto rounded-lg border border-border/20 bg-muted/30 px-3 py-2 text-lg font-semibold shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-0"
         />
       </SheetHeader>
 
@@ -297,9 +297,9 @@ export function TaskDetailPanel({
             }
             placeholder="Add a description..."
             className={cn(
-              "min-h-16 resize-none rounded-none border-0 border-b border-transparent bg-transparent px-0 py-2 text-sm shadow-none",
+              "min-h-16 resize-none rounded-lg border border-border/20 bg-muted/30 px-3 py-2.5 text-sm shadow-none",
               "text-foreground outline-none transition-colors placeholder:text-muted-foreground/40",
-              "focus-visible:border-b-primary/40 focus-visible:ring-0",
+              "focus-visible:border-primary/40 focus-visible:ring-0",
             )}
           />
         </div>
@@ -332,7 +332,7 @@ export function TaskDetailPanel({
                   );
                 }}
                 placeholder="https://github.com/owner/repo"
-                className="h-auto min-w-0 flex-1 truncate rounded-none border-0 border-b border-transparent bg-transparent px-0 text-sm shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-b-primary/40 focus-visible:ring-0"
+                className="h-auto min-w-0 flex-1 truncate rounded-lg border border-border/20 bg-muted/30 px-3 py-2 text-sm shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-0"
               />
               {editGithubUrl.trim() && (
                 <a
@@ -361,61 +361,63 @@ export function TaskDetailPanel({
                 </a>
               </div>
             )}
-            {canCreatePr && (
-              <div className="flex items-center gap-3 pt-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCreatePr}
-                  disabled={isCreatingPr}
-                >
-                  {isCreatingPr ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : null}
-                  {isCreatingPr ? "Creating PR..." : "Create PR"}
-                </Button>
-                {prError ? (
-                  <p className="text-xs text-destructive">{prError}</p>
-                ) : null}
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Delete */}
-        <div className="pt-2">
-          {showDeleteConfirm ? (
-            <div className="flex items-center gap-3">
-              <span className="font-mono text-[10px] text-muted-foreground/60 uppercase tracking-widest">
-                Delete this task?
-              </span>
+        {/* Actions */}
+        <div className="flex items-center gap-3 border-t border-border/20 pt-4">
+          {canCreatePr && (
+            <>
               <Button
-                variant="link"
+                type="button"
                 size="sm"
-                onClick={handleDelete}
-                className="h-auto p-0 font-mono text-[10px] uppercase tracking-widest text-destructive"
+                variant="outline"
+                onClick={handleCreatePr}
+                disabled={isCreatingPr}
               >
-                Confirm
+                {isCreatingPr ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                {isCreatingPr ? "Creating PR..." : "Create PR"}
               </Button>
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => setShowDeleteConfirm(false)}
-                className="h-auto p-0 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-muted-foreground"
-              >
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setShowDeleteConfirm(true)}
-            >
-              Delete task
-            </Button>
+              {prError ? (
+                <p className="text-xs text-destructive">{prError}</p>
+              ) : null}
+            </>
           )}
+          <div className="ml-auto">
+            {showDeleteConfirm ? (
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-[10px] text-muted-foreground/60 uppercase tracking-widest">
+                  Delete?
+                </span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={handleDelete}
+                  className="h-auto p-0 font-mono text-[10px] uppercase tracking-widest text-destructive"
+                >
+                  Confirm
+                </Button>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="h-auto p-0 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/50 hover:text-muted-foreground"
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                Delete task
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

@@ -403,18 +403,17 @@ export default function Home() {
                 value={quickTitle}
                 onChange={(e) => setQuickTitle(e.target.value)}
                 placeholder="Quick add a task..."
-                className="h-auto min-h-0 flex-1 border-0 bg-transparent px-0 py-0 text-sm text-foreground shadow-none placeholder:text-muted-foreground/40 focus-visible:border-transparent focus-visible:ring-0"
+                className="h-auto min-h-0 flex-1 border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm text-foreground shadow-none placeholder:text-muted-foreground/40 focus-visible:border-transparent focus-visible:ring-0"
               />
-              {quickTitle.trim() && (
-                <Button
-                  type="submit"
-                  size="sm"
-                  variant="ghost"
-                  className="h-auto bg-primary/10 px-2 py-1 text-primary hover:bg-primary/20"
-                >
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              )}
+              <Button
+                type="submit"
+                size="sm"
+                variant="ghost"
+                className={`h-auto bg-primary/10 px-2 py-1 text-primary hover:bg-primary/20 transition-opacity ${quickTitle.trim() ? "opacity-100" : "pointer-events-none opacity-0"}`}
+                tabIndex={quickTitle.trim() ? 0 : -1}
+              >
+                <ArrowRight className="h-3 w-3" />
+              </Button>
             </div>
             <Button
               type="button"
@@ -480,6 +479,7 @@ export default function Home() {
           side="right"
           className="glass-card border-l-border/50 bg-card/80 backdrop-blur-xl w-full sm:max-w-lg"
           showCloseButton={true}
+          onOpenAutoFocus={(e) => e.preventDefault()}
         >
           {resolvedTodo && (
             <TaskDetailPanel
