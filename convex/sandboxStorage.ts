@@ -9,7 +9,6 @@ export const clearSandboxResult = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch("todos", args.todoId, {
       sandboxId: undefined,
-      prUrl: undefined,
     });
     return null;
   },

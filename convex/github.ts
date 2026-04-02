@@ -278,6 +278,11 @@ export const createPullRequestForTodo = action({
       prUrl: result.prUrl,
     });
 
+    await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
+      todoId: args.todoId,
+      sandboxId: todo.sandboxId,
+    });
+
     return result;
   },
 });
