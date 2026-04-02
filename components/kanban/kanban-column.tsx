@@ -125,7 +125,7 @@ export function KanbanColumn({
         </div>
       </div>
       <ScrollArea className="max-h-[calc(100vh-320px)] md:flex-1 md:min-h-0 md:max-h-none">
-        <div className="space-y-3 pr-1">
+        <div className="space-y-3 pr-3">
           {todos.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/40 p-6 text-center">
               <EmptyIcon className="h-5 w-5 text-muted-foreground/30" />
