@@ -28,7 +28,10 @@ export const runOpencodeForTodo = internalAction({
     const todo = await ctx.runQuery(internal.todos.getById, {
       todoId: args.todoId,
     });
-    if (!todo || !todo.sandboxId) {
+    const sandboxRow = await ctx.runQuery(internal.sandboxStorage.getSandboxByTodoId, {
+      todoId: args.todoId,
+    });
+    if (!todo || !sandboxRow?.sandboxId) {
       console.warn("Todo or sandbox not found, skipping opencode", {
         todoId: args.todoId,
       });
@@ -44,7 +47,7 @@ export const runOpencodeForTodo = internalAction({
       }
 
       const sandbox = await Sandbox.get({
-        sandboxId: todo.sandboxId,
+        sandboxId: sandboxRow.sandboxId,
         token: process.env.VERCEL_TOKEN,
         teamId: process.env.VERCEL_TEAM_ID,
         projectId: process.env.VERCEL_PROJECT_ID,
@@ -103,6 +106,11 @@ export const runOpencodeForTodo = internalAction({
         url: opencodePublicUrl,
       });
 
+      await ctx.runMutation(internal.sandboxStorage.setOpencodeUrl, {
+        todoId: args.todoId,
+        opencodeUrl: opencodePublicUrl,
+      });
+
       const prompt = await client.session.prompt({
         path: { id: session.data.id },
         body: {
@@ -152,7 +160,7 @@ export const runOpencodeForTodo = internalAction({
       });
       await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
         todoId: args.todoId,
-        sandboxId: todo.sandboxId,
+        sandboxId: sandboxRow.sandboxId,
       });
       throw error;
     }

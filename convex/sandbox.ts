@@ -56,10 +56,14 @@ export const spawnSandboxForTodo = internalAction({
       });
       return null;
     }
-    if (todo.sandboxId) {
+    const existingSandbox = await ctx.runQuery(
+      internal.sandboxStorage.getSandboxByTodoId,
+      { todoId: args.todoId },
+    );
+    if (existingSandbox) {
       console.info("Sandbox already exists for todo, skipping creation", {
         todoId: args.todoId,
-        sandboxId: todo.sandboxId,
+        sandboxId: existingSandbox.sandboxId,
       });
       return null;
     }

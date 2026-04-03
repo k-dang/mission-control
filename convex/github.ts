@@ -251,7 +251,10 @@ export const createPullRequestForTodo = action({
       });
     }
 
-    if (!todo.sandboxId?.trim()) {
+    const sandboxRow = await ctx.runQuery(internal.sandboxStorage.getSandboxByTodoId, {
+      todoId: args.todoId,
+    });
+    if (!sandboxRow?.sandboxId?.trim()) {
       throw new ConvexError({
         code: "MISSING_SANDBOX",
         message: "This todo does not have a sandbox to submit.",
@@ -259,7 +262,7 @@ export const createPullRequestForTodo = action({
     }
 
     const sandbox = await Sandbox.get({
-      sandboxId: todo.sandboxId,
+      sandboxId: sandboxRow.sandboxId,
       token: process.env.VERCEL_TOKEN,
       teamId: process.env.VERCEL_TEAM_ID,
       projectId: process.env.VERCEL_PROJECT_ID,
@@ -280,7 +283,7 @@ export const createPullRequestForTodo = action({
 
     await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
       todoId: args.todoId,
-      sandboxId: todo.sandboxId,
+      sandboxId: sandboxRow.sandboxId,
     });
 
     return result;

@@ -17,7 +17,6 @@ const todoValidator = v.object({
   description: v.optional(v.string()),
   status: statusValidator,
   githubUrl: v.optional(v.string()),
-  sandboxId: v.optional(v.string()),
   prUrl: v.optional(v.string()),
 });
 
@@ -31,7 +30,6 @@ export const getById = internalQuery({
       description: v.optional(v.string()),
       status: statusValidator,
       githubUrl: v.optional(v.string()),
-      sandboxId: v.optional(v.string()),
       prUrl: v.optional(v.string()),
     }),
     v.null(),
@@ -46,7 +44,6 @@ export const getById = internalQuery({
       description: todo.description,
       status: todo.status,
       githubUrl: todo.githubUrl,
-      sandboxId: todo.sandboxId,
       prUrl: todo.prUrl,
     };
   },
@@ -154,7 +151,11 @@ export const moveToInProgress = mutation({
         timestampMs: Date.now(),
       },
     );
-    if (todo.githubUrl && !todo.sandboxId) {
+    const sandboxRow = await ctx.db
+      .query("todoSandboxes")
+      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
+      .unique();
+    if (todo.githubUrl && !sandboxRow) {
       await ctx.scheduler.runAfter(0, internal.sandbox.spawnSandboxForTodo, {
         todoId: args.todoId,
         githubUrl: todo.githubUrl,
@@ -220,10 +221,15 @@ export const update = mutation({
         },
       );
 
+      const sandboxRow = await ctx.db
+        .query("todoSandboxes")
+        .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
+        .unique();
+
       if (
         args.status === "INPROGRESS" &&
         (args.githubUrl?.trim() || todo.githubUrl) &&
-        !todo.sandboxId
+        !sandboxRow
       ) {
         await ctx.scheduler.runAfter(0, internal.sandbox.spawnSandboxForTodo, {
           todoId: args.todoId,
@@ -231,13 +237,13 @@ export const update = mutation({
         });
       }
 
-      if (args.status === "COMPLETED" && todo.sandboxId) {
+      if (args.status === "COMPLETED" && sandboxRow?.sandboxId) {
         await ctx.scheduler.runAfter(
           0,
           internal.sandbox.shutdownSandboxForTodo,
           {
             todoId: args.todoId,
-            sandboxId: todo.sandboxId,
+            sandboxId: sandboxRow.sandboxId,
           },
         );
       }
@@ -265,6 +271,13 @@ export const remove = mutation({
         code: "NOT_FOUND",
         message: "Todo not found",
       });
+    }
+    const sandboxRow = await ctx.db
+      .query("todoSandboxes")
+      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
+      .unique();
+    if (sandboxRow) {
+      await ctx.db.delete("todoSandboxes", sandboxRow._id);
     }
     await ctx.db.delete("todos", args.todoId);
     return null;

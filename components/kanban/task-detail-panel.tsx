@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useId, type KeyboardEvent } from "react";
-import { useAction, useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { getErrorMessage } from "@/lib/errors";
@@ -99,6 +99,9 @@ export function TaskDetailPanel({
   const updateTodo = useMutation(api.todos.update);
   const deleteTodo = useMutation(api.todos.remove);
   const createPullRequest = useAction(api.github.createPullRequestForTodo);
+  const sandbox = useQuery(api.sandboxStorage.getForTodo, {
+    todoId: todo._id,
+  });
 
   const [editTitle, setEditTitle] = useState(todo.title);
   const [editDescription, setEditDescription] = useState(
@@ -154,7 +157,9 @@ export function TaskDetailPanel({
     onClose();
   };
 
-  const canCreatePr = Boolean(todo.githubUrl && todo.sandboxId && !todo.prUrl);
+  const canCreatePr = Boolean(
+    todo.githubUrl && sandbox?.sandboxId && !todo.prUrl,
+  );
 
   const handleCreatePr = async () => {
     if (!canCreatePr || isCreatingPr) {
@@ -357,6 +362,22 @@ export function TaskDetailPanel({
                   className="flex items-center gap-1 truncate text-sm text-[--col-inprogress] hover:opacity-80"
                 >
                   {todo.prUrl}
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              </div>
+            )}
+            {sandbox?.opencodeUrl && (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-muted-foreground/60">
+                  OPENCODE
+                </span>
+                <a
+                  href={sandbox.opencodeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1 truncate text-sm text-[--col-inprogress] hover:opacity-80"
+                >
+                  {sandbox.opencodeUrl}
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </a>
               </div>
