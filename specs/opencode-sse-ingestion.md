@@ -72,6 +72,17 @@ The new model should add a dedicated run table and a message table.
 
 The existing `todoSandboxes` table should remain focused on sandbox identity and OpenCode service URL metadata. It should not become the general storage location for run state.
 
+Recommended indexes:
+
+- `opencodeRuns.by_todoId`
+- `opencodeRuns.by_todoId_and_creationTime` if historical runs are retained
+- `opencodeRuns.by_sessionId` if upstream session lookups are needed
+- `opencodeMessages.by_todoId_and_creationTime`
+- `opencodeMessages.by_runId_and_creationTime`
+- `opencodeMessages.by_providerMessageId` only if provider ids are stable enough to support idempotent upserts
+
+Index names should include all indexed fields, and implementation should use those indexes rather than `filter()`-style scans.
+
 ## Interface Contract
 The internal ingestion contract should follow these rules:
 
@@ -79,20 +90,24 @@ The internal ingestion contract should follow these rules:
 - That action must not use `ctx.db` directly.
 - All durable writes happen through `internalMutation`s.
 - Any reads needed for configuration or current state should happen through `internalQuery`s.
+- Public query functions must validate arguments, validate return types, and require authentication.
 
 The public read contract should stay small:
 
 - query current OpenCode run by `todoId`
 - query recent OpenCode messages by `todoId`
 
+The message query must stay bounded. For the first version, that should mean either pagination or a small explicit cap such as the latest `n` messages ordered by an index. Do not use an unbounded `.collect()` for message history or run history.
+
 The internal write contract should cover:
 
-- create run
-- mark run started
-- update run phase
+- create or upsert run
+- record semantic run event idempotently
 - finalize run success
 - finalize run failure
-- upsert or finalize assistant message
+- upsert finalized assistant message
+
+The write surface should stay intentionally small and idempotent. The ingestion action should avoid long chains of narrow query and mutation calls for every upstream frame because each extra call creates more room for races and more write amplification. Prefer internal mutations that can safely accept repeated provider events and either no-op or converge to the same final state.
 
 ## Event Mapping
 The ingestion layer should translate upstream stream traffic into a smaller internal event model.
@@ -112,7 +127,7 @@ Do not persist these categories by default:
 - duplicate provider events
 - transport-only metadata with no user or operational value
 
-If live partial assistant output is required, it should use coarse periodic flushes rather than one write per token. The default assumption for the first version is that finalized message content is enough.
+If live partial assistant output is required later, it should use coarse periodic flushes rather than one write per token. The default assumption for the first version is that finalized message content is enough, so `streaming` message state is not required in the initial schema unless the UI explicitly needs it.
 
 ## Alternatives Considered
 | Option | Pros | Cons | Why Not |
@@ -138,6 +153,7 @@ If live partial assistant output is required, it should use coarse periodic flus
 | Unit | Idempotency and duplicate suppression | Test repeated provider ids and last-event handling |
 | Integration | OpenCode action writes expected run and message state | Use Convex tests around internal mutations and ingestion helpers |
 | Integration | Failure path updates run and todo state correctly | Simulate upstream error and assert terminal state |
+| Integration | Public queries enforce auth and return bounded results | Verify unauthorized access fails and authorized reads use the intended indexed query shape |
 
 ## Risks & Mitigations
 | Risk | Likelihood | Impact | Mitigation |
@@ -145,6 +161,7 @@ If live partial assistant output is required, it should use coarse periodic flus
 | Upstream event taxonomy differs from assumptions | Medium | Medium | Keep provider mapping isolated in one translation layer and validate against SDK docs before implementation |
 | Partial-output UX later requires finer granularity | Medium | Medium | Start with finalized messages and coarse phase updates; add buffered partial flushes only if the UI needs them |
 | Duplicate or replayed provider events create inconsistent state | Medium | High | Use provider ids and last-event checkpoints for idempotent writes |
+| Too many action-to-mutation round trips create race windows or write amplification | Medium | Medium | Use a small set of idempotent internal mutations that converge state instead of many narrow write calls |
 | Scope creep into full workflow observability | High | Medium | Keep tool-call and deep step tracking out of the first version |
 
 ## Trade-offs Made
@@ -153,6 +170,7 @@ If live partial assistant output is required, it should use coarse periodic flus
 | Durable semantic state | Raw SSE persistence | The UI needs stable state, not transport replay |
 | Todo-scoped run model | Generic provider event platform | The repo is small and already organized around todo execution |
 | Finalized messages first | Token-level live streaming | Lower write volume and better alignment with Convex best practices |
+| Idempotent coarse-grained writes | Many tiny ingestion mutations | Fewer race windows and less write amplification from streamed events |
 | Minimal public queries | Broad public API surface | Keeps the contract stable and reduces accidental coupling |
 
 ## Rollout Plan
