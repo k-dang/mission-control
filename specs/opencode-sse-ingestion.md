@@ -21,6 +21,8 @@ The design should remain intentionally small. Instead of storing raw SSE frames 
 
 The initial implementation should optimize for clarity and operational safety over perfect fidelity. The goal is not to mirror the transport protocol. The goal is to provide a stable, queryable run model that survives reconnects, minimizes write amplification, and leaves room for later refinement if the UI needs richer tool-step visibility.
 
+The action structure should be split by responsibility. One internal action should handle setup work such as preparing the sandbox, starting OpenCode, creating the session, submitting the prompt, and creating the initial durable run record. A separate internal action should own stream monitoring, checkpointing, reconnect behavior, and terminal state handling. This separation keeps the setup path understandable and makes the stream durability logic easier to reason about and test.
+
 ## Scope & Deliverables
 | Deliverable | Effort | Depends On |
 |-------------|--------|------------|
@@ -46,6 +48,12 @@ The first version should store two durable concepts:
 - `opencodeMessages`: finalized or coarse-grained assistant/user/system messages worth displaying
 
 This is the narrowest model that still supports a useful UI, durable recovery, and future expansion. Tool calls and more detailed step tracking should be treated as follow-on work, not part of the baseline spec.
+
+The product defaults for the first version should be:
+
+- retain historical runs per todo rather than overwriting prior runs
+- show finalized assistant output only, not partial token streaming
+- keep todo completion as a separate business state rather than automatically marking a todo `COMPLETED` when an OpenCode run finishes
 
 ## Data Model
 The new model should add a dedicated run table and a message table.
@@ -86,7 +94,8 @@ Index names should include all indexed fields, and implementation should use tho
 ## Interface Contract
 The internal ingestion contract should follow these rules:
 
-- The OpenCode stream is consumed from an `internalAction`.
+- OpenCode setup is initiated from a dedicated `internalAction`.
+- Stream monitoring is owned by a separate `internalAction`.
 - That action must not use `ctx.db` directly.
 - All durable writes happen through `internalMutation`s.
 - Any reads needed for configuration or current state should happen through `internalQuery`s.
@@ -94,20 +103,30 @@ The internal ingestion contract should follow these rules:
 
 The public read contract should stay small:
 
-- query current OpenCode run by `todoId`
+- query latest or active OpenCode run by `todoId`
+- query historical OpenCode runs by `todoId` with a bounded limit
 - query recent OpenCode messages by `todoId`
 
 The message query must stay bounded. For the first version, that should mean either pagination or a small explicit cap such as the latest `n` messages ordered by an index. Do not use an unbounded `.collect()` for message history or run history.
+
+The latest-run query should return the active run when one exists, otherwise the most recent historical run for the todo. Historical run queries should be explicitly bounded and ordered by creation time.
 
 The internal write contract should cover:
 
 - create or upsert run
 - record semantic run event idempotently
+- persist checkpoint state
 - finalize run success
 - finalize run failure
 - upsert finalized assistant message
 
 The write surface should stay intentionally small and idempotent. The ingestion action should avoid long chains of narrow query and mutation calls for every upstream frame because each extra call creates more room for races and more write amplification. Prefer internal mutations that can safely accept repeated provider events and either no-op or converge to the same final state.
+
+The orchestration contract should also be explicit:
+
+- `runOpencodeForTodo` or an equivalent setup action prepares the environment and starts the run
+- `monitorOpencodeRun` or an equivalent monitoring action consumes the stream and owns resume behavior
+- storage mutations remain focused on durable state transitions rather than embedding monitoring logic
 
 ## Event Mapping
 The ingestion layer should translate upstream stream traffic into a smaller internal event model.
@@ -129,6 +148,42 @@ Do not persist these categories by default:
 
 If live partial assistant output is required later, it should use coarse periodic flushes rather than one write per token. The default assumption for the first version is that finalized message content is enough, so `streaming` message state is not required in the initial schema unless the UI explicitly needs it.
 
+Run completion should not, by itself, mutate the todo into `COMPLETED`. A completed OpenCode run means the agent execution finished, not necessarily that the underlying todo is done from a product perspective.
+
+## Durability Model
+Durability for this feature should come from persisted run state and resumable ingestion, not from keeping a single SSE connection alive indefinitely.
+
+The OpenCode stream consumer should be treated as a bounded internal worker. If the action times out, the sandbox restarts, the upstream stream disconnects, or Convex retries the action, the system should still be able to continue from durable Convex state without corrupting the user-visible run model.
+
+The durable contract for the first version should be:
+
+- a run record exists in Convex as soon as execution begins
+- important semantic progress is written to Convex as it happens
+- a checkpoint is stored often enough to support safe reconnect and replay handling
+- all writes are idempotent so duplicate upstream events converge on the same durable state
+
+The checkpoint model should include at least:
+
+- the active `runId`
+- the upstream `sessionId`
+- the last processed upstream event id when the provider exposes one
+- the current coarse phase
+- the latest finalized assistant message state
+- the latest terminal error, if any
+
+If OpenCode exposes a resumable event cursor or last-event identifier, the ingestion action should persist it and use it on the next connection attempt. If it does not, the fallback should be idempotent upserts keyed by stable provider identifiers such as session id or provider message id. In that fallback mode, reconnects may replay transport events, but Convex state should still remain logically correct.
+
+The action should run in bounded windows rather than as a permanent stream proxy. Before reaching the action time limit, it should persist the latest checkpoint and schedule the next ingestion step if the run is still active. A restart path should:
+
+- load the run and checkpoint from Convex
+- reconnect using the upstream resume mechanism when available
+- ignore already-applied events using checkpoint or provider identifiers
+- continue until the run reaches a terminal state
+
+This is the core durability mechanism. The stream itself is ephemeral. Convex-backed run records, checkpoints, and idempotent mutations are what make the workflow durable.
+
+In implementation terms, the setup action should hand off to the monitoring action as soon as the upstream run has been created and the initial durable state exists. Monitoring should not stay embedded in the setup path after that point.
+
 ## Alternatives Considered
 | Option | Pros | Cons | Why Not |
 |--------|------|------|---------|
@@ -139,20 +194,26 @@ If live partial assistant output is required later, it should use coarse periodi
 
 ## Acceptance Criteria
 - [ ] Starting an OpenCode run creates a durable run record linked to the todo.
+- [ ] A todo can retain multiple historical OpenCode runs, and queries for run history remain bounded.
 - [ ] Important lifecycle changes are visible through Convex queries without direct access to the upstream stream.
 - [ ] Final assistant output can be loaded reactively from Convex after the run completes.
+- [ ] The first version does not depend on partial token streaming to show useful run state.
 - [ ] Stream ingestion does not persist raw token-by-token transport chatter by default.
 - [ ] All database access remains in queries or mutations, not directly inside the action.
 - [ ] New queries use indexes and return bounded result sets.
 - [ ] Failure states are persisted in a way the UI can display and the existing todo flow can react to.
+- [ ] An interrupted or retried ingestion action can resume from durable Convex state without corrupting the run model.
+- [ ] Completing an OpenCode run does not automatically mark the todo `COMPLETED`.
 
 ## Test Strategy
 | Layer | What | How |
 |-------|------|-----|
 | Unit | Event mapping from upstream stream events into internal semantic events | Test mapper logic with representative provider payloads |
 | Unit | Idempotency and duplicate suppression | Test repeated provider ids and last-event handling |
+| Unit | Checkpoint and resume logic | Test interrupted ingestion and replay scenarios against stored checkpoint state |
 | Integration | OpenCode action writes expected run and message state | Use Convex tests around internal mutations and ingestion helpers |
 | Integration | Failure path updates run and todo state correctly | Simulate upstream error and assert terminal state |
+| Integration | Follow-up ingestion step resumes from durable state after timeout or disconnect | Simulate interrupted runs and verify state converges correctly |
 | Integration | Public queries enforce auth and return bounded results | Verify unauthorized access fails and authorized reads use the intended indexed query shape |
 
 ## Risks & Mitigations
@@ -174,14 +235,9 @@ If live partial assistant output is required later, it should use coarse periodi
 | Minimal public queries | Broad public API surface | Keeps the contract stable and reduces accidental coupling |
 
 ## Rollout Plan
-Start with a schema and storage API that can support one active run per todo. Then update the existing OpenCode action path to create a run and persist a small set of semantic state transitions. Once the backend contract is stable, expose query endpoints for the frontend to consume. Only after that should the UI be expanded to show richer run progress.
+Start with a schema and storage API that can support one active run per todo. Then split the current OpenCode action flow into a setup action and a monitoring action. The setup action should create the run and hand off to the monitor. The monitoring action should persist a small set of semantic state transitions plus checkpoint state. Once the backend contract is stable, expose query endpoints for the frontend to consume. Only after that should the UI be expanded to show richer run progress.
 
 This ordering reduces risk because it validates the durable state model before the app starts depending on it. It also keeps the first slice vertical: a user can trigger a todo run and see durable progress in the app without requiring full event fidelity.
-
-## Open Questions
-- [ ] Should the product allow more than one historical OpenCode run per todo, or should a new run replace the old visible run by default? → Owner: Product/implementation
-- [ ] Does the first UI need partial assistant output, or is finalized content sufficient? → Owner: Product/implementation
-- [ ] Should terminal run completion automatically transition the todo to `COMPLETED`, or should that remain a separate business decision? → Owner: Product/implementation
 
 ## Success Metrics
 - The app can render current OpenCode progress from Convex queries alone.
