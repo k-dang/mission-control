@@ -1,256 +1,184 @@
-# OpenCode SSE Ingestion — Implementation Spec
+# OpenCode Stream Lifecycle — Simplified Spec
 
 **Status:** Draft
 **Type:** Feature plan
-**Effort:** L
-**Date:** 2026-04-05
+**Effort:** S
+**Date:** 2026-04-06
 
 ## Problem Statement
-**Who:** Developers using this app to send a todo into the sandboxed OpenCode workflow.
+**Who:** Developers using this app to run OpenCode inside a sandbox for a todo.
 
-**What:** The current OpenCode integration starts a session and submits a prompt, but it does not define how streamed run progress should be represented inside Convex. Without that layer, the app has no durable, reactive view of run state beyond coarse todo status and sandbox metadata.
+**What:** The current OpenCode integration starts a session and submits a prompt, but it does not persist enough lifecycle state to know when the upstream event stream has definitively finished.
 
-**Why it matters:** The product needs a stable way to show execution progress, final outputs, and failures without depending on a direct browser connection to the upstream stream. It also needs to stay aligned with Convex best practices around actions, mutations, bounded reads, and reactive queries.
+**Why it matters:** Sandbox shutdown is a destructive action. We need one durable signal in Convex that says either "the stream started" or "the stream reached a terminal state and shutdown is now safe." We do not need message storage, token storage, or rich progress tracking for this version.
 
-**Evidence:** The current implementation in [convex/opencode.ts](/Users/kevin/Documents/dev/convex-todo-app/convex/opencode.ts) starts OpenCode and submits a prompt, while [convex/sandboxStorage.ts](/Users/kevin/Documents/dev/convex-todo-app/convex/sandboxStorage.ts) only stores sandbox metadata plus a coarse failure path. There is no durable run model today.
-
-## Proposed Solution
-Extend the existing OpenCode integration so Convex ingests only the important semantic events from the OpenCode SDK stream and converts them into durable application state. The upstream SSE stream remains an implementation detail of an internal action. Convex becomes the source of truth for run progress, final assistant output, and failure status.
-
-The design should remain intentionally small. Instead of storing raw SSE frames or every chunk, the ingestion path should persist only state transitions that matter to the UI and to recovery logic. Examples include run lifecycle changes, finalized assistant messages, meaningful phase transitions, and terminal errors. This keeps the model aligned with Convex guidance: actions perform external I/O, mutations own database writes, and clients subscribe to normal reactive queries.
-
-The initial implementation should optimize for clarity and operational safety over perfect fidelity. The goal is not to mirror the transport protocol. The goal is to provide a stable, queryable run model that survives reconnects, minimizes write amplification, and leaves room for later refinement if the UI needs richer tool-step visibility.
-
-The action structure should be split by responsibility. One internal action should handle setup work such as preparing the sandbox, starting OpenCode, creating the session, submitting the prompt, and creating the initial durable run record. A separate internal action should own stream monitoring, checkpointing, reconnect behavior, and terminal state handling. This separation keeps the setup path understandable and makes the stream durability logic easier to reason about and test.
-
-## Scope & Deliverables
-| Deliverable | Effort | Depends On |
-|-------------|--------|------------|
-| Add a durable OpenCode run model in Convex schema | M | - |
-| Add internal storage mutations and queries for run/message state | M | Run model |
-| Update OpenCode action flow to ingest important stream events into Convex | M | Storage API |
-| Add public read queries for todo-linked OpenCode progress | S | Storage API |
-| Document assumptions, non-goals, and rollout behavior | S | - |
-
-## Non-Goals
-- Persisting every raw SSE event or every token chunk from OpenCode.
-- Rebuilding a generic event-sourcing system for all agent providers.
-- Exposing the upstream SSE stream directly to the browser as the main product architecture.
-- Adding detailed tool call tracking in the first pass unless the UI proves it is necessary.
-- Solving cancellation, resume-after-process-crash, or multi-run concurrency beyond basic safeguards.
+**Evidence:** [convex/opencode.ts](/Users/kevin/Documents/dev/convex-todo-app/convex/opencode.ts) starts OpenCode and submits the prompt. [convex/sandboxStorage.ts](/Users/kevin/Documents/dev/convex-todo-app/convex/sandboxStorage.ts) stores sandbox metadata and a coarse failure path, but nothing durable about OpenCode stream lifecycle.
 
 ## Recommendation
-Adopt a small, task-oriented state model based on `todoId` and the current sandbox flow rather than a provider-agnostic event log. This is a better fit for the current repo because the app already revolves around todos and sandbox execution, and the existing Convex code is still relatively compact.
+Do not build a run table. Do not build a message table. Do not persist SSE frames.
 
-The first version should store two durable concepts:
+Instead, extend the existing `todoSandboxes` row with the minimum lifecycle fields needed to answer two questions:
 
-- `opencodeRuns`: one row per execution attempt for a todo
-- `opencodeMessages`: finalized or coarse-grained assistant/user/system messages worth displaying
+- did the OpenCode stream successfully start?
+- has the stream reached a terminal state such that sandbox shutdown is safe?
 
-This is the narrowest model that still supports a useful UI, durable recovery, and future expansion. Tool calls and more detailed step tracking should be treated as follow-on work, not part of the baseline spec.
+This keeps the implementation aligned with the real product need and avoids building an event model the app does not use.
 
-The product defaults for the first version should be:
+## In Scope
+- Persist a durable "stream started" state.
+- Persist a durable terminal state.
+- Persist enough metadata to know whether sandbox shutdown is safe.
+- Expose a small read API for the current lifecycle state by `todoId`.
+- Trigger sandbox shutdown only after durable terminal-state persistence succeeds.
 
-- retain historical runs per todo rather than overwriting prior runs
-- show finalized assistant output only, not partial token streaming
-- keep todo completion as a separate business state rather than automatically marking a todo `COMPLETED` when an OpenCode run finishes
+## Explicitly Out of Scope
+- Storing any messages.
+- Storing token deltas or raw SSE events.
+- Historical run retention.
+- Rich intermediate phases.
+- Tool call visibility.
+- Generic provider event ingestion.
+- Browser-facing live SSE proxying.
 
-## Data Model
-The new model should add a dedicated run table and a message table.
+## Proposed Model
+Reuse `todoSandboxes` as the only durable record for this concern.
 
-`opencodeRuns` should capture:
+Add OpenCode lifecycle fields to `todoSandboxes`:
 
-- the owning `todoId`
-- the upstream `sessionId`
-- a run status such as queued, running, completed, failed, or cancelled
-- a coarse `phase` string for user-visible progress
-- an optional last processed upstream event id for dedupe or resume logic
-- timestamps for start and completion
-- an optional error message
+- `opencodeSessionId`: optional upstream session id
+- `opencodeStreamState`: enum string
+- `opencodeStartedAt`: optional timestamp
+- `opencodeTerminalAt`: optional timestamp
+- `opencodeTerminalReason`: optional string
+- `opencodeShutdownSafe`: boolean
 
-`opencodeMessages` should capture:
+Recommended `opencodeStreamState` values:
 
-- the owning `runId`
-- the owning `todoId`
-- message role such as user, assistant, or system
-- an optional provider message id for idempotency
-- the persisted message content
-- a coarse status such as streaming, completed, or failed
-- timestamps for creation and completion
+- `IDLE`: no OpenCode stream has started for the current sandbox
+- `STARTED`: stream setup succeeded and monitoring has begun
+- `COMPLETED`: upstream stream ended successfully
+- `FAILED`: upstream stream ended with an error
+- `CANCELLED`: upstream stream ended due to explicit cancellation
 
-The existing `todoSandboxes` table should remain focused on sandbox identity and OpenCode service URL metadata. It should not become the general storage location for run state.
+This model intentionally does not represent non-terminal progress. The only non-idle active state is `STARTED`.
 
-Recommended indexes:
+## Shutdown Rule
+Sandbox shutdown is safe only when all of the following are true:
 
-- `opencodeRuns.by_todoId`
-- `opencodeRuns.by_todoId_and_creationTime` if historical runs are retained
-- `opencodeRuns.by_sessionId` if upstream session lookups are needed
-- `opencodeMessages.by_todoId_and_creationTime`
-- `opencodeMessages.by_runId_and_creationTime`
-- `opencodeMessages.by_providerMessageId` only if provider ids are stable enough to support idempotent upserts
+- `opencodeStreamState` is one of `COMPLETED`, `FAILED`, or `CANCELLED`
+- `opencodeTerminalAt` is set
+- `opencodeShutdownSafe` is `true`
 
-Index names should include all indexed fields, and implementation should use those indexes rather than `filter()`-style scans.
+`opencodeShutdownSafe` must be written in the same mutation that records the terminal state. Do not infer shutdown safety only from an in-memory event or from a best-effort action path.
 
-## Interface Contract
-The internal ingestion contract should follow these rules:
+The operational rule is:
 
-- OpenCode setup is initiated from a dedicated `internalAction`.
-- Stream monitoring is owned by a separate `internalAction`.
-- That action must not use `ctx.db` directly.
-- All durable writes happen through `internalMutation`s.
-- Any reads needed for configuration or current state should happen through `internalQuery`s.
-- Public query functions must validate arguments, validate return types, and require authentication.
+1. receive a terminal upstream condition
+2. persist terminal state in Convex
+3. mark `opencodeShutdownSafe = true`
+4. only then call sandbox shutdown
 
-The public read contract should stay small:
-
-- query latest or active OpenCode run by `todoId`
-- query historical OpenCode runs by `todoId` with a bounded limit
-- query recent OpenCode messages by `todoId`
-
-The message query must stay bounded. For the first version, that should mean either pagination or a small explicit cap such as the latest `n` messages ordered by an index. Do not use an unbounded `.collect()` for message history or run history.
-
-The latest-run query should return the active run when one exists, otherwise the most recent historical run for the todo. Historical run queries should be explicitly bounded and ordered by creation time.
-
-The internal write contract should cover:
-
-- create or upsert run
-- record semantic run event idempotently
-- persist checkpoint state
-- finalize run success
-- finalize run failure
-- upsert finalized assistant message
-
-The write surface should stay intentionally small and idempotent. The ingestion action should avoid long chains of narrow query and mutation calls for every upstream frame because each extra call creates more room for races and more write amplification. Prefer internal mutations that can safely accept repeated provider events and either no-op or converge to the same final state.
-
-The orchestration contract should also be explicit:
-
-- `runOpencodeForTodo` or an equivalent setup action prepares the environment and starts the run
-- `monitorOpencodeRun` or an equivalent monitoring action consumes the stream and owns resume behavior
-- storage mutations remain focused on durable state transitions rather than embedding monitoring logic
+If shutdown fails after that point, the system may retry shutdown safely because the durable record already says the stream is terminal.
 
 ## Event Mapping
-The ingestion layer should translate upstream stream traffic into a smaller internal event model.
+Persist only these semantic transitions:
 
-Persist these categories:
+- stream accepted or monitoring started -> `STARTED`
+- stream completed normally -> `COMPLETED`
+- stream failed -> `FAILED`
+- stream cancelled -> `CANCELLED`
 
-- run created or started
-- run phase changed in a way the user should see
-- assistant message finalized
-- terminal failure
-- terminal completion
+Ignore:
 
-Do not persist these categories by default:
+- message content
+- token deltas
+- heartbeats
+- keepalives
+- non-terminal provider chatter
 
-- token-level deltas
-- heartbeat or keepalive frames
-- duplicate provider events
-- transport-only metadata with no user or operational value
+## Interface Contract
+The internal contract should stay small:
 
-If live partial assistant output is required later, it should use coarse periodic flushes rather than one write per token. The default assumption for the first version is that finalized message content is enough, so `streaming` message state is not required in the initial schema unless the UI explicitly needs it.
+- `runOpencodeForTodo` starts OpenCode, creates the session, and marks the sandbox row as `STARTED`
+- a monitoring action watches the upstream stream for a terminal condition
+- all durable writes happen through internal mutations
+- sandbox shutdown runs only after the terminal mutation succeeds
 
-Run completion should not, by itself, mutate the todo into `COMPLETED`. A completed OpenCode run means the agent execution finished, not necessarily that the underlying todo is done from a product perspective.
+Suggested internal write surface:
+
+- `markOpencodeStarted`
+- `markOpencodeTerminal`
+- `clearOpencodeLifecycle` when a new sandbox or new run replaces the old state
+
+Suggested public read surface:
+
+- `getForTodo` returns sandbox metadata plus the current OpenCode lifecycle fields
+
+No additional public history or message queries are needed.
 
 ## Durability Model
-Durability for this feature should come from persisted run state and resumable ingestion, not from keeping a single SSE connection alive indefinitely.
+The stream connection is ephemeral. The lifecycle state in Convex is the source of truth.
 
-The OpenCode stream consumer should be treated as a bounded internal worker. If the action times out, the sandbox restarts, the upstream stream disconnects, or Convex retries the action, the system should still be able to continue from durable Convex state without corrupting the user-visible run model.
+Durability requirements for this version:
 
-The durable contract for the first version should be:
+- once the stream is considered started, that state is written to Convex
+- once a terminal condition is observed, that state is written to Convex before shutdown
+- duplicate terminal signals converge to the same terminal row state
+- shutdown may be retried when `opencodeShutdownSafe` is already `true`
 
-- a run record exists in Convex as soon as execution begins
-- important semantic progress is written to Convex as it happens
-- a checkpoint is stored often enough to support safe reconnect and replay handling
-- all writes are idempotent so duplicate upstream events converge on the same durable state
+This version does not need general resume logic. If the monitoring action crashes before a terminal write happens, the sandbox must be treated as not yet safe to shut down by lifecycle rules alone.
 
-The checkpoint model should include at least:
+## Failure Semantics
+Treat these as terminal:
 
-- the active `runId`
-- the upstream `sessionId`
-- the last processed upstream event id when the provider exposes one
-- the current coarse phase
-- the latest finalized assistant message state
-- the latest terminal error, if any
+- explicit upstream completion event
+- explicit upstream failure event
+- explicit upstream cancellation event
+- unrecoverable monitoring error after the stream had started
 
-If OpenCode exposes a resumable event cursor or last-event identifier, the ingestion action should persist it and use it on the next connection attempt. If it does not, the fallback should be idempotent upserts keyed by stable provider identifiers such as session id or provider message id. In that fallback mode, reconnects may replay transport events, but Convex state should still remain logically correct.
+For the last case, the terminal state should be `FAILED`, and the stored `opencodeTerminalReason` should describe the monitoring failure.
 
-The action should run in bounded windows rather than as a permanent stream proxy. Before reaching the action time limit, it should persist the latest checkpoint and schedule the next ingestion step if the run is still active. A restart path should:
+Treat these as non-terminal:
 
-- load the run and checkpoint from Convex
-- reconnect using the upstream resume mechanism when available
-- ignore already-applied events using checkpoint or provider identifiers
-- continue until the run reaches a terminal state
+- transient reconnect attempt
+- heartbeat timeout without a final classification
+- temporary transport interruption while recovery is still in progress
 
-This is the core durability mechanism. The stream itself is ephemeral. Convex-backed run records, checkpoints, and idempotent mutations are what make the workflow durable.
-
-In implementation terms, the setup action should hand off to the monitoring action as soon as the upstream run has been created and the initial durable state exists. Monitoring should not stay embedded in the setup path after that point.
-
-## Alternatives Considered
-| Option | Pros | Cons | Why Not |
-|--------|------|------|---------|
-| Store every SSE frame | Maximum fidelity | High write volume, poor fit for Convex reactive patterns, expensive to query | Overbuilt for current needs |
-| Proxy upstream SSE directly to browser | Simplest transport path | Weak durability, harder recovery, bypasses Convex as source of truth | Conflicts with desired architecture |
-| Store only todo status updates | Very small implementation | Loses message history and meaningful execution progress | Too coarse to power a useful UI |
-| Store run plus finalized messages | Good UX signal, bounded writes, aligns with current repo | Less detailed than a full event log | Recommended |
+If the system cannot classify the stream as terminal with confidence, it must not mark `opencodeShutdownSafe = true`.
 
 ## Acceptance Criteria
-- [ ] Starting an OpenCode run creates a durable run record linked to the todo.
-- [ ] A todo can retain multiple historical OpenCode runs, and queries for run history remain bounded.
-- [ ] Important lifecycle changes are visible through Convex queries without direct access to the upstream stream.
-- [ ] Final assistant output can be loaded reactively from Convex after the run completes.
-- [ ] The first version does not depend on partial token streaming to show useful run state.
-- [ ] Stream ingestion does not persist raw token-by-token transport chatter by default.
-- [ ] All database access remains in queries or mutations, not directly inside the action.
-- [ ] New queries use indexes and return bounded result sets.
-- [ ] Failure states are persisted in a way the UI can display and the existing todo flow can react to.
-- [ ] An interrupted or retried ingestion action can resume from durable Convex state without corrupting the run model.
-- [ ] Completing an OpenCode run does not automatically mark the todo `COMPLETED`.
+- [ ] Starting OpenCode writes `opencodeStreamState = STARTED` and sets `opencodeStartedAt`.
+- [ ] No messages or raw SSE frames are persisted anywhere in Convex.
+- [ ] A terminal upstream condition writes one of `COMPLETED`, `FAILED`, or `CANCELLED`.
+- [ ] The terminal write also sets `opencodeTerminalAt` and `opencodeShutdownSafe = true`.
+- [ ] Sandbox shutdown is attempted only after the terminal write succeeds.
+- [ ] Repeated terminal signals are idempotent and do not corrupt state.
+- [ ] Public reads stay small and are served from the existing sandbox record.
+- [ ] If the system cannot prove the stream is terminal, it does not mark shutdown as safe.
 
 ## Test Strategy
 | Layer | What | How |
 |-------|------|-----|
-| Unit | Event mapping from upstream stream events into internal semantic events | Test mapper logic with representative provider payloads |
-| Unit | Idempotency and duplicate suppression | Test repeated provider ids and last-event handling |
-| Unit | Checkpoint and resume logic | Test interrupted ingestion and replay scenarios against stored checkpoint state |
-| Integration | OpenCode action writes expected run and message state | Use Convex tests around internal mutations and ingestion helpers |
-| Integration | Failure path updates run and todo state correctly | Simulate upstream error and assert terminal state |
-| Integration | Follow-up ingestion step resumes from durable state after timeout or disconnect | Simulate interrupted runs and verify state converges correctly |
-| Integration | Public queries enforce auth and return bounded results | Verify unauthorized access fails and authorized reads use the intended indexed query shape |
+| Unit | Start transition | Verify `markOpencodeStarted` writes `STARTED`, `opencodeStartedAt`, and clears prior terminal fields |
+| Unit | Terminal transition | Verify `markOpencodeTerminal` writes terminal state, timestamp, reason, and `opencodeShutdownSafe = true` |
+| Unit | Idempotency | Reapply terminal mutation and assert state remains valid |
+| Integration | Happy path | Simulate stream start then completion and assert shutdown is called only after terminal persistence |
+| Integration | Failure path | Simulate monitoring failure and assert durable `FAILED` state before shutdown |
+| Integration | Ambiguous interruption | Simulate disconnect without terminal classification and assert shutdown is not marked safe |
 
-## Risks & Mitigations
-| Risk | Likelihood | Impact | Mitigation |
-|------|------------|--------|------------|
-| Upstream event taxonomy differs from assumptions | Medium | Medium | Keep provider mapping isolated in one translation layer and validate against SDK docs before implementation |
-| Partial-output UX later requires finer granularity | Medium | Medium | Start with finalized messages and coarse phase updates; add buffered partial flushes only if the UI needs them |
-| Duplicate or replayed provider events create inconsistent state | Medium | High | Use provider ids and last-event checkpoints for idempotent writes |
-| Too many action-to-mutation round trips create race windows or write amplification | Medium | Medium | Use a small set of idempotent internal mutations that converge state instead of many narrow write calls |
-| Scope creep into full workflow observability | High | Medium | Keep tool-call and deep step tracking out of the first version |
-
-## Trade-offs Made
+## Trade-offs
 | Chose | Over | Because |
 |-------|------|---------|
-| Durable semantic state | Raw SSE persistence | The UI needs stable state, not transport replay |
-| Todo-scoped run model | Generic provider event platform | The repo is small and already organized around todo execution |
-| Finalized messages first | Token-level live streaming | Lower write volume and better alignment with Convex best practices |
-| Idempotent coarse-grained writes | Many tiny ingestion mutations | Fewer race windows and less write amplification from streamed events |
-| Minimal public queries | Broad public API surface | Keeps the contract stable and reduces accidental coupling |
+| Sandbox-row lifecycle fields | Dedicated runs table | There is no current need for history |
+| Terminal-state persistence only | Rich stream ingestion | The product need is shutdown safety, not observability |
+| Explicit `opencodeShutdownSafe` flag | Derived-only logic | It gives callers one durable condition to trust |
+| No message storage | Finalized-message persistence | The user explicitly does not need it |
 
 ## Rollout Plan
-Start with a schema and storage API that can support one active run per todo. Then split the current OpenCode action flow into a setup action and a monitoring action. The setup action should create the run and hand off to the monitor. The monitoring action should persist a small set of semantic state transitions plus checkpoint state. Once the backend contract is stable, expose query endpoints for the frontend to consume. Only after that should the UI be expanded to show richer run progress.
+First, extend `todoSandboxes` and storage mutations with the lifecycle fields. Next, update the OpenCode setup path to write `STARTED`. Then add monitoring logic that writes a terminal state and only after that calls sandbox shutdown. Finally, expose the lifecycle fields through the existing sandbox query surface.
 
-This ordering reduces risk because it validates the durable state model before the app starts depending on it. It also keeps the first slice vertical: a user can trigger a todo run and see durable progress in the app without requiring full event fidelity.
-
-## Success Metrics
-- The app can render current OpenCode progress from Convex queries alone.
-- The backend no longer depends on storing transport-level SSE chatter for observability.
-- A failed OpenCode execution leaves behind enough durable state for debugging and user messaging.
-- The schema and query surface remain small enough to explain in one screen of documentation.
-
-## Discovery
-- Explored: existing OpenCode action flow, sandbox metadata storage, and current Convex schema.
-- Key findings: current integration starts OpenCode and submits prompts, but has no durable run model; existing storage is sandbox-oriented, not run-oriented; the repo already follows a todo-centric workflow.
-
-## Recommendation Summary
-Implement a minimal Convex-backed OpenCode run model that ingests only important semantic events from the upstream stream. Start with run state and finalized messages. Exclude raw SSE persistence, token-by-token writes, and generic event-log ambitions from the first pass.
+## Success Metric
+Given a `todoId`, the app can answer from Convex alone whether the OpenCode stream never started, is currently active, or has reached a terminal state where sandbox shutdown is safe.
 
 ---
 Phase: DONE | Waiting for: none
