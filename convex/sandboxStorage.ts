@@ -6,12 +6,30 @@ import {
 } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
 
+const opencodeStreamStateValidator = v.union(
+  v.literal("IDLE"),
+  v.literal("STARTED"),
+  v.literal("COMPLETED"),
+  v.literal("FAILED"),
+  v.literal("CANCELLED"),
+);
+
+const opencodeStateValidator = v.object({
+  url: v.optional(v.string()),
+  sessionId: v.optional(v.string()),
+  streamState: opencodeStreamStateValidator,
+  startedAt: v.optional(v.number()),
+  terminalAt: v.optional(v.number()),
+  terminalReason: v.optional(v.string()),
+  shutdownSafe: v.boolean(),
+});
+
 const sandboxRowValidator = v.object({
   _id: v.id("todoSandboxes"),
   _creationTime: v.number(),
   todoId: v.id("todos"),
   sandboxId: v.string(),
-  opencodeUrl: v.optional(v.string()),
+  opencode: opencodeStateValidator,
 });
 
 export const getSandboxByTodoId = internalQuery({
@@ -22,7 +40,16 @@ export const getSandboxByTodoId = internalQuery({
       .query("todoSandboxes")
       .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
       .unique();
-    return row ?? null;
+    if (!row) {
+      return null;
+    }
+    return {
+      _id: row._id,
+      _creationTime: row._creationTime,
+      todoId: row.todoId,
+      sandboxId: row.sandboxId,
+      opencode: row.opencode,
+    };
   },
 });
 
@@ -35,7 +62,16 @@ export const getForTodo = query({
       .query("todoSandboxes")
       .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
       .unique();
-    return row ?? null;
+    if (!row) {
+      return null;
+    }
+    return {
+      _id: row._id,
+      _creationTime: row._creationTime,
+      todoId: row.todoId,
+      sandboxId: row.sandboxId,
+      opencode: row.opencode,
+    };
   },
 });
 
@@ -70,12 +106,19 @@ export const saveSandboxResult = internalMutation({
     if (existing) {
       await ctx.db.patch("todoSandboxes", existing._id, {
         sandboxId: args.sandboxId,
-        opencodeUrl: undefined,
+        opencode: {
+          streamState: "IDLE",
+          shutdownSafe: false,
+        },
       });
     } else {
       await ctx.db.insert("todoSandboxes", {
         todoId: args.todoId,
         sandboxId: args.sandboxId,
+        opencode: {
+          streamState: "IDLE",
+          shutdownSafe: false,
+        },
       });
     }
     return null;
@@ -99,7 +142,13 @@ export const setOpencodeUrl = internalMutation({
       );
     }
     await ctx.db.patch("todoSandboxes", existing._id, {
-      opencodeUrl: args.opencodeUrl,
+      opencode: {
+        ...(existing.opencode ?? {
+          streamState: "IDLE",
+          shutdownSafe: false,
+        }),
+        url: args.opencodeUrl,
+      },
     });
     return null;
   },

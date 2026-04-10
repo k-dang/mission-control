@@ -366,18 +366,18 @@ export function TaskDetailPanel({
                 </a>
               </div>
             )}
-            {sandbox?.opencodeUrl && (
+            {sandbox?.opencode?.url && (
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/60">
                   OPENCODE
                 </span>
                 <a
-                  href={sandbox.opencodeUrl}
+                  href={sandbox.opencode.url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 truncate text-sm text-[--col-inprogress] hover:opacity-80"
                 >
-                  {sandbox.opencodeUrl}
+                  {sandbox.opencode.url}
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </a>
               </div>

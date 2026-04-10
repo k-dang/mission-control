@@ -18,6 +18,20 @@ export default defineSchema({
   todoSandboxes: defineTable({
     todoId: v.id("todos"),
     sandboxId: v.string(),
-    opencodeUrl: v.optional(v.string()),
+    opencode: v.object({
+      url: v.optional(v.string()),
+      sessionId: v.optional(v.string()),
+      streamState: v.union(
+        v.literal("IDLE"),
+        v.literal("STARTED"),
+        v.literal("COMPLETED"),
+        v.literal("FAILED"),
+        v.literal("CANCELLED"),
+      ),
+      startedAt: v.optional(v.number()),
+      terminalAt: v.optional(v.number()),
+      terminalReason: v.optional(v.string()),
+      shutdownSafe: v.boolean(),
+    }),
   }).index("by_todoId", ["todoId"]),
 });
