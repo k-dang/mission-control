@@ -154,6 +154,38 @@ export const setOpencodeUrl = internalMutation({
   },
 });
 
+export const markOpencodeStarted = internalMutation({
+  args: {
+    todoId: v.id("todos"),
+    opencodeUrl: v.string(),
+    sessionId: v.optional(v.string()),
+    startedAt: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("todoSandboxes")
+      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
+      .unique();
+    if (!existing) {
+      throw new Error(
+        `No sandbox row for todo ${args.todoId}; cannot mark OpenCode as started`,
+      );
+    }
+
+    await ctx.db.patch("todoSandboxes", existing._id, {
+      opencode: {
+        url: args.opencodeUrl,
+        sessionId: args.sessionId,
+        streamState: "STARTED",
+        startedAt: args.startedAt,
+        shutdownSafe: false,
+      },
+    });
+    return null;
+  },
+});
+
 export const markFailed = internalMutation({
   args: {
     todoId: v.id("todos"),

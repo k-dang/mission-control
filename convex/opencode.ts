@@ -106,11 +106,6 @@ export const runOpencodeForTodo = internalAction({
         url: opencodePublicUrl,
       });
 
-      await ctx.runMutation(internal.sandboxStorage.setOpencodeUrl, {
-        todoId: args.todoId,
-        opencodeUrl: opencodePublicUrl,
-      });
-
       const prompt = await client.session.prompt({
         path: { id: session.data.id },
         body: {
@@ -135,6 +130,13 @@ export const runOpencodeForTodo = internalAction({
           `Failed to submit OpenCode prompt: ${getOpencodeErrorMessage(prompt.error)}`,
         );
       }
+
+      await ctx.runMutation(internal.sandboxStorage.markOpencodeStarted, {
+        todoId: args.todoId,
+        opencodeUrl: opencodePublicUrl,
+        sessionId: session.data.id,
+        startedAt: Date.now(),
+      });
 
       // Only available in Pro or Enterprise plans
       // console.info("Updating network policy", { todoId: args.todoId });
