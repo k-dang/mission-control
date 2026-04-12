@@ -9,6 +9,7 @@ import {
   buildOpencodeConfigJson,
   buildTodoPrompt,
   getOpencodeErrorMessage,
+  waitForOpencodeTerminalState,
   waitForOpencodeHealth,
 } from "./lib/opencodeUtil";
 
@@ -106,7 +107,7 @@ export const runOpencodeForTodo = internalAction({
         url: opencodePublicUrl,
       });
 
-      const prompt = await client.session.prompt({
+      const prompt = await client.session.promptAsync({
         path: { id: session.data.id },
         body: {
           model: {
@@ -136,6 +137,30 @@ export const runOpencodeForTodo = internalAction({
         opencodeUrl: opencodePublicUrl,
         sessionId: session.data.id,
         startedAt: Date.now(),
+      });
+
+      const terminal = await waitForOpencodeTerminalState(
+        client,
+        session.data.id,
+        args.todoId,
+      );
+      if (!terminal) {
+        console.warn("OpenCode monitor ended without terminal classification", {
+          todoId: args.todoId,
+          sessionId: session.data.id,
+        });
+        return null;
+      }
+
+      await ctx.runMutation(internal.sandboxStorage.setOpencodeTerminalState, {
+        todoId: args.todoId,
+        streamState: terminal.terminalState,
+        terminalAt: terminal.terminalAt,
+        terminalReason: terminal.terminalReason,
+      });
+      await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
+        todoId: args.todoId,
+        sandboxId: sandboxRow.sandboxId,
       });
 
       // Only available in Pro or Enterprise plans

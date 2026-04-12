@@ -107,7 +107,7 @@ The internal contract should stay small:
 Suggested internal write surface:
 
 - `markOpencodeStarted`
-- `markOpencodeTerminal`
+- `setOpencodeTerminalState`
 - `clearOpencodeLifecycle` when a new sandbox or new run replaces the old state
 
 Suggested public read surface:
@@ -160,7 +160,7 @@ If the system cannot classify the stream as terminal with confidence, it must no
 | Layer | What | How |
 |-------|------|-----|
 | Unit | Start transition | Verify `markOpencodeStarted` writes `STARTED`, `opencodeStartedAt`, and clears prior terminal fields |
-| Unit | Terminal transition | Verify `markOpencodeTerminal` writes terminal state, timestamp, reason, and `opencodeShutdownSafe = true` |
+| Unit | Terminal transition | Verify `setOpencodeTerminalState` writes terminal state, timestamp, reason, and `opencodeShutdownSafe = true` |
 | Unit | Idempotency | Reapply terminal mutation and assert state remains valid |
 | Integration | Happy path | Simulate stream start then completion and assert shutdown is called only after terminal persistence |
 | Integration | Failure path | Simulate monitoring failure and assert durable `FAILED` state before shutdown |

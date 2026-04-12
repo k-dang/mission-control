@@ -1,6 +1,20 @@
+import type { Event, EventSessionError, OpencodeClient } from "@opencode-ai/sdk";
+
 const OPENCODE_HEALTH_PATH = "/global/health";
 const HEALTH_TIMEOUT_MS = 20_000;
 const HEALTH_POLL_INTERVAL_MS = 4_000;
+const OPENCODE_EVENT_MAX_RETRY_ATTEMPTS = 5;
+
+/** Set to `true` to log every SSE `eventType` after the first (verbose). */
+const OPENCODE_SSE_DEBUG = true;
+
+type OpencodeTerminalState = "COMPLETED" | "FAILED" | "CANCELLED";
+
+type OpencodeTerminalResult = {
+  terminalAt: number;
+  terminalReason?: string;
+  terminalState: OpencodeTerminalState;
+};
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -133,4 +147,99 @@ export function getOpencodeErrorMessage(error: unknown) {
   } catch {
     return "Unknown error";
   }
+}
+
+function getTerminalResultFromError(
+  event: EventSessionError,
+): OpencodeTerminalResult {
+  const error = event.properties.error;
+  const terminalAt = Date.now();
+
+  if (error?.name === "MessageAbortedError") {
+    return {
+      terminalAt,
+      terminalReason: error.data.message,
+      terminalState: "CANCELLED",
+    };
+  }
+
+  return {
+    terminalAt,
+    terminalReason: error
+      ? getOpencodeErrorMessage(error)
+      : "OpenCode session ended with an unknown error",
+    terminalState: "FAILED",
+  };
+}
+
+function getTerminalResultForEvent(
+  event: Event,
+  sessionId: string,
+): OpencodeTerminalResult | null {
+  if (
+    event.type === "session.idle" &&
+    event.properties.sessionID === sessionId
+  ) {
+    return {
+      terminalAt: Date.now(),
+      terminalState: "COMPLETED",
+    };
+  }
+
+  if (
+    event.type === "session.error" &&
+    event.properties.sessionID === sessionId
+  ) {
+    return getTerminalResultFromError(event);
+  }
+
+  return null;
+}
+
+export async function waitForOpencodeTerminalState(
+  client: OpencodeClient,
+  sessionId: string,
+  todoId: string,
+) {
+  const eventStream = await client.event.subscribe({
+    onSseError: (error) => {
+      console.warn("OpenCode event stream error", {
+        todoId,
+        sessionId,
+        error: getOpencodeErrorMessage(error),
+      });
+    },
+    sseMaxRetryAttempts: OPENCODE_EVENT_MAX_RETRY_ATTEMPTS,
+  });
+
+  let sawAnyEvent = false;
+  for await (const event of eventStream.stream) {
+    if (!sawAnyEvent) {
+      sawAnyEvent = true;
+      console.info("OpenCode SSE first event (stream is live)", {
+        todoId,
+        sessionId,
+        eventType: event.type,
+      });
+    } else if (OPENCODE_SSE_DEBUG) {
+      console.info("OpenCode SSE event", {
+        todoId,
+        sessionId,
+        eventType: event.type,
+      });
+    }
+
+    const terminal = getTerminalResultForEvent(event, sessionId);
+    if (terminal) {
+      console.info("OpenCode SSE reached terminal state", {
+        todoId,
+        sessionId,
+        terminalState: terminal.terminalState,
+        terminalReason: terminal.terminalReason,
+      });
+      return terminal;
+    }
+  }
+
+  return null;
 }
