@@ -181,9 +181,9 @@ export const runOpencodeForTodo = internalAction({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error("OpenCode failed", { todoId: args.todoId, error: message });
-      await ctx.runMutation(internal.sandboxStorage.markFailed, {
+      await ctx.runMutation(internal.todos.updateInternal, {
         todoId: args.todoId,
-        error: message,
+        status: "FAILED",
       });
       await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
         todoId: args.todoId,

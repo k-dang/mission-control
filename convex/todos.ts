@@ -1,6 +1,11 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalQuery, mutation, query } from "./_generated/server";
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
 
 const statusValidator = v.union(
@@ -46,6 +51,32 @@ export const getById = internalQuery({
       githubUrl: todo.githubUrl,
       prUrl: todo.prUrl,
     };
+  },
+});
+
+export const updateInternal = internalMutation({
+  args: {
+    todoId: v.id("todos"),
+    status: v.optional(statusValidator),
+    prUrl: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const patch: { status?: "TODO" | "INPROGRESS" | "COMPLETED" | "FAILED"; prUrl?: string } = {};
+
+    if (args.status !== undefined) {
+      patch.status = args.status;
+    }
+
+    if (args.prUrl !== undefined) {
+      patch.prUrl = args.prUrl;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      await ctx.db.patch("todos", args.todoId, patch);
+    }
+
+    return null;
   },
 });
 

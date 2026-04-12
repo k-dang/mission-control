@@ -276,7 +276,7 @@ export const createPullRequestForTodo = action({
       branch: todo._id,
     });
 
-    await ctx.runMutation(internal.sandboxStorage.savePrUrl, {
+    await ctx.runMutation(internal.todos.updateInternal, {
       todoId: args.todoId,
       prUrl: result.prUrl,
     });

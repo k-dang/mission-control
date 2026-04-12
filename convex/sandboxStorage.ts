@@ -223,31 +223,3 @@ export const setOpencodeTerminalState = internalMutation({
     return null;
   },
 });
-
-export const markFailed = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-    error: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.db.patch("todos", args.todoId, {
-      status: "FAILED",
-    });
-    return null;
-  },
-});
-
-export const savePrUrl = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-    prUrl: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await ctx.db.patch("todos", args.todoId, {
-      prUrl: args.prUrl,
-    });
-    return null;
-  },
-});
