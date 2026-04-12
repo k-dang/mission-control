@@ -32,10 +32,6 @@ export const shutdownSandboxForTodo = internalAction({
       });
     }
 
-    await ctx.runMutation(internal.sandboxStorage.clearSandboxResult, {
-      todoId: args.todoId,
-    });
-
     return null;
   },
 });

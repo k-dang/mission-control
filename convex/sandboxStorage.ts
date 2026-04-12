@@ -81,23 +81,6 @@ export const getForTodo = query({
   },
 });
 
-export const clearSandboxResult = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db
-      .query("todoSandboxes")
-      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-      .unique();
-    if (row) {
-      await ctx.db.delete("todoSandboxes", row._id);
-    }
-    return null;
-  },
-});
-
 export const saveSandboxResult = internalMutation({
   args: {
     todoId: v.id("todos"),
