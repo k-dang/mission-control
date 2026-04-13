@@ -1,10 +1,9 @@
 "use client";
 
 import { useState, useRef, useId, type KeyboardEvent } from "react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
-import { getErrorMessage } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
 import {
@@ -17,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { LucideIcon } from "lucide-react";
-import { ExternalLink, Clock, Loader2, Circle, RotateCw, CheckCircle2, XCircle } from "lucide-react";
+import { ExternalLink, Clock, Circle, RotateCw, CheckCircle2, XCircle } from "lucide-react";
 
 const STATUS_OPTIONS: {
   value: Doc<"todos">["status"];
@@ -98,7 +97,6 @@ export function TaskDetailPanel({
 }) {
   const updateTodo = useMutation(api.todos.update);
   const deleteTodo = useMutation(api.todos.remove);
-  const createPullRequest = useAction(api.github.createPullRequestForTodo);
   const sandbox = useQuery(api.sandboxStorage.getForTodo, {
     todoId: todo._id,
   });
@@ -109,8 +107,6 @@ export function TaskDetailPanel({
   );
   const [editGithubUrl, setEditGithubUrl] = useState(todo.githubUrl ?? "");
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [prError, setPrError] = useState<string | null>(null);
-  const [isCreatingPr, setIsCreatingPr] = useState(false);
 
   const titleRef = useRef<HTMLInputElement>(null);
   const statusSectionLabelId = useId();
@@ -155,27 +151,6 @@ export function TaskDetailPanel({
   const handleDelete = async () => {
     await deleteTodo({ todoId: todo._id });
     onClose();
-  };
-
-  const canCreatePr = Boolean(
-    todo.githubUrl && sandbox?.sandboxId && !todo.prUrl,
-  );
-
-  const handleCreatePr = async () => {
-    if (!canCreatePr || isCreatingPr) {
-      return;
-    }
-
-    setPrError(null);
-    setIsCreatingPr(true);
-
-    try {
-      await createPullRequest({ todoId: todo._id });
-    } catch (error: unknown) {
-      setPrError(getErrorMessage(error));
-    } finally {
-      setIsCreatingPr(false);
-    }
   };
 
   const handleKeyDownRevert = (e: KeyboardEvent, revert: () => void) => {
@@ -350,22 +325,6 @@ export function TaskDetailPanel({
                 </a>
               )}
             </div>
-            {todo.prUrl && (
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] text-muted-foreground/60">
-                  PR
-                </span>
-                <a
-                  href={todo.prUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1 truncate text-sm text-[--col-inprogress] hover:opacity-80"
-                >
-                  {todo.prUrl}
-                  <ExternalLink className="h-3 w-3 shrink-0" />
-                </a>
-              </div>
-            )}
             {sandbox?.opencode?.url && (
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/60">
@@ -387,25 +346,6 @@ export function TaskDetailPanel({
 
         {/* Actions */}
         <div className="flex items-center gap-3 border-t border-border/20 pt-4">
-          {canCreatePr && (
-            <>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handleCreatePr}
-                disabled={isCreatingPr}
-              >
-                {isCreatingPr ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : null}
-                {isCreatingPr ? "Creating PR..." : "Create PR"}
-              </Button>
-              {prError ? (
-                <p className="text-xs text-destructive">{prError}</p>
-              ) : null}
-            </>
-          )}
           <div className="ml-auto">
             {showDeleteConfirm ? (
               <div className="flex items-center gap-3">

@@ -22,7 +22,6 @@ const todoValidator = v.object({
   description: v.optional(v.string()),
   status: statusValidator,
   githubUrl: v.optional(v.string()),
-  prUrl: v.optional(v.string()),
 });
 
 export const getById = internalQuery({
@@ -35,7 +34,6 @@ export const getById = internalQuery({
       description: v.optional(v.string()),
       status: statusValidator,
       githubUrl: v.optional(v.string()),
-      prUrl: v.optional(v.string()),
     }),
     v.null(),
   ),
@@ -49,7 +47,6 @@ export const getById = internalQuery({
       description: todo.description,
       status: todo.status,
       githubUrl: todo.githubUrl,
-      prUrl: todo.prUrl,
     };
   },
 });
@@ -58,18 +55,15 @@ export const updateInternal = internalMutation({
   args: {
     todoId: v.id("todos"),
     status: v.optional(statusValidator),
-    prUrl: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const patch: { status?: "TODO" | "INPROGRESS" | "COMPLETED" | "FAILED"; prUrl?: string } = {};
+    const patch: {
+      status?: "TODO" | "INPROGRESS" | "COMPLETED" | "FAILED";
+    } = {};
 
     if (args.status !== undefined) {
       patch.status = args.status;
-    }
-
-    if (args.prUrl !== undefined) {
-      patch.prUrl = args.prUrl;
     }
 
     if (Object.keys(patch).length > 0) {
@@ -108,7 +102,32 @@ export const listByStatus = query({
         .collect(),
     ]);
 
-    return { todo, inprogress, completed };
+    return {
+      todo: todo.map((item) => ({
+        _id: item._id,
+        _creationTime: item._creationTime,
+        title: item.title,
+        description: item.description,
+        status: item.status,
+        githubUrl: item.githubUrl,
+      })),
+      inprogress: inprogress.map((item) => ({
+        _id: item._id,
+        _creationTime: item._creationTime,
+        title: item.title,
+        description: item.description,
+        status: item.status,
+        githubUrl: item.githubUrl,
+      })),
+      completed: completed.map((item) => ({
+        _id: item._id,
+        _creationTime: item._creationTime,
+        title: item.title,
+        description: item.description,
+        status: item.status,
+        githubUrl: item.githubUrl,
+      })),
+    };
   },
 });
 
