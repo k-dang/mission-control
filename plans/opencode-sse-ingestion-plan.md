@@ -1,6 +1,6 @@
 # Plan: OpenCode SSE Ingestion
 
-> Source PRD: [`specs/opencode-sse-ingestion.md`](/Users/kevin/Documents/dev/convex-todo-app/specs/opencode-sse-ingestion.md)
+> Source PRD: `[specs/opencode-sse-ingestion.md](/Users/kevin/Documents/dev/convex-todo-app/specs/opencode-sse-ingestion.md)`
 
 ## Architectural decisions
 
@@ -26,10 +26,10 @@ Extend the current sandbox record so Convex can answer, from a single row, wheth
 
 ### Acceptance criteria
 
-- [ ] The `todoSandboxes` record can store the OpenCode session id, lifecycle state, start timestamp, terminal timestamp, terminal reason, and shutdown-safety flag.
-- [ ] The public sandbox read path by `todoId` returns the lifecycle fields alongside the existing sandbox metadata.
-- [ ] No dedicated run, message, or raw-event storage is introduced.
-- [ ] The lifecycle state shape is explicit enough to represent `IDLE`, `STARTED`, `COMPLETED`, `FAILED`, and `CANCELLED`.
+- The `todoSandboxes` record can store the OpenCode session id, lifecycle state, start timestamp, terminal timestamp, terminal reason, and shutdown-safety flag.
+- The public sandbox read path by `todoId` returns the lifecycle fields alongside the existing sandbox metadata.
+- No dedicated run, message, or raw-event storage is introduced.
+- The lifecycle state shape is explicit enough to represent `IDLE`, `STARTED`, `COMPLETED`, `FAILED`, and `CANCELLED`.
 
 ---
 
@@ -43,10 +43,10 @@ Update the OpenCode startup flow so that once session creation and stream monito
 
 ### Acceptance criteria
 
-- [ ] A successful OpenCode startup writes `STARTED` and `opencodeStartedAt` to the sandbox row.
-- [ ] The startup write can also save the upstream session id when available.
-- [ ] Any stale terminal lifecycle fields from a prior run are cleared before or with the start transition.
-- [ ] The implementation still does not persist messages, token deltas, or raw SSE frames.
+- A successful OpenCode startup writes `STARTED` and `opencodeStartedAt` to the sandbox row.
+- The startup write can also save the upstream session id when available.
+- Any stale terminal lifecycle fields from a prior run are cleared before or with the start transition.
+- The implementation still does not persist messages, token deltas, or raw SSE frames.
 
 ---
 
@@ -60,11 +60,11 @@ Add monitoring around the upstream OpenCode stream that listens only for semanti
 
 ### Acceptance criteria
 
-- [ ] Normal completion records `COMPLETED`, a terminal timestamp, and `opencodeShutdownSafe = true`.
-- [ ] Explicit upstream failure records `FAILED`, a terminal timestamp, and an explanatory terminal reason.
-- [ ] Explicit upstream cancellation records `CANCELLED`, a terminal timestamp, and `opencodeShutdownSafe = true`.
-- [ ] Shutdown is invoked only after the terminal-state mutation succeeds.
-- [ ] If the system cannot confidently classify the stream as terminal, it does not mark shutdown as safe.
+- Normal completion records `COMPLETED`, a terminal timestamp, and `opencodeShutdownSafe = true`.
+- Explicit upstream failure records `FAILED`, a terminal timestamp, and an explanatory terminal reason.
+- Explicit upstream cancellation records `CANCELLED`, a terminal timestamp, and `opencodeShutdownSafe = true`.
+- Shutdown is invoked only after the terminal-state mutation succeeds.
+- If the system cannot confidently classify the stream as terminal, it does not mark shutdown as safe.
 
 ---
 
@@ -78,8 +78,8 @@ Tighten the lifecycle rules so duplicate terminal signals converge safely, monit
 
 ### Acceptance criteria
 
-- [ ] Applying the same terminal outcome more than once leaves the sandbox row in a valid terminal state.
-- [ ] A monitoring failure after a confirmed start records durable `FAILED` state before any shutdown attempt.
-- [ ] Ambiguous disconnects or temporary interruptions do not set `opencodeShutdownSafe = true`.
-- [ ] Lifecycle reads remain a single small query over the existing sandbox record.
-- [ ] Replacing the sandbox or starting a new run clears stale lifecycle state without introducing a history model.
+- Applying the same terminal outcome more than once leaves the sandbox row in a valid terminal state.
+- A monitoring failure after a confirmed start records durable `FAILED` state before any shutdown attempt.
+- Ambiguous disconnects or temporary interruptions do not set `opencodeShutdownSafe = true`.
+- Lifecycle reads remain a single small query over the existing sandbox record.
+- Replacing the sandbox or starting a new run clears stale lifecycle state without introducing a history model.
