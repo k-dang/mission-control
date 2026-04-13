@@ -5,15 +5,23 @@ const HEALTH_TIMEOUT_MS = 20_000;
 const HEALTH_POLL_INTERVAL_MS = 4_000;
 const OPENCODE_EVENT_MAX_RETRY_ATTEMPTS = 5;
 
-/** Set to `true` to log every SSE `eventType` after the first (verbose). */
-const OPENCODE_SSE_DEBUG = true;
-
 type OpencodeTerminalState = "COMPLETED" | "FAILED" | "CANCELLED";
 
 type OpencodeTerminalResult = {
   terminalAt: number;
   terminalReason?: string;
   terminalState: OpencodeTerminalState;
+};
+
+type OpencodeStreamLogState = {
+  lastSessionStatus?: string;
+  lastTodoSummary?: string;
+  seenCompactionPartIds: Set<string>;
+  seenPatchPartIds: Set<string>;
+  seenStepFinishPartIds: Set<string>;
+  seenStepStartPartIds: Set<string>;
+  seenSubtaskPartIds: Set<string>;
+  toolStateByCallId: Map<string, string>;
 };
 
 async function sleep(ms: number) {
@@ -177,6 +185,17 @@ function getTerminalResultForEvent(
   sessionId: string,
 ): OpencodeTerminalResult | null {
   if (
+    event.type === "session.status" &&
+    event.properties.sessionID === sessionId &&
+    event.properties.status.type === "idle"
+  ) {
+    return {
+      terminalAt: Date.now(),
+      terminalState: "COMPLETED",
+    };
+  }
+
+  if (
     event.type === "session.idle" &&
     event.properties.sessionID === sessionId
   ) {
@@ -196,6 +215,212 @@ function getTerminalResultForEvent(
   return null;
 }
 
+function summarizeTodos(todos: Array<{ status: string }>) {
+  const counts = new Map<string, number>();
+  for (const todo of todos) {
+    counts.set(todo.status, (counts.get(todo.status) ?? 0) + 1);
+  }
+
+  return Array.from(counts.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([status, count]) => `${status}:${count}`)
+    .join(", ");
+}
+
+function logOpencodeMilestone(
+  event: Event,
+  state: OpencodeStreamLogState,
+  sessionId: string,
+  todoId: string,
+) {
+  if (event.type === "session.status" && event.properties.sessionID === sessionId) {
+    const status = event.properties.status;
+    if (status.type === "idle") {
+      return;
+    }
+
+    const summary =
+      status.type === "retry"
+        ? `retry:${status.attempt}:${status.message}:${status.next}`
+        : status.type;
+    if (state.lastSessionStatus === summary) {
+      return;
+    }
+    state.lastSessionStatus = summary;
+
+    if (status.type === "busy") {
+      console.info("OpenCode session started work", {
+        todoId,
+        sessionId,
+      });
+      return;
+    }
+
+    console.warn("OpenCode session retrying", {
+      todoId,
+      sessionId,
+      attempt: status.attempt,
+      message: status.message,
+      next: status.next,
+    });
+    return;
+  }
+
+  if (event.type === "todo.updated" && event.properties.sessionID === sessionId) {
+    const summary = summarizeTodos(event.properties.todos);
+    if (state.lastTodoSummary === summary) {
+      return;
+    }
+    state.lastTodoSummary = summary;
+
+    console.info("OpenCode todo list updated", {
+      todoId,
+      sessionId,
+      todoCount: event.properties.todos.length,
+      summary,
+    });
+    return;
+  }
+
+  if (event.type === "permission.updated" && event.properties.sessionID === sessionId) {
+    console.warn("OpenCode permission requested", {
+      todoId,
+      sessionId,
+      permissionType: event.properties.type,
+      title: event.properties.title,
+    });
+    return;
+  }
+
+  if (event.type === "session.compacted" && event.properties.sessionID === sessionId) {
+    console.info("OpenCode session compacted", {
+      todoId,
+      sessionId,
+    });
+    return;
+  }
+
+  if (event.type !== "message.part.updated") {
+    return;
+  }
+
+  const { part } = event.properties;
+  if (part.sessionID !== sessionId) {
+    return;
+  }
+
+  if (part.type === "step-start") {
+    if (state.seenStepStartPartIds.has(part.id)) {
+      return;
+    }
+    state.seenStepStartPartIds.add(part.id);
+
+    console.info("OpenCode step started", {
+      todoId,
+      sessionId,
+      messageId: part.messageID,
+    });
+    return;
+  }
+
+  if (part.type === "step-finish") {
+    if (state.seenStepFinishPartIds.has(part.id)) {
+      return;
+    }
+    state.seenStepFinishPartIds.add(part.id);
+
+    console.info("OpenCode step finished", {
+      todoId,
+      sessionId,
+      messageId: part.messageID,
+      reason: part.reason,
+    });
+    return;
+  }
+
+  if (part.type === "tool") {
+    const previousStatus = state.toolStateByCallId.get(part.callID);
+    const nextStatus = part.state.status;
+    if (previousStatus === nextStatus) {
+      return;
+    }
+    state.toolStateByCallId.set(part.callID, nextStatus);
+
+    if (nextStatus === "running") {
+      console.info("OpenCode tool started", {
+        todoId,
+        sessionId,
+        tool: part.tool,
+        title: part.state.title,
+      });
+      return;
+    }
+
+    if (nextStatus === "completed") {
+      console.info("OpenCode tool finished", {
+        todoId,
+        sessionId,
+        tool: part.tool,
+        title: part.state.title,
+      });
+      return;
+    }
+
+    if (nextStatus === "error") {
+      console.warn("OpenCode tool failed", {
+        todoId,
+        sessionId,
+        tool: part.tool,
+        error: part.state.error,
+      });
+    }
+    return;
+  }
+
+  if (part.type === "patch") {
+    if (state.seenPatchPartIds.has(part.id)) {
+      return;
+    }
+    state.seenPatchPartIds.add(part.id);
+
+    console.info("OpenCode patch created", {
+      todoId,
+      sessionId,
+      fileCount: part.files.length,
+      files: part.files.slice(0, 5),
+    });
+    return;
+  }
+
+  if (part.type === "compaction") {
+    if (state.seenCompactionPartIds.has(part.id)) {
+      return;
+    }
+    state.seenCompactionPartIds.add(part.id);
+
+    console.info("OpenCode compaction created", {
+      todoId,
+      sessionId,
+      auto: part.auto,
+    });
+    return;
+  }
+
+  if (part.type === "subtask") {
+    if (state.seenSubtaskPartIds.has(part.id)) {
+      return;
+    }
+    state.seenSubtaskPartIds.add(part.id);
+
+    console.info("OpenCode subtask started", {
+      todoId,
+      sessionId,
+      agent: part.agent,
+      description: part.description,
+    });
+  }
+}
+
 export async function waitForOpencodeTerminalState(
   client: OpencodeClient,
   sessionId: string,
@@ -213,6 +438,15 @@ export async function waitForOpencodeTerminalState(
   });
 
   let sawAnyEvent = false;
+  const logState: OpencodeStreamLogState = {
+    seenCompactionPartIds: new Set(),
+    seenPatchPartIds: new Set(),
+    seenStepFinishPartIds: new Set(),
+    seenStepStartPartIds: new Set(),
+    seenSubtaskPartIds: new Set(),
+    toolStateByCallId: new Map(),
+  };
+
   for await (const event of eventStream.stream) {
     if (!sawAnyEvent) {
       sawAnyEvent = true;
@@ -221,13 +455,9 @@ export async function waitForOpencodeTerminalState(
         sessionId,
         eventType: event.type,
       });
-    } else if (OPENCODE_SSE_DEBUG) {
-      console.info("OpenCode SSE event", {
-        todoId,
-        sessionId,
-        eventType: event.type,
-      });
     }
+
+    logOpencodeMilestone(event, logState, sessionId, todoId);
 
     const terminal = getTerminalResultForEvent(event, sessionId);
     if (terminal) {
