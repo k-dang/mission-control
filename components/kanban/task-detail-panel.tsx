@@ -325,6 +325,22 @@ export function TaskDetailPanel({
                 </a>
               )}
             </div>
+            {todo.prUrl && (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-muted-foreground/60">
+                  PR
+                </span>
+                <a
+                  href={todo.prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex min-w-0 items-center gap-1 truncate text-sm text-col-completed hover:opacity-80"
+                >
+                  <span className="truncate">{todo.prUrl}</span>
+                  <ExternalLink className="h-3 w-3 shrink-0" />
+                </a>
+              </div>
+            )}
             {sandbox?.opencode?.url && (
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/60">
