@@ -117,12 +117,7 @@ export function buildTodoPrompt(
   description?: string,
   githubUrl?: string,
 ) {
-  const lines = [
-    "Understand the codebase before making changes, then implement the requested task with minimal, correct edits.",
-    "Run the most relevant validation for the files you change before you finish.",
-    "Task:",
-    title.trim(),
-  ];
+  const lines = ["Task:", title.trim()];
 
   const trimmedDescription = description?.trim();
   if (trimmedDescription) {
@@ -134,10 +129,19 @@ export function buildTodoPrompt(
   }
 
   lines.push(
-    "Expected outcome:",
-    "1. Make the code changes needed to complete the task.",
-    "2. Run relevant validation commands for the change.",
-    "3. Summarize what you changed and any follow-up risks or notes.",
+    "",
+    "Expected workflow:",
+    "1. Understand the codebase before editing.",
+    "2. Make the code changes needed to complete the task.",
+    "3. Run the most relevant validation for the files you change.",
+    "4. If no files changed, stop here — do NOT create a branch, commit, push, or pull request.",
+    "5. If files did change, create a new git branch off the repository's default branch. Pick a short descriptive branch name yourself.",
+    "6. Commit the changes with a clear message.",
+    "7. Push the branch to the origin remote. GITHUB_TOKEN is available in the environment for authenticated pushes and PR creation.",
+    "8. Open exactly one pull request for this branch as ready for review (NOT draft). Use `gh pr create` or the GitHub API. Write the PR title and body yourself so they summarize the work you actually performed.",
+    "9. Print the final pull request URL on its own line in your final message so it can be picked up for verification.",
+    "",
+    "Do not open more than one pull request. Do not open a draft pull request. Do not open a pull request if no files changed.",
   );
 
   return lines.join("\n");
