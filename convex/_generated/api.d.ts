@@ -10,6 +10,7 @@
 
 import type * as authHelpers from "../authHelpers.js";
 import type * as lib_opencodeUtil from "../lib/opencodeUtil.js";
+import type * as lib_todoPrOutcome from "../lib/todoPrOutcome.js";
 import type * as opencode from "../opencode.js";
 import type * as sandbox from "../sandbox.js";
 import type * as sandboxStorage from "../sandboxStorage.js";
@@ -25,6 +26,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   authHelpers: typeof authHelpers;
   "lib/opencodeUtil": typeof lib_opencodeUtil;
+  "lib/todoPrOutcome": typeof lib_todoPrOutcome;
   opencode: typeof opencode;
   sandbox: typeof sandbox;
   sandboxStorage: typeof sandboxStorage;

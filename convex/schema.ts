@@ -12,6 +12,7 @@ export default defineSchema({
       v.literal("FAILED"),
     ),
     githubUrl: v.optional(v.string()),
+    prUrl: v.optional(v.string()),
   }).index("by_status", ["status"]),
 
   todoSandboxes: defineTable({

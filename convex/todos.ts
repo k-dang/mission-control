@@ -7,12 +7,23 @@ import {
   query,
 } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
+import { buildTodoPatchForPrVerificationOutcome } from "./lib/todoPrOutcome";
 
 const statusValidator = v.union(
   v.literal("TODO"),
   v.literal("INPROGRESS"),
   v.literal("COMPLETED"),
   v.literal("FAILED"),
+);
+
+const prVerificationOutcomeValidator = v.union(
+  v.object({
+    kind: v.literal("verified"),
+    prUrl: v.string(),
+  }),
+  v.object({
+    kind: v.literal("verificationFailed"),
+  }),
 );
 
 const todoValidator = v.object({
@@ -22,6 +33,7 @@ const todoValidator = v.object({
   description: v.optional(v.string()),
   status: statusValidator,
   githubUrl: v.optional(v.string()),
+  prUrl: v.optional(v.string()),
 });
 
 export const getById = internalQuery({
@@ -34,6 +46,7 @@ export const getById = internalQuery({
       description: v.optional(v.string()),
       status: statusValidator,
       githubUrl: v.optional(v.string()),
+      prUrl: v.optional(v.string()),
     }),
     v.null(),
   ),
@@ -47,6 +60,7 @@ export const getById = internalQuery({
       description: todo.description,
       status: todo.status,
       githubUrl: todo.githubUrl,
+      prUrl: todo.prUrl,
     };
   },
 });
@@ -70,6 +84,30 @@ export const updateInternal = internalMutation({
       await ctx.db.patch("todos", args.todoId, patch);
     }
 
+    return null;
+  },
+});
+
+export const applyPrVerificationOutcome = internalMutation({
+  args: {
+    todoId: v.id("todos"),
+    outcome: prVerificationOutcomeValidator,
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const todo = await ctx.db.get("todos", args.todoId);
+    if (!todo) {
+      throw new ConvexError({
+        code: "NOT_FOUND",
+        message: "Todo not found",
+      });
+    }
+
+    await ctx.db.patch(
+      "todos",
+      args.todoId,
+      buildTodoPatchForPrVerificationOutcome(args.outcome),
+    );
     return null;
   },
 });
@@ -110,6 +148,7 @@ export const listByStatus = query({
         description: item.description,
         status: item.status,
         githubUrl: item.githubUrl,
+        prUrl: item.prUrl,
       })),
       inprogress: inprogress.map((item) => ({
         _id: item._id,
@@ -118,6 +157,7 @@ export const listByStatus = query({
         description: item.description,
         status: item.status,
         githubUrl: item.githubUrl,
+        prUrl: item.prUrl,
       })),
       completed: completed.map((item) => ({
         _id: item._id,
@@ -126,6 +166,7 @@ export const listByStatus = query({
         description: item.description,
         status: item.status,
         githubUrl: item.githubUrl,
+        prUrl: item.prUrl,
       })),
     };
   },
