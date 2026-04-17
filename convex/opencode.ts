@@ -1,17 +1,27 @@
 "use node";
 
-import { createOpencodeClient } from "@opencode-ai/sdk";
+import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk";
 import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import { internalAction } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
+import { type ActionCtx, internalAction } from "./_generated/server";
 import {
   buildOpencodeConfigJson,
   buildTodoPrompt,
+  extractFinalAssistantText,
   getOpencodeErrorMessage,
-  waitForOpencodeTerminalState,
   waitForOpencodeHealth,
+  waitForOpencodeTerminalState,
 } from "./lib/opencodeUtil";
+import {
+  classifyPrVerification,
+  extractPrUrlFromText,
+  parseGithubRepoUrl,
+  parsePrUrl,
+  prUrlMatchesRepo,
+  verifyPrExistsOnGitHub,
+} from "./lib/prVerification";
 
 const OPENCODE_PORT = 4096;
 const OPENCODE_BIN = "/home/vercel-sandbox/.opencode/bin/opencode";
@@ -19,6 +29,8 @@ const OPENCODE_CONFIG_PATH =
   "/home/vercel-sandbox/.config/opencode/opencode.json";
 const OPENCODE_PROVIDER_ID = "vercel";
 const DEFAULT_VERCEL_MODEL = "moonshotai/kimi-k2.5";
+const OPENCODE_MONITOR_SLICE_MS = 60_000;
+const OPENCODE_MONITOR_RETRY_DELAY_MS = 1_000;
 
 export const runOpencodeForTodo = internalAction({
   args: {
@@ -29,9 +41,12 @@ export const runOpencodeForTodo = internalAction({
     const todo = await ctx.runQuery(internal.todos.getById, {
       todoId: args.todoId,
     });
-    const sandboxRow = await ctx.runQuery(internal.sandboxStorage.getSandboxByTodoId, {
-      todoId: args.todoId,
-    });
+    const sandboxRow = await ctx.runQuery(
+      internal.sandboxStorage.getSandboxByTodoId,
+      {
+        todoId: args.todoId,
+      },
+    );
     if (!todo || !sandboxRow?.sandboxId) {
       console.warn("Todo or sandbox not found, skipping opencode", {
         todoId: args.todoId,
@@ -138,29 +153,8 @@ export const runOpencodeForTodo = internalAction({
         sessionId: session.data.id,
         startedAt: Date.now(),
       });
-
-      const terminal = await waitForOpencodeTerminalState(
-        client,
-        session.data.id,
-        args.todoId,
-      );
-      if (!terminal) {
-        console.warn("OpenCode monitor ended without terminal classification", {
-          todoId: args.todoId,
-          sessionId: session.data.id,
-        });
-        return null;
-      }
-
-      await ctx.runMutation(internal.sandboxStorage.setOpencodeTerminalState, {
+      await ctx.scheduler.runAfter(0, internal.opencode.monitorOpencodeForTodo, {
         todoId: args.todoId,
-        streamState: terminal.terminalState,
-        terminalAt: terminal.terminalAt,
-        terminalReason: terminal.terminalReason,
-      });
-      await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
-        todoId: args.todoId,
-        sandboxId: sandboxRow.sandboxId,
       });
 
       // Only available in Pro or Enterprise plans
@@ -195,3 +189,283 @@ export const runOpencodeForTodo = internalAction({
     return null;
   },
 });
+
+export const monitorOpencodeForTodo = internalAction({
+  args: {
+    todoId: v.id("todos"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const todo = await ctx.runQuery(internal.todos.getById, {
+      todoId: args.todoId,
+    });
+    const sandboxRow = await ctx.runQuery(
+      internal.sandboxStorage.getSandboxByTodoId,
+      {
+        todoId: args.todoId,
+      },
+    );
+
+    if (!todo || !sandboxRow?.sandboxId || !sandboxRow.opencode.url || !sandboxRow.opencode.sessionId) {
+      console.warn("OpenCode monitor missing session state, skipping", {
+        todoId: args.todoId,
+      });
+      return null;
+    }
+
+    if (sandboxRow.opencode.streamState !== "STARTED") {
+      console.info("OpenCode monitor found non-started state, skipping", {
+        todoId: args.todoId,
+        streamState: sandboxRow.opencode.streamState,
+      });
+      return null;
+    }
+
+    try {
+      const client = createOpencodeClient({ baseUrl: sandboxRow.opencode.url });
+      const outcome = await waitForOpencodeTerminalState(
+        client,
+        sandboxRow.opencode.sessionId,
+        args.todoId,
+        { timeoutMs: OPENCODE_MONITOR_SLICE_MS },
+      );
+
+      if (outcome.kind === "stream_unrecoverable") {
+        await finalizeOpencodeRun({
+          changedFiles: false,
+          ctx,
+          sandboxId: sandboxRow.sandboxId,
+          terminal: {
+            terminalAt: Date.now(),
+            terminalReason: `OpenCode event stream failed: ${outcome.reason}`,
+            terminalState: "FAILED",
+          },
+          todoGithubUrl: todo.githubUrl,
+          todoId: args.todoId,
+          client,
+          sessionId: sandboxRow.opencode.sessionId,
+        });
+        return null;
+      }
+
+      if (outcome.kind === "slice_timeout" || outcome.kind === "handoff") {
+        const status = await client.session.status();
+        const sessionStatus = status.data?.[sandboxRow.opencode.sessionId];
+        if (sessionStatus?.type === "idle") {
+          const changedFiles = await didSessionChangeFiles(
+            client,
+            sandboxRow.opencode.sessionId,
+          );
+          await finalizeOpencodeRun({
+            changedFiles,
+            ctx,
+            sandboxId: sandboxRow.sandboxId,
+            terminal: {
+              terminalAt: Date.now(),
+              terminalReason: "Detected idle status during scheduled monitor handoff",
+              terminalState: "COMPLETED",
+            },
+            todoGithubUrl: todo.githubUrl,
+            todoId: args.todoId,
+            client,
+            sessionId: sandboxRow.opencode.sessionId,
+          });
+          return null;
+        }
+
+        await ctx.scheduler.runAfter(
+          OPENCODE_MONITOR_RETRY_DELAY_MS,
+          internal.opencode.monitorOpencodeForTodo,
+          {
+            todoId: args.todoId,
+          },
+        );
+        return null;
+      }
+
+      await finalizeOpencodeRun({
+        changedFiles: outcome.outcome.changedFiles,
+        ctx,
+        sandboxId: sandboxRow.sandboxId,
+        terminal: outcome.outcome.terminal,
+        todoGithubUrl: todo.githubUrl,
+        todoId: args.todoId,
+        client,
+        sessionId: sandboxRow.opencode.sessionId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error("OpenCode monitor failed", { todoId: args.todoId, error: message });
+      await ctx.runMutation(internal.todos.updateInternal, {
+        todoId: args.todoId,
+        status: "FAILED",
+      });
+      await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
+        todoId: args.todoId,
+        sandboxId: sandboxRow.sandboxId,
+      });
+      throw error;
+    }
+
+    return null;
+  },
+});
+
+async function finalizeOpencodeRun(params: {
+  changedFiles: boolean;
+  client: OpencodeClient;
+  ctx: ActionCtx;
+  sandboxId: string;
+  sessionId: string;
+  terminal: {
+    terminalAt: number;
+    terminalReason?: string;
+    terminalState: "COMPLETED" | "FAILED" | "CANCELLED";
+  };
+  todoGithubUrl: string | undefined;
+  todoId: Id<"todos">;
+}) {
+  const {
+    changedFiles,
+    client,
+    ctx,
+    sandboxId,
+    sessionId,
+    terminal,
+    todoGithubUrl,
+    todoId,
+  } = params;
+
+  await ctx.runMutation(internal.sandboxStorage.setOpencodeTerminalState, {
+    todoId,
+    streamState: terminal.terminalState,
+    terminalAt: terminal.terminalAt,
+    terminalReason: terminal.terminalReason,
+  });
+
+  if (terminal.terminalState === "FAILED") {
+    await ctx.runMutation(internal.todos.updateInternal, {
+      todoId,
+      status: "FAILED",
+    });
+  }
+
+  if (terminal.terminalState === "COMPLETED") {
+    await verifyAndApplyPrOutcome({
+      ctx,
+      client,
+      sessionId,
+      todoId,
+      todoGithubUrl,
+      changedFiles,
+    });
+  }
+
+  await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
+    todoId,
+    sandboxId,
+  });
+}
+
+async function didSessionChangeFiles(
+  client: OpencodeClient,
+  sessionId: string,
+) {
+  try {
+    const diff = await client.session.diff({
+      path: { id: sessionId },
+    });
+    return (diff.data?.length ?? 0) > 0;
+  } catch (error) {
+    console.warn("Unable to read OpenCode diff during monitor recovery", {
+      sessionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return false;
+  }
+}
+
+async function verifyAndApplyPrOutcome(params: {
+  ctx: ActionCtx;
+  client: OpencodeClient;
+  sessionId: string;
+  todoId: Id<"todos">;
+  todoGithubUrl: string | undefined;
+  changedFiles: boolean;
+}) {
+  const { ctx, client, sessionId, todoId, todoGithubUrl, changedFiles } = params;
+
+  let candidatePrUrl: string | null = null;
+  let verified = false;
+
+  if (changedFiles) {
+    try {
+      const messagesResult = await client.session.messages({
+        path: { id: sessionId },
+      });
+      if (messagesResult.error || !messagesResult.data) {
+        console.warn("Unable to read OpenCode messages for PR verification", {
+          todoId,
+          sessionId,
+          error: getOpencodeErrorMessage(messagesResult.error),
+        });
+      } else {
+        const finalText = extractFinalAssistantText(messagesResult.data);
+        const extracted = extractPrUrlFromText(finalText);
+        if (extracted) {
+          const parsedPr = parsePrUrl(extracted);
+          const repo = todoGithubUrl
+            ? parseGithubRepoUrl(todoGithubUrl)
+            : null;
+          if (parsedPr && (!repo || prUrlMatchesRepo(parsedPr, repo))) {
+            candidatePrUrl = parsedPr.canonicalUrl;
+            verified = await verifyPrExistsOnGitHub(
+              parsedPr,
+              process.env.GITHUB_TOKEN,
+            );
+          } else {
+            console.warn("OpenCode PR URL did not match todo repository", {
+              todoId,
+              sessionId,
+              extracted,
+              todoGithubUrl,
+            });
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("PR verification threw an error", {
+        todoId,
+        sessionId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  const classification = classifyPrVerification({
+    changedFiles,
+    candidatePrUrl,
+    verified,
+  });
+
+  console.info("PR verification classification", {
+    todoId,
+    sessionId,
+    changedFiles,
+    candidatePrUrl,
+    verified,
+    classification: classification.kind,
+  });
+
+  if (classification.kind === "noop") {
+    return;
+  }
+
+  await ctx.runMutation(internal.todos.applyPrVerificationOutcome, {
+    todoId,
+    outcome:
+      classification.kind === "verified"
+        ? { kind: "verified", prUrl: classification.prUrl }
+        : { kind: "verificationFailed" },
+  });
+}

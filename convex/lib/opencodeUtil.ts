@@ -13,6 +13,38 @@ type OpencodeTerminalResult = {
   terminalState: OpencodeTerminalState;
 };
 
+export type OpencodeRunOutcome = {
+  terminal: OpencodeTerminalResult;
+  changedFiles: boolean;
+};
+
+/** Result of watching the OpenCode event stream for one monitor slice. */
+export type WaitForOpencodeTerminalStateResult =
+  | { kind: "terminal"; outcome: OpencodeRunOutcome }
+  | /** Abort fired at end of slice; safe to poll session and reschedule. */
+    { kind: "slice_timeout" }
+  | /** Stream closed without a terminal event after a non-retryable SSE failure (e.g. 410 Gone). */
+    { kind: "stream_unrecoverable"; reason: string }
+  | /** Stream ended without terminal classification; use session.status() fallback or reschedule. */
+    { kind: "handoff" };
+
+type WaitForOpencodeTerminalStateOptions = {
+  timeoutMs?: number;
+};
+
+/**
+ * HTTP-style SSE failures that will not heal by rescheduling the same URL/session.
+ * After SDK retry exhaustion, these should finalize the run as FAILED, not loop forever.
+ */
+export function isUnrecoverableSseErrorMessage(message: string): boolean {
+  const lower = message.toLowerCase();
+  if (lower.includes("410")) return true;
+  if (lower.includes("401") || lower.includes("403")) return true;
+  if (lower.includes("404")) return true;
+  if (lower.includes("not found") && lower.includes("sse")) return true;
+  return false;
+}
+
 type OpencodeStreamLogState = {
   lastSessionStatus?: string;
   lastTodoSummary?: string;
@@ -137,8 +169,8 @@ export function buildTodoPrompt(
     "4. If no files changed, stop here — do NOT create a branch, commit, push, or pull request.",
     "5. If files did change, create a new git branch off the repository's default branch. Pick a short descriptive branch name yourself.",
     "6. Commit the changes with a clear message.",
-    "7. Push the branch to the origin remote. GITHUB_TOKEN is available in the environment for authenticated pushes and PR creation.",
-    "8. Open exactly one pull request for this branch as ready for review (NOT draft). Use `gh pr create` or the GitHub API. Write the PR title and body yourself so they summarize the work you actually performed.",
+    "7. Push the branch to the origin remote. GITHUB_TOKEN is available in the environment for authenticated pushes and GitHub API requests.",
+    "8. Open exactly one pull request for this branch as ready for review (NOT draft) using the GitHub API, not the GitHub CLI. Write the PR title and body yourself so they summarize the work you actually performed.",
     "9. Print the final pull request URL on its own line in your final message so it can be picked up for verification.",
     "",
     "Do not open more than one pull request. Do not open a draft pull request. Do not open a pull request if no files changed.",
@@ -429,51 +461,115 @@ export async function waitForOpencodeTerminalState(
   client: OpencodeClient,
   sessionId: string,
   todoId: string,
-) {
-  const eventStream = await client.event.subscribe({
-    onSseError: (error) => {
-      console.warn("OpenCode event stream error", {
-        todoId,
-        sessionId,
-        error: getOpencodeErrorMessage(error),
-      });
-    },
-    sseMaxRetryAttempts: OPENCODE_EVENT_MAX_RETRY_ATTEMPTS,
-  });
+  options: WaitForOpencodeTerminalStateOptions = {},
+): Promise<WaitForOpencodeTerminalStateResult> {
+  const abortController =
+    typeof options.timeoutMs === "number" ? new AbortController() : null;
+  const timeoutId =
+    abortController && options.timeoutMs
+      ? setTimeout(() => abortController.abort(), options.timeoutMs)
+      : null;
 
-  let sawAnyEvent = false;
-  const logState: OpencodeStreamLogState = {
-    seenCompactionPartIds: new Set(),
-    seenPatchPartIds: new Set(),
-    seenStepFinishPartIds: new Set(),
-    seenStepStartPartIds: new Set(),
-    seenSubtaskPartIds: new Set(),
-    toolStateByCallId: new Map(),
-  };
+  let lastSseErrorMessage: string | undefined;
 
-  for await (const event of eventStream.stream) {
-    if (!sawAnyEvent) {
-      sawAnyEvent = true;
-      console.info("OpenCode SSE first event (stream is live)", {
-        todoId,
-        sessionId,
-        eventType: event.type,
-      });
+  try {
+    const eventStream = await client.event.subscribe({
+      onSseError: (error) => {
+        const message = getOpencodeErrorMessage(error);
+        lastSseErrorMessage = message;
+        if (abortController?.signal.aborted && message === "This operation was aborted") {
+          return;
+        }
+        console.warn("OpenCode event stream error", {
+          todoId,
+          sessionId,
+          error: message,
+        });
+      },
+      signal: abortController?.signal,
+      sseMaxRetryAttempts: OPENCODE_EVENT_MAX_RETRY_ATTEMPTS,
+    });
+
+    let sawAnyEvent = false;
+    const logState: OpencodeStreamLogState = {
+      seenCompactionPartIds: new Set(),
+      seenPatchPartIds: new Set(),
+      seenStepFinishPartIds: new Set(),
+      seenStepStartPartIds: new Set(),
+      seenSubtaskPartIds: new Set(),
+      toolStateByCallId: new Map(),
+    };
+
+    for await (const event of eventStream.stream) {
+      if (!sawAnyEvent) {
+        sawAnyEvent = true;
+        console.info("OpenCode SSE first event (stream is live)", {
+          todoId,
+          sessionId,
+          eventType: event.type,
+        });
+      }
+
+      logOpencodeMilestone(event, logState, sessionId, todoId);
+
+      const terminal = getTerminalResultForEvent(event, sessionId);
+      if (terminal) {
+        const changedFiles = logState.seenPatchPartIds.size > 0;
+        console.info("OpenCode SSE reached terminal state", {
+          todoId,
+          sessionId,
+          terminalState: terminal.terminalState,
+          terminalReason: terminal.terminalReason,
+          changedFiles,
+        });
+        return { kind: "terminal", outcome: { terminal, changedFiles } };
+      }
     }
 
-    logOpencodeMilestone(event, logState, sessionId, todoId);
+    if (lastSseErrorMessage && isUnrecoverableSseErrorMessage(lastSseErrorMessage)) {
+      return {
+        kind: "stream_unrecoverable",
+        reason: lastSseErrorMessage,
+      };
+    }
 
-    const terminal = getTerminalResultForEvent(event, sessionId);
-    if (terminal) {
-      console.info("OpenCode SSE reached terminal state", {
+    return { kind: "handoff" };
+  } catch (error) {
+    if (abortController?.signal.aborted) {
+      console.info("OpenCode monitor slice timed out before terminal state", {
         todoId,
         sessionId,
-        terminalState: terminal.terminalState,
-        terminalReason: terminal.terminalReason,
+        timeoutMs: options.timeoutMs,
       });
-      return terminal;
+      return { kind: "slice_timeout" };
+    }
+    throw error;
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
     }
   }
+}
 
-  return null;
+export function extractFinalAssistantText(
+  messages: Array<{
+    info: { role: string; time?: { created: number } };
+    parts: Array<{ type: string; text?: string; synthetic?: boolean; ignored?: boolean }>;
+  }>,
+): string {
+  const assistantMessages = messages
+    .filter((m) => m.info.role === "assistant")
+    .sort((a, b) => (a.info.time?.created ?? 0) - (b.info.time?.created ?? 0));
+  const last = assistantMessages[assistantMessages.length - 1];
+  if (!last) return "";
+  return last.parts
+    .filter(
+      (part) =>
+        part.type === "text" &&
+        typeof part.text === "string" &&
+        !part.synthetic &&
+        !part.ignored,
+    )
+    .map((part) => part.text as string)
+    .join("\n");
 }
