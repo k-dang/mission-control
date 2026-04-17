@@ -5,7 +5,7 @@ import { useAction } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, XCircle, Loader2, ArrowLeft } from "lucide-react";
+import { CheckCircle, XCircle, Loader2, ArrowLeft, GitPullRequest } from "lucide-react";
 
 if (process.env.NODE_ENV === "production") {
   throw new Error("Dev tools page is not available in production.");
@@ -18,10 +18,21 @@ type CheckResult = {
   error: string | null;
 };
 
+type PrResult = {
+  ok: boolean;
+  pullRequestUrl: string | null;
+  pullRequestNumber: number | null;
+  branch: string | null;
+  error: string | null;
+};
+
 export default function DevPage() {
   const checkGithubToken = useAction(api.devTools.checkGithubToken);
+  const createTestPr = useAction(api.devTools.createMissionControlTestPullRequest);
   const [result, setResult] = useState<CheckResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [prResult, setPrResult] = useState<PrResult | null>(null);
+  const [prLoading, setPrLoading] = useState(false);
 
   const handleCheck = async () => {
     setLoading(true);
@@ -31,6 +42,17 @@ export default function DevPage() {
       setResult(res);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCreatePr = async () => {
+    setPrLoading(true);
+    setPrResult(null);
+    try {
+      const res = await createTestPr({});
+      setPrResult(res);
+    } finally {
+      setPrLoading(false);
     }
   };
 
@@ -78,6 +100,67 @@ export default function DevPage() {
             )}
             {result.error && (
               <p className="text-destructive pt-1">{result.error}</p>
+            )}
+          </div>
+        )}
+
+        <p className="text-sm text-muted-foreground pt-2">
+          Opens a real PR on{" "}
+          <a
+            href="https://github.com/k-dang/mission-control"
+            className="underline underline-offset-2 hover:text-foreground"
+            target="_blank"
+            rel="noreferrer"
+          >
+            k-dang/mission-control
+          </a>
+          : creates a small text file on a new branch, then opens the PR (needs
+          contents + PR permissions on the token).
+        </p>
+        <Button onClick={handleCreatePr} disabled={prLoading} variant="secondary">
+          {prLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <GitPullRequest className="h-4 w-4" />
+          )}
+          {prLoading ? "Creating PR…" : "Create smoke-test PR"}
+        </Button>
+
+        {prResult !== null && (
+          <div className="rounded-lg border p-4 space-y-2 text-sm">
+            <Row
+              label="PR created"
+              ok={prResult.ok}
+              value={prResult.ok ? "Yes" : "No"}
+            />
+            {prResult.pullRequestNumber !== null && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">PR #</span>
+                <span className="font-mono font-medium">
+                  {prResult.pullRequestNumber}
+                </span>
+              </div>
+            )}
+            {prResult.branch && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground shrink-0">Branch</span>
+                <span className="font-mono text-xs text-right break-all">
+                  {prResult.branch}
+                </span>
+              </div>
+            )}
+            {prResult.pullRequestUrl && (
+              <a
+                href={prResult.pullRequestUrl}
+                className="block text-primary underline underline-offset-2 break-all"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {prResult.pullRequestUrl}
+              </a>
+            )}
+            {prResult.error && (
+              <p className="text-destructive pt-1">{prResult.error}</p>
             )}
           </div>
         )}
