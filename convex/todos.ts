@@ -62,7 +62,10 @@ export const updateInternal = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const patch: { status?: "TODO" | "INPROGRESS" | "COMPLETED" | "FAILED"; prUrl?: string } = {};
+    const patch: {
+      status?: "TODO" | "INPROGRESS" | "COMPLETED" | "FAILED";
+      prUrl?: string;
+    } = {};
 
     if (args.status !== undefined) {
       patch.status = args.status;
@@ -86,11 +89,12 @@ export const listByStatus = query({
     todo: v.array(todoValidator),
     inprogress: v.array(todoValidator),
     completed: v.array(todoValidator),
+    failed: v.array(todoValidator),
   }),
   handler: async (ctx) => {
     await requireAuthenticated(ctx);
 
-    const [todo, inprogress, completed] = await Promise.all([
+    const [todo, inprogress, completed, failed] = await Promise.all([
       ctx.db
         .query("todos")
         .withIndex("by_status", (q) => q.eq("status", "TODO"))
@@ -106,9 +110,14 @@ export const listByStatus = query({
         .withIndex("by_status", (q) => q.eq("status", "COMPLETED"))
         .order("desc")
         .collect(),
+      ctx.db
+        .query("todos")
+        .withIndex("by_status", (q) => q.eq("status", "FAILED"))
+        .order("desc")
+        .collect(),
     ]);
 
-    return { todo, inprogress, completed };
+    return { todo, inprogress, completed, failed };
   },
 });
 
