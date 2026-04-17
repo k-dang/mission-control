@@ -1,0 +1,4 @@
+Convex GITHUB_TOKEN smoke test
+Created at 2026-04-17T03:30:06.505Z
+
+Safe to close this PR and delete the branch + file after verifying the token.
