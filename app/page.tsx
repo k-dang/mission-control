@@ -40,6 +40,7 @@ const STAT_COLORS = {
   todo: "oklch(0.75 0.15 55)",
   inprogress: "oklch(0.65 0.17 250)",
   completed: "oklch(0.68 0.14 155)",
+  failed: "oklch(0.58 0.22 25)",
 };
 
 const CREATE_TODO_DEFAULT_GITHUB_URL =
@@ -154,9 +155,12 @@ export default function Home() {
 
   const sheetOpen = selectedTodoId !== null;
   const resolvedTodo = todos
-    ? ([...todos.todo, ...todos.inprogress, ...todos.completed].find(
-        (t) => t._id === selectedTodoId,
-      ) ?? null)
+    ? ([
+        ...todos.todo,
+        ...todos.inprogress,
+        ...todos.completed,
+        ...todos.failed,
+      ].find((t) => t._id === selectedTodoId) ?? null)
     : null;
 
   // Auto-close sheet if todo was deleted
@@ -178,8 +182,8 @@ export default function Home() {
             </div>
             <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
           </div>
-          <div className="grid gap-5 md:grid-cols-3">
-            {[0, 1, 2].map((col) => (
+          <div className="grid gap-5 md:grid-cols-4">
+            {[0, 1, 2, 3].map((col) => (
               <div
                 key={col}
                 className="rounded-xl border border-border/30 bg-card/20 p-4"
@@ -223,8 +227,8 @@ export default function Home() {
             <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
           </div>
           {/* Skeleton columns */}
-          <div className="grid gap-5 md:grid-cols-3">
-            {[0, 1, 2].map((col) => (
+          <div className="grid gap-5 md:grid-cols-4">
+            {[0, 1, 2, 3].map((col) => (
               <div
                 key={col}
                 className="rounded-xl border border-border/30 bg-card/20 p-4"
@@ -285,114 +289,123 @@ export default function Home() {
                   {todos.completed.length}
                 </span>
               </div>
+              <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: STAT_COLORS.failed }}
+                />
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                  {todos.failed.length}
+                </span>
+              </div>
             </div>
-              <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
-                <DialogTrigger asChild>
-                  <Button variant="glow" size="sm">
-                    <Plus className="h-4 w-4" />
-                    New Task
-                  </Button>
-                </DialogTrigger>
-                <DialogContent
-                  className="glass-card border-border/50 bg-card/80 backdrop-blur-xl"
-                  onOpenAutoFocus={(e) => {
-                    e.preventDefault();
-                    titleInputRef.current?.focus();
-                  }}
+            <Dialog open={dialogOpen} onOpenChange={handleOpenChange}>
+              <DialogTrigger asChild>
+                <Button variant="glow" size="sm">
+                  <Plus className="h-4 w-4" />
+                  New Task
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                className="glass-card border-border/50 bg-card/80 backdrop-blur-xl"
+                onOpenAutoFocus={(e) => {
+                  e.preventDefault();
+                  titleInputRef.current?.focus();
+                }}
+              >
+                <DialogHeader>
+                  <DialogTitle>Create a new task</DialogTitle>
+                  <DialogDescription>
+                    Add a task to your TODO column.
+                  </DialogDescription>
+                </DialogHeader>
+                <form
+                  id="create-todo-form"
+                  onSubmit={handleCreateTodo}
+                  className="grid gap-4"
                 >
-                  <DialogHeader>
-                    <DialogTitle>Create a new task</DialogTitle>
-                    <DialogDescription>
-                      Add a task to your TODO column.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <form
-                    id="create-todo-form"
-                    onSubmit={handleCreateTodo}
-                    className="grid gap-4"
-                  >
-                    <div className="flex flex-col gap-1.5">
-                      <Label
-                        htmlFor="create-todo-title"
-                        className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
-                      >
-                        Title
-                      </Label>
-                      <Input
-                        id="create-todo-title"
-                        ref={titleInputRef}
-                        value={title}
-                        onChange={(event) => setTitle(event.target.value)}
-                        placeholder="What needs to be done?"
-                        className="bg-background/50 border-border/50"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label
-                        htmlFor="create-todo-description"
-                        className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
-                      >
-                        Description{" "}
-                        <span className="normal-case tracking-normal text-muted-foreground/50">
-                          (optional)
-                        </span>
-                      </Label>
-                      <Textarea
-                        id="create-todo-description"
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        placeholder="Add details"
-                        rows={3}
-                        className="resize-none bg-background/50 border-border/50"
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1.5">
-                      <Label
-                        htmlFor="create-todo-github-url"
-                        className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
-                      >
-                        GitHub URL{" "}
-                        <span className="normal-case tracking-normal text-muted-foreground/50">
-                          (optional)
-                        </span>
-                      </Label>
-                      <Input
-                        id="create-todo-github-url"
-                        value={githubUrl}
-                        onChange={(event) => setGithubUrl(event.target.value)}
-                        placeholder="https://github.com/owner/repo"
-                        type="url"
-                        className="bg-background/50 border-border/50"
-                      />
-                    </div>
-                    {formError ? (
-                      <div className="flex items-center gap-2 text-sm text-destructive">
-                        <AlertCircle className="h-4 w-4 shrink-0" />
-                        <p>{formError}</p>
-                      </div>
-                    ) : null}
-                  </form>
-                  <DialogFooter>
-                    <DialogTrigger asChild>
-                      <Button variant="outline" disabled={isSubmitting}>
-                        Cancel
-                      </Button>
-                    </DialogTrigger>
-                    <Button
-                      type="submit"
-                      form="create-todo-form"
-                      disabled={isSubmitting}
+                  <div className="flex flex-col gap-1.5">
+                    <Label
+                      htmlFor="create-todo-title"
+                      className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
                     >
-                      {isSubmitting ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <Plus className="h-4 w-4" />
-                      )}
-                      {isSubmitting ? "Adding..." : "Add Task"}
+                      Title
+                    </Label>
+                    <Input
+                      id="create-todo-title"
+                      ref={titleInputRef}
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      placeholder="What needs to be done?"
+                      className="bg-background/50 border-border/50"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label
+                      htmlFor="create-todo-description"
+                      className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
+                    >
+                      Description{" "}
+                      <span className="normal-case tracking-normal text-muted-foreground/50">
+                        (optional)
+                      </span>
+                    </Label>
+                    <Textarea
+                      id="create-todo-description"
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      placeholder="Add details"
+                      rows={3}
+                      className="resize-none bg-background/50 border-border/50"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <Label
+                      htmlFor="create-todo-github-url"
+                      className="text-xs font-medium uppercase tracking-widest text-muted-foreground"
+                    >
+                      GitHub URL{" "}
+                      <span className="normal-case tracking-normal text-muted-foreground/50">
+                        (optional)
+                      </span>
+                    </Label>
+                    <Input
+                      id="create-todo-github-url"
+                      value={githubUrl}
+                      onChange={(event) => setGithubUrl(event.target.value)}
+                      placeholder="https://github.com/owner/repo"
+                      type="url"
+                      className="bg-background/50 border-border/50"
+                    />
+                  </div>
+                  {formError ? (
+                    <div className="flex items-center gap-2 text-sm text-destructive">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <p>{formError}</p>
+                    </div>
+                  ) : null}
+                </form>
+                <DialogFooter>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" disabled={isSubmitting}>
+                      Cancel
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <Button
+                    type="submit"
+                    form="create-todo-form"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Plus className="h-4 w-4" />
+                    )}
+                    {isSubmitting ? "Adding..." : "Add Task"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
 
           {/* Quick add bar */}
@@ -437,7 +450,7 @@ export default function Home() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-3 md:overflow-hidden">
+        <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-4 md:overflow-hidden">
           <KanbanColumn
             status="TODO"
             todos={todos.todo}
@@ -462,6 +475,13 @@ export default function Home() {
           <KanbanColumn
             status="COMPLETED"
             todos={todos.completed}
+            draggable={false}
+            onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
+          />
+          <KanbanColumn
+            status="FAILED"
+            todos={todos.failed}
             draggable={false}
             onDragStart={handleDragStart}
             onCardClick={handleCardClick}
