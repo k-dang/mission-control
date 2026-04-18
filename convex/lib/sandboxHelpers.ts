@@ -1,6 +1,6 @@
 "use node";
 
-import { createOpencodeClient, type OutputFormat } from "@opencode-ai/sdk/v2/client";
+import { createOpencodeClient, type OutputFormat } from "@opencode-ai/sdk/v2";
 import { Sandbox } from "@vercel/sandbox";
 import { parseGithubRepoUrl } from "./github";
 import { getOpencodeErrorMessage } from "./opencodeHelpers";
@@ -52,23 +52,6 @@ export type PullRequestMetadata = {
 type PrSummaryModel = {
   modelID: string;
   providerID: string;
-};
-
-type GenerateSandboxPrMetadataParams = {
-  description?: string;
-  opencodeSessionId?: string;
-  opencodeUrl?: string;
-  prSummaryModel?: PrSummaryModel;
-  sandboxId: string;
-  title: string;
-};
-
-type CreateSandboxPrParams = {
-  baseBranch?: string;
-  githubToken: string | undefined;
-  prMetadata: PullRequestMetadata;
-  repoUrl: string | undefined;
-  sandboxId: string;
 };
 
 type SandboxAccessConfig = {
@@ -144,22 +127,17 @@ export async function configureSandboxGitIdentity(
 }
 
 export async function generatePullRequestMetadataForSandbox(
-  params: GenerateSandboxPrMetadataParams,
+  sandbox: Sandbox,
+  title: string,
+  description?: string,
+  opencodeSessionId?: string,
+  opencodeUrl?: string,
+  prSummaryModel?: PrSummaryModel,
 ) {
-  const {
-    description,
-    opencodeSessionId,
-    opencodeUrl,
-    prSummaryModel,
-    sandboxId,
-    title,
-  } = params;
   const trimmedTitle = title.trim();
   if (!trimmedTitle) {
     throw new Error("PR metadata generation requires a non-empty todo title");
   }
-
-  const sandbox = await getSandbox(sandboxId);
 
   const statusOutput = await runGitCommand(sandbox, [
     "status",
@@ -171,13 +149,25 @@ export async function generatePullRequestMetadataForSandbox(
   }
 
   await runGitCommand(sandbox, ["add", "-A"]);
-  const stagedFiles = await runGitCommand(sandbox, ["diff", "--cached", "--name-only"]);
+  const stagedFiles = await runGitCommand(sandbox, [
+    "diff",
+    "--cached",
+    "--name-only",
+  ]);
   if (!stagedFiles.trim()) {
     return { kind: "noChanges" } as const;
   }
 
-  const stagedDiffStat = await runGitCommand(sandbox, ["diff", "--cached", "--stat"]);
-  const stagedDiffPatch = await runGitCommand(sandbox, ["diff", "--cached", "--unified=1"]);
+  const stagedDiffStat = await runGitCommand(sandbox, [
+    "diff",
+    "--cached",
+    "--stat",
+  ]);
+  const stagedDiffPatch = await runGitCommand(sandbox, [
+    "diff",
+    "--cached",
+    "--unified=1",
+  ]);
   let generatedMetadata: PullRequestMetadata | null = null;
   try {
     generatedMetadata = await generatePullRequestMetadata({
@@ -192,7 +182,7 @@ export async function generatePullRequestMetadataForSandbox(
   } catch (error) {
     console.warn("Falling back to todo-based PR metadata", {
       error: error instanceof Error ? error.message : String(error),
-      sandboxId,
+      sandboxId: sandbox.sandboxId,
     });
   }
 
@@ -204,12 +194,18 @@ export async function generatePullRequestMetadataForSandbox(
   } as const;
 }
 
-export async function createPullRequestForSandbox(params: CreateSandboxPrParams) {
-  const { baseBranch = DEFAULT_PR_BASE_BRANCH, githubToken, prMetadata, repoUrl, sandboxId } =
-    params;
+export async function createPullRequestForSandbox(
+  sandbox: Sandbox,
+  prMetadata: PullRequestMetadata,
+  repoUrl: string | undefined,
+  githubToken: string | undefined,
+  baseBranch = DEFAULT_PR_BASE_BRANCH,
+) {
   const normalizedMetadata = normalizePullRequestMetadata(prMetadata);
   if (!normalizedMetadata) {
-    throw new Error("PR creation requires non-empty pull request title and body");
+    throw new Error(
+      "PR creation requires non-empty pull request title and body",
+    );
   }
 
   const trimmedRepoUrl = repoUrl?.trim();
@@ -219,13 +215,17 @@ export async function createPullRequestForSandbox(params: CreateSandboxPrParams)
 
   const parsedRepo = trimmedRepoUrl ? parseGithubRepoUrl(trimmedRepoUrl) : null;
   if (!parsedRepo) {
-    throw new Error(`Invalid GitHub repository URL: ${trimmedRepoUrl ?? "missing"}`);
+    throw new Error(
+      `Invalid GitHub repository URL: ${trimmedRepoUrl ?? "missing"}`,
+    );
   }
 
-  const sandbox = await getSandbox(sandboxId);
-
   await runGitCommand(sandbox, ["add", "-A"]);
-  const stagedFiles = await runGitCommand(sandbox, ["diff", "--cached", "--name-only"]);
+  const stagedFiles = await runGitCommand(sandbox, [
+    "diff",
+    "--cached",
+    "--name-only",
+  ]);
   if (!stagedFiles.trim()) {
     return { kind: "noChanges" } as const;
   }
@@ -235,10 +235,17 @@ export async function createPullRequestForSandbox(params: CreateSandboxPrParams)
   await runGitCommand(sandbox, ["commit", "-m", normalizedMetadata.title]);
 
   const authenticatedRemote = `https://x-access-token:${githubToken.trim()}@github.com/${parsedRepo.owner}/${parsedRepo.repo}.git`;
-  await runGitCommand(sandbox, ["remote", "set-url", "origin", authenticatedRemote]);
+  await runGitCommand(sandbox, [
+    "remote",
+    "set-url",
+    "origin",
+    authenticatedRemote,
+  ]);
   await runGitCommand(sandbox, ["push", "-u", "origin", branchName]);
 
-  const commitSha = (await runGitCommand(sandbox, ["rev-parse", "HEAD"])).trim();
+  const commitSha = (
+    await runGitCommand(sandbox, ["rev-parse", "HEAD"])
+  ).trim();
   const pullRequest = await createGitHubPullRequest({
     baseBranch,
     body: normalizedMetadata.body,
@@ -266,8 +273,7 @@ export function normalizePullRequestMetadata(
   }
 
   const record = structured as Record<string, unknown>;
-  const title =
-    typeof record.title === "string" ? record.title.trim() : "";
+  const title = typeof record.title === "string" ? record.title.trim() : "";
   const body = typeof record.body === "string" ? record.body.trim() : "";
   if (!title || !body) {
     return null;
@@ -417,7 +423,10 @@ async function createGitHubPullRequest(params: {
     throw new Error(message);
   }
 
-  if (typeof payload.html_url !== "string" || typeof payload.number !== "number") {
+  if (
+    typeof payload.html_url !== "string" ||
+    typeof payload.number !== "number"
+  ) {
     throw new Error("GitHub PR creation returned an unexpected response");
   }
 

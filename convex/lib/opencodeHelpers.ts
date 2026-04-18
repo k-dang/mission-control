@@ -1,8 +1,11 @@
-import type { Event, EventSessionError, OpencodeClient } from "@opencode-ai/sdk";
+import {
+  type Event,
+  type EventSessionError,
+  type OpencodeClient,
+} from "@opencode-ai/sdk/v2";
 
-const OPENCODE_HEALTH_PATH = "/global/health";
-const HEALTH_TIMEOUT_MS = 20_000;
-const HEALTH_POLL_INTERVAL_MS = 4_000;
+const OPENCODE_HEALTH_POLL_INTERVAL_MS = 500;
+const OPENCODE_HEALTH_TIMEOUT_MS = 30_000;
 const OPENCODE_EVENT_MAX_RETRY_ATTEMPTS = 5;
 
 type OpencodeTerminalState = "COMPLETED" | "FAILED" | "CANCELLED";
@@ -68,57 +71,31 @@ function isHealthyResponse(health: unknown): health is { healthy: true } {
   );
 }
 
-export async function waitForOpencodeHealth(publicUrl: string) {
-  const deadline = Date.now() + HEALTH_TIMEOUT_MS;
-  let lastFailure = "no response received";
-  let attempt = 0;
-  const healthUrl = `${publicUrl}${OPENCODE_HEALTH_PATH}`;
-
-  await sleep(HEALTH_POLL_INTERVAL_MS);
+export async function waitForOpencodeHealth(
+  client: OpencodeClient,
+) {
+  const deadline = Date.now() + OPENCODE_HEALTH_TIMEOUT_MS;
 
   while (Date.now() < deadline) {
-    attempt += 1;
     try {
-      const res = await fetch(healthUrl);
+      const result = await client.global.health();
 
-      if (!res.ok) {
-        lastFailure = `health endpoint returned ${res.status}`;
-        console.info("OpenCode health check pending", {
-          attempt,
-          status: res.status,
-          url: healthUrl,
-        });
-      } else {
-        const health = await res.json();
-        if (isHealthyResponse(health)) {
-          console.info("OpenCode health check passed", {
-            attempt,
-            url: healthUrl,
-          });
-          return health;
-        }
-        lastFailure = "health endpoint did not report healthy";
-        console.info("OpenCode health check pending", {
-          attempt,
-          reason: lastFailure,
-          url: healthUrl,
-        });
+      if (!result.error && isHealthyResponse(result.data)) {
+        return result.data;
       }
-    } catch (error) {
-      lastFailure =
-        error instanceof Error ? error.message : "health check failed";
-      console.info("OpenCode health check pending", {
-        attempt,
-        reason: lastFailure,
-        url: healthUrl,
-      });
+    } catch {
+      // Ignore transient startup errors until the deadline expires.
     }
 
-    await sleep(HEALTH_POLL_INTERVAL_MS);
+    if (Date.now() + OPENCODE_HEALTH_POLL_INTERVAL_MS >= deadline) {
+      break;
+    }
+
+    await sleep(OPENCODE_HEALTH_POLL_INTERVAL_MS);
   }
 
   throw new Error(
-    `OpenCode did not become healthy within ${HEALTH_TIMEOUT_MS}ms: ${lastFailure}`,
+    `OpenCode did not become healthy within ${OPENCODE_HEALTH_TIMEOUT_MS}ms`,
   );
 }
 
@@ -313,16 +290,6 @@ function logOpencodeMilestone(
     return;
   }
 
-  if (event.type === "permission.updated" && event.properties.sessionID === sessionId) {
-    console.warn("OpenCode permission requested", {
-      todoId,
-      sessionId,
-      permissionType: event.properties.type,
-      title: event.properties.title,
-    });
-    return;
-  }
-
   if (event.type === "session.compacted" && event.properties.sessionID === sessionId) {
     console.info("OpenCode session compacted", {
       todoId,
@@ -468,22 +435,28 @@ export async function waitForOpencodeTerminalState(
   let lastSseErrorMessage: string | undefined;
 
   try {
-    const eventStream = await client.event.subscribe({
-      onSseError: (error) => {
-        const message = getOpencodeErrorMessage(error);
-        lastSseErrorMessage = message;
-        if (abortController?.signal.aborted && message === "This operation was aborted") {
-          return;
-        }
-        console.warn("OpenCode event stream error", {
-          todoId,
-          sessionId,
-          error: message,
-        });
+    const eventStream = await client.event.subscribe(
+      {},
+      {
+        onSseError: (error) => {
+          const message = getOpencodeErrorMessage(error);
+          lastSseErrorMessage = message;
+          if (
+            abortController?.signal.aborted &&
+            message === "This operation was aborted"
+          ) {
+            return;
+          }
+          console.warn("OpenCode event stream error", {
+            todoId,
+            sessionId,
+            error: message,
+          });
+        },
+        signal: abortController?.signal,
+        sseMaxRetryAttempts: OPENCODE_EVENT_MAX_RETRY_ATTEMPTS,
       },
-      signal: abortController?.signal,
-      sseMaxRetryAttempts: OPENCODE_EVENT_MAX_RETRY_ATTEMPTS,
-    });
+    );
 
     let sawAnyEvent = false;
     const logState: OpencodeStreamLogState = {

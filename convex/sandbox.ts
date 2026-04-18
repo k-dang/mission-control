@@ -107,7 +107,7 @@ export const spawnSandboxForTodo = internalAction({
       sandboxId: sandbox.sandboxId,
     });
 
-    await ctx.scheduler.runAfter(0, internal.opencode.runOpencodeForTodo, {
+    await ctx.scheduler.runAfter(0, internal.opencode.runTodo, {
       todoId: args.todoId,
     });
 
