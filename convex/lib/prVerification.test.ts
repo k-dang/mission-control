@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   classifyPrVerification,
+  extractPrVerificationSignals,
   extractPrUrlFromText,
+  looksLikeNoopAssistantResponse,
   parseGithubRepoUrl,
   parsePrUrl,
   prUrlMatchesRepo,
@@ -115,31 +117,11 @@ describe("prUrlMatchesRepo", () => {
 });
 
 describe("classifyPrVerification", () => {
-  it("returns noop when no files changed", () => {
+  it("returns verified when a verified PR URL is present", () => {
     expect(
       classifyPrVerification({
-        changedFiles: false,
-        candidatePrUrl: null,
-        verified: false,
-      }),
-    ).toEqual({ kind: "noop" });
-  });
-
-  it("returns noop even if a candidate PR URL is present but nothing changed", () => {
-    expect(
-      classifyPrVerification({
-        changedFiles: false,
         candidatePrUrl: "https://github.com/acme/widgets/pull/7",
-        verified: true,
-      }),
-    ).toEqual({ kind: "noop" });
-  });
-
-  it("returns verified when files changed and a verified PR URL is present", () => {
-    expect(
-      classifyPrVerification({
-        changedFiles: true,
-        candidatePrUrl: "https://github.com/acme/widgets/pull/7",
+        finalAssistantText: "Opened a PR.",
         verified: true,
       }),
     ).toEqual({
@@ -148,21 +130,90 @@ describe("classifyPrVerification", () => {
     });
   });
 
-  it("returns verificationFailed when files changed but nothing was verified", () => {
+  it("returns noop when the final assistant response clearly reports a no-op", () => {
     expect(
       classifyPrVerification({
-        changedFiles: true,
         candidatePrUrl: null,
+        finalAssistantText: "No files changed, so I did not create a pull request.",
         verified: false,
       }),
-    ).toEqual({ kind: "verificationFailed" });
+    ).toEqual({ kind: "noop" });
+  });
+
+  it("returns verificationFailed when no PR was verified and the response was not a no-op", () => {
     expect(
       classifyPrVerification({
-        changedFiles: true,
         candidatePrUrl: "https://github.com/acme/widgets/pull/7",
+        finalAssistantText: "I attempted to create a pull request.",
         verified: false,
       }),
     ).toEqual({ kind: "verificationFailed" });
+  });
+});
+
+describe("extractPrVerificationSignals", () => {
+  it("scans assistant history and keeps the latest PR URL", () => {
+    expect(
+      extractPrVerificationSignals([
+        {
+          info: { role: "assistant", time: { created: 1 } },
+          parts: [{ type: "text", text: "Started work." }],
+        },
+        {
+          info: { role: "assistant", time: { created: 2 } },
+          parts: [
+            {
+              type: "text",
+              text: "Opened https://github.com/acme/widgets/pull/3",
+            },
+          ],
+        },
+        {
+          info: { role: "assistant", time: { created: 3 } },
+          parts: [
+            {
+              type: "text",
+              text: "Final PR: https://github.com/acme/widgets/pull/7",
+            },
+            { type: "text", text: "ignored", synthetic: true },
+          ],
+        },
+      ]),
+    ).toEqual({
+      candidatePrUrl: "https://github.com/acme/widgets/pull/7",
+      finalAssistantText: "Final PR: https://github.com/acme/widgets/pull/7",
+    });
+  });
+
+  it("returns an empty final assistant text when no assistant messages exist", () => {
+    expect(
+      extractPrVerificationSignals([
+        {
+          info: { role: "user", time: { created: 1 } },
+          parts: [{ type: "text", text: "hello" }],
+        },
+      ]),
+    ).toEqual({
+      candidatePrUrl: null,
+      finalAssistantText: "",
+    });
+  });
+});
+
+describe("looksLikeNoopAssistantResponse", () => {
+  it("detects no-op phrasing from the final assistant response", () => {
+    expect(
+      looksLikeNoopAssistantResponse(
+        "No files changed, so I did not create a pull request.",
+      ),
+    ).toBe(true);
+    expect(looksLikeNoopAssistantResponse("Nothing to commit.")).toBe(true);
+  });
+
+  it("does not treat generic text as a no-op", () => {
+    expect(
+      looksLikeNoopAssistantResponse("I opened a pull request for review."),
+    ).toBe(false);
   });
 });
 

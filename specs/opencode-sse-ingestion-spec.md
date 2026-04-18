@@ -120,7 +120,7 @@ Suggested internal write surface:
 
 Suggested public read surface:
 
-- `getForTodo` returns sandbox metadata plus the current OpenCode lifecycle fields
+- `getSandboxForTodo` returns sandbox metadata plus the current OpenCode lifecycle fields
 
 No additional public history or message queries are needed.
 

@@ -1,4 +1,17 @@
-const PR_URL_PATTERN = /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/gi;
+const PR_URL_PATTERN =
+  /https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/\d+/gi;
+const NOOP_PATTERNS = [
+  /\bno files changed\b/i,
+  /\bno changes to commit\b/i,
+  /\bnothing to commit\b/i,
+  /\bno pull request was created\b/i,
+  /\bdid not create (?:a |any )?(?:branch|commit|pull request|pr)\b/i,
+];
+
+type OpencodeMessage = {
+  info: { role: string; time?: { created: number } };
+  parts: Array<{ type: string; text?: string; synthetic?: boolean; ignored?: boolean }>;
+};
 
 export type ParsedPrUrl = {
   owner: string;
@@ -13,8 +26,8 @@ export type ParsedGithubRepo = {
 };
 
 export type PrVerificationInputs = {
-  changedFiles: boolean;
   candidatePrUrl: string | null;
+  finalAssistantText: string;
   verified: boolean;
 };
 
@@ -22,6 +35,56 @@ export type PrVerificationClassification =
   | { kind: "noop" }
   | { kind: "verified"; prUrl: string }
   | { kind: "verificationFailed" };
+
+export type PrVerificationSignals = {
+  candidatePrUrl: string | null;
+  finalAssistantText: string;
+};
+
+function getAssistantMessageTexts(messages: OpencodeMessage[]): string[] {
+  return messages
+    .filter((message) => message.info.role === "assistant")
+    .sort((a, b) => (a.info.time?.created ?? 0) - (b.info.time?.created ?? 0))
+    .map((message) =>
+      message.parts
+        .filter(
+          (part) =>
+            part.type === "text" &&
+            typeof part.text === "string" &&
+            !part.synthetic &&
+            !part.ignored,
+        )
+        .map((part) => part.text as string)
+        .join("\n"),
+    );
+}
+
+export function extractPrVerificationSignals(
+  messages: OpencodeMessage[],
+): PrVerificationSignals {
+  const assistantTexts = getAssistantMessageTexts(messages);
+  let candidatePrUrl: string | null = null;
+
+  for (const text of assistantTexts) {
+    const extracted = extractPrUrlFromText(text);
+    if (extracted) {
+      candidatePrUrl = extracted;
+    }
+  }
+
+  return {
+    candidatePrUrl,
+    finalAssistantText: assistantTexts[assistantTexts.length - 1] ?? "",
+  };
+}
+
+export function looksLikeNoopAssistantResponse(text: string): boolean {
+  const normalized = text.trim();
+  if (!normalized) {
+    return false;
+  }
+  return NOOP_PATTERNS.some((pattern) => pattern.test(normalized));
+}
 
 export function extractPrUrlFromText(text: string): string | null {
   if (!text) return null;
@@ -68,11 +131,11 @@ export function prUrlMatchesRepo(
 export function classifyPrVerification(
   inputs: PrVerificationInputs,
 ): PrVerificationClassification {
-  if (!inputs.changedFiles) {
-    return { kind: "noop" };
-  }
   if (inputs.verified && inputs.candidatePrUrl) {
     return { kind: "verified", prUrl: inputs.candidatePrUrl };
+  }
+  if (looksLikeNoopAssistantResponse(inputs.finalAssistantText)) {
+    return { kind: "noop" };
   }
   return { kind: "verificationFailed" };
 }

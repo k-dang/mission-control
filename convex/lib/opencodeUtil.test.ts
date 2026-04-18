@@ -1,6 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-  extractFinalAssistantText,
   isUnrecoverableSseErrorMessage,
   waitForOpencodeTerminalState,
 } from "./opencodeUtil";
@@ -54,7 +53,7 @@ describe("isUnrecoverableSseErrorMessage", () => {
 });
 
 describe("waitForOpencodeTerminalState", () => {
-  it("returns COMPLETED for an idle terminal event with no patches observed", async () => {
+  it("returns COMPLETED for an idle terminal event", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1234);
 
     const client = createClient([
@@ -76,12 +75,11 @@ describe("waitForOpencodeTerminalState", () => {
           terminalAt: 1234,
           terminalState: "COMPLETED",
         },
-        changedFiles: false,
       },
     });
   });
 
-  it("flags changedFiles when a patch part was observed before terminal state", async () => {
+  it("still returns COMPLETED when a patch part was observed before terminal state", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1234);
 
     const client = createClient([
@@ -115,7 +113,6 @@ describe("waitForOpencodeTerminalState", () => {
           terminalAt: 1234,
           terminalState: "COMPLETED",
         },
-        changedFiles: true,
       },
     });
   });
@@ -143,7 +140,6 @@ describe("waitForOpencodeTerminalState", () => {
           terminalReason: "upstream failed",
           terminalState: "FAILED",
         },
-        changedFiles: false,
       },
     });
   });
@@ -233,40 +229,5 @@ describe("waitForOpencodeTerminalState", () => {
         timeoutMs: 80,
       }),
     ).resolves.toEqual({ kind: "slice_timeout" });
-  });
-});
-
-describe("extractFinalAssistantText", () => {
-  it("returns the concatenated text of the last assistant message", () => {
-    const text = extractFinalAssistantText([
-      {
-        info: { role: "user", time: { created: 1 } },
-        parts: [{ type: "text", text: "do the thing" }],
-      },
-      {
-        info: { role: "assistant", time: { created: 2 } },
-        parts: [{ type: "text", text: "first pass" }],
-      },
-      {
-        info: { role: "assistant", time: { created: 3 } },
-        parts: [
-          { type: "text", text: "Opened " },
-          { type: "text", text: "https://github.com/acme/widgets/pull/7" },
-          { type: "text", text: "ignored", synthetic: true },
-        ],
-      },
-    ]);
-    expect(text).toBe("Opened \nhttps://github.com/acme/widgets/pull/7");
-  });
-
-  it("returns an empty string when there are no assistant messages", () => {
-    expect(
-      extractFinalAssistantText([
-        {
-          info: { role: "user", time: { created: 1 } },
-          parts: [{ type: "text", text: "hello" }],
-        },
-      ]),
-    ).toBe("");
   });
 });

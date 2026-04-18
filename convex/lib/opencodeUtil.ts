@@ -15,7 +15,6 @@ type OpencodeTerminalResult = {
 
 export type OpencodeRunOutcome = {
   terminal: OpencodeTerminalResult;
-  changedFiles: boolean;
 };
 
 /** Result of watching the OpenCode event stream for one monitor slice. */
@@ -514,15 +513,13 @@ export async function waitForOpencodeTerminalState(
 
       const terminal = getTerminalResultForEvent(event, sessionId);
       if (terminal) {
-        const changedFiles = logState.seenPatchPartIds.size > 0;
         console.info("OpenCode SSE reached terminal state", {
           todoId,
           sessionId,
           terminalState: terminal.terminalState,
           terminalReason: terminal.terminalReason,
-          changedFiles,
         });
-        return { kind: "terminal", outcome: { terminal, changedFiles } };
+        return { kind: "terminal", outcome: { terminal } };
       }
     }
 
@@ -551,25 +548,3 @@ export async function waitForOpencodeTerminalState(
   }
 }
 
-export function extractFinalAssistantText(
-  messages: Array<{
-    info: { role: string; time?: { created: number } };
-    parts: Array<{ type: string; text?: string; synthetic?: boolean; ignored?: boolean }>;
-  }>,
-): string {
-  const assistantMessages = messages
-    .filter((m) => m.info.role === "assistant")
-    .sort((a, b) => (a.info.time?.created ?? 0) - (b.info.time?.created ?? 0));
-  const last = assistantMessages[assistantMessages.length - 1];
-  if (!last) return "";
-  return last.parts
-    .filter(
-      (part) =>
-        part.type === "text" &&
-        typeof part.text === "string" &&
-        !part.synthetic &&
-        !part.ignored,
-    )
-    .map((part) => part.text as string)
-    .join("\n");
-}

@@ -6,9 +6,8 @@ import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 
 const SANDBOX_REPO_PATH = "/vercel/sandbox";
-const DEFAULT_SANDBOX_GIT_USER_NAME = "OpenCode Bot";
-const DEFAULT_SANDBOX_GIT_USER_EMAIL =
-  "opencode-bot@users.noreply.github.com";
+const SANDBOX_GIT_USER_NAME = "k-dang";
+const SANDBOX_GIT_USER_EMAIL = "k-dang@users.noreply.github.com";
 
 export const shutdownSandboxForTodo = internalAction({
   args: {
@@ -75,8 +74,6 @@ export const spawnSandboxForTodo = internalAction({
       throw new Error("Missing required Vercel sandbox environment variables");
     }
     const githubToken = process.env.GITHUB_TOKEN;
-    const gitUserName = DEFAULT_SANDBOX_GIT_USER_NAME;
-    const gitUserEmail = DEFAULT_SANDBOX_GIT_USER_EMAIL;
     const sandbox = await Sandbox.create({
       source: { type: "git", url: args.githubUrl },
       ports: [4096],
@@ -84,10 +81,10 @@ export const spawnSandboxForTodo = internalAction({
       timeout: 10 * 60 * 1000,
       env: {
         ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
-        GIT_AUTHOR_NAME: gitUserName,
-        GIT_AUTHOR_EMAIL: gitUserEmail,
-        GIT_COMMITTER_NAME: gitUserName,
-        GIT_COMMITTER_EMAIL: gitUserEmail,
+        GIT_AUTHOR_NAME: SANDBOX_GIT_USER_NAME,
+        GIT_AUTHOR_EMAIL: SANDBOX_GIT_USER_EMAIL,
+        GIT_COMMITTER_NAME: SANDBOX_GIT_USER_NAME,
+        GIT_COMMITTER_EMAIL: SANDBOX_GIT_USER_EMAIL,
       },
       teamId,
       projectId,
@@ -95,7 +92,11 @@ export const spawnSandboxForTodo = internalAction({
     });
 
     try {
-      await configureSandboxGitIdentity(sandbox, gitUserName, gitUserEmail);
+      await configureSandboxGitIdentity(
+        sandbox,
+        SANDBOX_GIT_USER_NAME,
+        SANDBOX_GIT_USER_EMAIL,
+      );
     } catch (error) {
       await sandbox.stop().catch((stopError) => {
         console.warn("Failed to stop sandbox after git config failure", {

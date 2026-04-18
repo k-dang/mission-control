@@ -9,14 +9,13 @@ import { type ActionCtx, internalAction } from "./_generated/server";
 import {
   buildOpencodeConfigJson,
   buildTodoPrompt,
-  extractFinalAssistantText,
   getOpencodeErrorMessage,
   waitForOpencodeHealth,
   waitForOpencodeTerminalState,
 } from "./lib/opencodeUtil";
 import {
   classifyPrVerification,
-  extractPrUrlFromText,
+  extractPrVerificationSignals,
   parseGithubRepoUrl,
   parsePrUrl,
   prUrlMatchesRepo,
@@ -232,7 +231,6 @@ export const monitorOpencodeForTodo = internalAction({
 
       if (outcome.kind === "stream_unrecoverable") {
         await finalizeOpencodeRun({
-          changedFiles: false,
           ctx,
           sandboxId: sandboxRow.sandboxId,
           terminal: {
@@ -252,12 +250,7 @@ export const monitorOpencodeForTodo = internalAction({
         const status = await client.session.status();
         const sessionStatus = status.data?.[sandboxRow.opencode.sessionId];
         if (sessionStatus?.type === "idle") {
-          const changedFiles = await didSessionChangeFiles(
-            client,
-            sandboxRow.opencode.sessionId,
-          );
           await finalizeOpencodeRun({
-            changedFiles,
             ctx,
             sandboxId: sandboxRow.sandboxId,
             terminal: {
@@ -284,7 +277,6 @@ export const monitorOpencodeForTodo = internalAction({
       }
 
       await finalizeOpencodeRun({
-        changedFiles: outcome.outcome.changedFiles,
         ctx,
         sandboxId: sandboxRow.sandboxId,
         terminal: outcome.outcome.terminal,
@@ -312,7 +304,6 @@ export const monitorOpencodeForTodo = internalAction({
 });
 
 async function finalizeOpencodeRun(params: {
-  changedFiles: boolean;
   client: OpencodeClient;
   ctx: ActionCtx;
   sandboxId: string;
@@ -326,7 +317,6 @@ async function finalizeOpencodeRun(params: {
   todoId: Id<"todos">;
 }) {
   const {
-    changedFiles,
     client,
     ctx,
     sandboxId,
@@ -357,7 +347,6 @@ async function finalizeOpencodeRun(params: {
       sessionId,
       todoId,
       todoGithubUrl,
-      changedFiles,
     });
   }
 
@@ -367,92 +356,73 @@ async function finalizeOpencodeRun(params: {
   });
 }
 
-async function didSessionChangeFiles(
-  client: OpencodeClient,
-  sessionId: string,
-) {
-  try {
-    const diff = await client.session.diff({
-      path: { id: sessionId },
-    });
-    return (diff.data?.length ?? 0) > 0;
-  } catch (error) {
-    console.warn("Unable to read OpenCode diff during monitor recovery", {
-      sessionId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return false;
-  }
-}
-
 async function verifyAndApplyPrOutcome(params: {
   ctx: ActionCtx;
   client: OpencodeClient;
   sessionId: string;
   todoId: Id<"todos">;
   todoGithubUrl: string | undefined;
-  changedFiles: boolean;
 }) {
-  const { ctx, client, sessionId, todoId, todoGithubUrl, changedFiles } = params;
+  const { ctx, client, sessionId, todoId, todoGithubUrl } = params;
 
   let candidatePrUrl: string | null = null;
+  let finalAssistantText = "";
   let verified = false;
 
-  if (changedFiles) {
-    try {
-      const messagesResult = await client.session.messages({
-        path: { id: sessionId },
-      });
-      if (messagesResult.error || !messagesResult.data) {
-        console.warn("Unable to read OpenCode messages for PR verification", {
-          todoId,
-          sessionId,
-          error: getOpencodeErrorMessage(messagesResult.error),
-        });
-      } else {
-        const finalText = extractFinalAssistantText(messagesResult.data);
-        const extracted = extractPrUrlFromText(finalText);
-        if (extracted) {
-          const parsedPr = parsePrUrl(extracted);
-          const repo = todoGithubUrl
-            ? parseGithubRepoUrl(todoGithubUrl)
-            : null;
-          if (parsedPr && (!repo || prUrlMatchesRepo(parsedPr, repo))) {
-            candidatePrUrl = parsedPr.canonicalUrl;
-            verified = await verifyPrExistsOnGitHub(
-              parsedPr,
-              process.env.GITHUB_TOKEN,
-            );
-          } else {
-            console.warn("OpenCode PR URL did not match todo repository", {
-              todoId,
-              sessionId,
-              extracted,
-              todoGithubUrl,
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.warn("PR verification threw an error", {
+  try {
+    const messagesResult = await client.session.messages({
+      path: { id: sessionId },
+    });
+    if (messagesResult.error || !messagesResult.data) {
+      console.warn("Unable to read OpenCode messages for PR verification", {
         todoId,
         sessionId,
-        error: error instanceof Error ? error.message : String(error),
+        error: getOpencodeErrorMessage(messagesResult.error),
       });
+    } else {
+      const signals = extractPrVerificationSignals(messagesResult.data);
+      candidatePrUrl = signals.candidatePrUrl;
+      finalAssistantText = signals.finalAssistantText;
+
+      if (candidatePrUrl) {
+        const parsedPr = parsePrUrl(candidatePrUrl);
+        const repo = todoGithubUrl ? parseGithubRepoUrl(todoGithubUrl) : null;
+        if (parsedPr && (!repo || prUrlMatchesRepo(parsedPr, repo))) {
+          candidatePrUrl = parsedPr.canonicalUrl;
+          verified = await verifyPrExistsOnGitHub(
+            parsedPr,
+            process.env.GITHUB_TOKEN,
+          );
+        } else {
+          console.warn("OpenCode PR URL did not match todo repository", {
+            todoId,
+            sessionId,
+            extracted: candidatePrUrl,
+            todoGithubUrl,
+          });
+          candidatePrUrl = null;
+        }
+      }
     }
+  } catch (error) {
+    console.warn("PR verification threw an error", {
+      todoId,
+      sessionId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 
   const classification = classifyPrVerification({
-    changedFiles,
     candidatePrUrl,
+    finalAssistantText,
     verified,
   });
 
   console.info("PR verification classification", {
     todoId,
     sessionId,
-    changedFiles,
     candidatePrUrl,
+    finalAssistantText,
     verified,
     classification: classification.kind,
   });
