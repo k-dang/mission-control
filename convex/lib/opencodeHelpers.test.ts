@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  buildOpencodeConfigJson,
   isUnrecoverableSseErrorMessage,
   waitForOpencodeTerminalState,
-} from "./opencodeUtil";
+} from "./opencodeHelpers";
 
 type MockEvent = {
   type: string;
@@ -49,6 +50,29 @@ describe("isUnrecoverableSseErrorMessage", () => {
 
   it("returns false for generic transient errors", () => {
     expect(isUnrecoverableSseErrorMessage("connection reset")).toBe(false);
+  });
+});
+
+describe("buildOpencodeConfigJson", () => {
+  it("includes both the primary and small model when provided", () => {
+    const config = JSON.parse(
+      buildOpencodeConfigJson(
+        "test-key",
+        "moonshotai/kimi-k2.5",
+        "openai/gpt-5-mini",
+      ),
+    ) as {
+      model: string;
+      provider: { vercel: { models: Record<string, unknown> } };
+      small_model?: string;
+    };
+
+    expect(config.model).toBe("moonshotai/kimi-k2.5");
+    expect(config.small_model).toBe("openai/gpt-5-mini");
+    expect(Object.keys(config.provider.vercel.models)).toEqual([
+      "moonshotai/kimi-k2.5",
+      "openai/gpt-5-mini",
+    ]);
   });
 });
 
@@ -231,4 +255,3 @@ describe("waitForOpencodeTerminalState", () => {
     ).resolves.toEqual({ kind: "slice_timeout" });
   });
 });
-

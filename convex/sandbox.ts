@@ -4,8 +4,12 @@ import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
+import {
+  configureSandboxGitIdentity,
+  getSandbox,
+  requireSandboxAccessConfig,
+} from "./lib/sandboxHelpers";
 
-const SANDBOX_REPO_PATH = "/vercel/sandbox";
 const SANDBOX_GIT_USER_NAME = "k-dang";
 const SANDBOX_GIT_USER_EMAIL = "k-dang@users.noreply.github.com";
 
@@ -17,12 +21,7 @@ export const shutdownSandboxForTodo = internalAction({
   returns: v.null(),
   handler: async (ctx, args) => {
     try {
-      const sandbox = await Sandbox.get({
-        sandboxId: args.sandboxId,
-        token: process.env.VERCEL_TOKEN,
-        teamId: process.env.VERCEL_TEAM_ID,
-        projectId: process.env.VERCEL_PROJECT_ID,
-      });
+      const sandbox = await getSandbox(args.sandboxId);
       await sandbox.stop();
       console.info("Sandbox stopped for todo", {
         todoId: args.todoId,
@@ -67,12 +66,7 @@ export const spawnSandboxForTodo = internalAction({
       });
       return null;
     }
-    const teamId = process.env.VERCEL_TEAM_ID;
-    const projectId = process.env.VERCEL_PROJECT_ID;
-    const token = process.env.VERCEL_TOKEN;
-    if (!teamId || !projectId || !token) {
-      throw new Error("Missing required Vercel sandbox environment variables");
-    }
+    const { projectId, teamId, token } = requireSandboxAccessConfig();
     const githubToken = process.env.GITHUB_TOKEN;
     const sandbox = await Sandbox.create({
       source: { type: "git", url: args.githubUrl },
@@ -120,33 +114,3 @@ export const spawnSandboxForTodo = internalAction({
     return null;
   },
 });
-
-async function configureSandboxGitIdentity(
-  sandbox: Sandbox,
-  gitUserName: string,
-  gitUserEmail: string,
-) {
-  const nameResult = await sandbox.runCommand({
-    cmd: "git",
-    args: ["config", "user.name", gitUserName],
-    cwd: SANDBOX_REPO_PATH,
-  });
-  if (nameResult.exitCode !== 0) {
-    const output = (await nameResult.output()).toString().trim();
-    throw new Error(
-      `Failed to configure sandbox git user.name (exit ${nameResult.exitCode})${output ? `: ${output.slice(0, 2000)}` : ""}`,
-    );
-  }
-
-  const emailResult = await sandbox.runCommand({
-    cmd: "git",
-    args: ["config", "user.email", gitUserEmail],
-    cwd: SANDBOX_REPO_PATH,
-  });
-  if (emailResult.exitCode !== 0) {
-    const output = (await emailResult.output()).toString().trim();
-    throw new Error(
-      `Failed to configure sandbox git user.email (exit ${emailResult.exitCode})${output ? `: ${output.slice(0, 2000)}` : ""}`,
-    );
-  }
-}

@@ -1,19 +1,22 @@
 "use node";
 
 import { createOpencodeClient } from "@opencode-ai/sdk";
-import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { type ActionCtx, internalAction } from "./_generated/server";
-import { createPullRequestForSandbox } from "./lib/sandboxGit";
+import {
+  createPullRequestForSandbox,
+  generatePullRequestMetadataForSandbox,
+  getSandbox,
+} from "./lib/sandboxHelpers";
 import {
   buildOpencodeConfigJson,
   buildTodoPrompt,
   getOpencodeErrorMessage,
   waitForOpencodeHealth,
   waitForOpencodeTerminalState,
-} from "./lib/opencodeUtil";
+} from "./lib/opencodeHelpers";
 
 const OPENCODE_PORT = 4096;
 const OPENCODE_BIN = "/home/vercel-sandbox/.opencode/bin/opencode";
@@ -21,6 +24,7 @@ const OPENCODE_CONFIG_PATH =
   "/home/vercel-sandbox/.config/opencode/opencode.json";
 const OPENCODE_PROVIDER_ID = "vercel";
 const DEFAULT_VERCEL_MODEL = "moonshotai/kimi-k2.5";
+const DEFAULT_VERCEL_SMALL_MODEL = "openai/gpt-5-nano";
 const OPENCODE_MONITOR_SLICE_MS = 60_000;
 const OPENCODE_MONITOR_RETRY_DELAY_MS = 1_000;
 
@@ -54,12 +58,7 @@ export const runOpencodeForTodo = internalAction({
         );
       }
 
-      const sandbox = await Sandbox.get({
-        sandboxId: sandboxRow.sandboxId,
-        token: process.env.VERCEL_TOKEN,
-        teamId: process.env.VERCEL_TEAM_ID,
-        projectId: process.env.VERCEL_PROJECT_ID,
-      });
+      const sandbox = await getSandbox(sandboxRow.sandboxId);
 
       console.info("Installing OpenCode", { todoId: args.todoId });
       const install = await sandbox.runCommand({
@@ -80,6 +79,7 @@ export const runOpencodeForTodo = internalAction({
       const opencodeConfig = buildOpencodeConfigJson(
         AI_GATEWAY_API_KEY,
         DEFAULT_VERCEL_MODEL,
+        DEFAULT_VERCEL_SMALL_MODEL,
       );
       await sandbox.writeFiles([
         {
@@ -272,6 +272,8 @@ export const monitorOpencodeForTodo = internalAction({
 
       await finalizeOpencodeRun({
         ctx,
+        opencodeSessionId: sandboxRow.opencode.sessionId,
+        opencodeUrl: sandboxRow.opencode.url,
         sandboxId: sandboxRow.sandboxId,
         terminal: outcome.outcome.terminal,
         todoDescription: todo.description,
@@ -300,6 +302,8 @@ export const monitorOpencodeForTodo = internalAction({
 
 async function finalizeOpencodeRun(params: {
   ctx: ActionCtx;
+  opencodeSessionId?: string;
+  opencodeUrl?: string;
   sandboxId: string;
   terminal: {
     terminalAt: number;
@@ -313,6 +317,8 @@ async function finalizeOpencodeRun(params: {
 }) {
   const {
     ctx,
+    opencodeSessionId,
+    opencodeUrl,
     sandboxId,
     terminal,
     todoDescription,
@@ -339,6 +345,8 @@ async function finalizeOpencodeRun(params: {
   if (terminal.terminalState === "COMPLETED") {
     await persistCompletedRunOutcome({
       ctx,
+      opencodeSessionId,
+      opencodeUrl,
       sandboxId,
       todoDescription,
       todoGithubUrl,
@@ -355,25 +363,39 @@ async function finalizeOpencodeRun(params: {
 
 async function persistCompletedRunOutcome(params: {
   ctx: ActionCtx;
+  opencodeSessionId?: string;
+  opencodeUrl?: string;
   sandboxId: string;
   todoDescription: string | undefined;
   todoGithubUrl: string | undefined;
   todoId: Id<"todos">;
   todoTitle: string;
 }) {
-  const { ctx, sandboxId, todoDescription, todoGithubUrl, todoId, todoTitle } =
-    params;
+  const {
+    ctx,
+    opencodeSessionId,
+    opencodeUrl,
+    sandboxId,
+    todoDescription,
+    todoGithubUrl,
+    todoId,
+    todoTitle,
+  } = params;
 
   try {
-    const result = await createPullRequestForSandbox({
+    const metadataResult = await generatePullRequestMetadataForSandbox({
       description: todoDescription,
-      githubToken: process.env.GITHUB_TOKEN,
-      repoUrl: todoGithubUrl,
+      opencodeSessionId,
+      opencodeUrl,
+      prSummaryModel: {
+        modelID: DEFAULT_VERCEL_SMALL_MODEL,
+        providerID: OPENCODE_PROVIDER_ID,
+      },
       sandboxId,
       title: todoTitle,
     });
 
-    if (result.kind === "noChanges") {
+    if (metadataResult.kind === "noChanges") {
       // OpenCode finished successfully but left no net diff, so there is
       // nothing to commit or turn into a pull request for this todo.
       await ctx.runMutation(internal.todos.updateInternal, {
@@ -383,6 +405,13 @@ async function persistCompletedRunOutcome(params: {
       });
       return;
     }
+
+    const result = await createPullRequestForSandbox({
+      githubToken: process.env.GITHUB_TOKEN,
+      prMetadata: metadataResult.prMetadata,
+      repoUrl: todoGithubUrl,
+      sandboxId,
+    });
 
     await ctx.runMutation(internal.todos.updateInternal, {
       todoId,

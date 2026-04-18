@@ -125,6 +125,7 @@ export async function waitForOpencodeHealth(publicUrl: string) {
 export function buildOpencodeConfigJson(
   aiGatewayApiKey: string,
   modelId: string,
+  smallModelId: string,
 ) {
   return JSON.stringify(
     {
@@ -133,10 +134,11 @@ export function buildOpencodeConfigJson(
       provider: {
         vercel: {
           options: { apiKey: aiGatewayApiKey },
-          models: { [modelId]: {} },
+          models: { [modelId]: {}, [smallModelId]: {} },
         },
       },
       model: modelId,
+      small_model: smallModelId,
     },
     null,
     2,
@@ -541,4 +543,3 @@ export async function waitForOpencodeTerminalState(
     }
   }
 }
-
