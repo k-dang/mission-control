@@ -10,25 +10,19 @@ const OPENCODE_EVENT_MAX_RETRY_ATTEMPTS = 5;
 
 type OpencodeTerminalState = "COMPLETED" | "FAILED" | "CANCELLED";
 
-type OpencodeTerminalResult = {
+export type OpencodeTerminalResult = {
   terminalAt: number;
   terminalReason?: string;
   terminalState: OpencodeTerminalState;
 };
 
-export type OpencodeRunOutcome = {
-  terminal: OpencodeTerminalResult;
-};
-
 /** Result of watching the OpenCode event stream for one monitor slice. */
 export type WaitForOpencodeTerminalStateResult =
-  | { kind: "terminal"; outcome: OpencodeRunOutcome }
-  | /** Abort fired at end of slice; safe to poll session and reschedule. */
-    { kind: "slice_timeout" }
+  | { kind: "terminal"; terminal: OpencodeTerminalResult }
+  | /** Slice ended without terminal state after SSE + status fallback; caller should reschedule. */
+    { kind: "retry" }
   | /** Stream closed without a terminal event after a non-retryable SSE failure (e.g. 410 Gone). */
     { kind: "stream_unrecoverable"; reason: string }
-  | /** Stream ended without terminal classification; use session.status() fallback or reschedule. */
-    { kind: "handoff" };
 
 type WaitForOpencodeTerminalStateOptions = {
   timeoutMs?: number;
@@ -144,8 +138,6 @@ export function buildTodoPrompt(
     "1. Understand the codebase before editing.",
     "2. Make the code changes needed to complete the task.",
     "3. Run the most relevant validation for the files you change.",
-    "",
-    "Keep your final response concise and do not include a pull request URL.",
   );
 
   return lines.join("\n");
@@ -488,7 +480,7 @@ export async function waitForOpencodeTerminalState(
           terminalState: terminal.terminalState,
           terminalReason: terminal.terminalReason,
         });
-        return { kind: "terminal", outcome: { terminal } };
+        return { kind: "terminal", terminal };
       }
     }
 
@@ -498,21 +490,43 @@ export async function waitForOpencodeTerminalState(
         reason: lastSseErrorMessage,
       };
     }
-
-    return { kind: "handoff" };
   } catch (error) {
-    if (abortController?.signal.aborted) {
-      console.info("OpenCode monitor slice timed out before terminal state", {
-        todoId,
-        sessionId,
-        timeoutMs: options.timeoutMs,
-      });
-      return { kind: "slice_timeout" };
+    if (!abortController?.signal.aborted) {
+      throw error;
     }
-    throw error;
   } finally {
     if (timeoutId !== null) {
       clearTimeout(timeoutId);
     }
   }
+
+  const status = await client.session.status();
+  const sessionStatus = status.data?.[sessionId];
+  if (sessionStatus?.type === "idle") {
+    const terminal = {
+      terminalAt: Date.now(),
+      terminalReason: "Detected idle status during fallback status check",
+      terminalState: "COMPLETED" as const,
+    };
+
+    console.info("OpenCode status fallback reached terminal state", {
+      todoId,
+      sessionId,
+      terminalState: terminal.terminalState,
+      terminalReason: terminal.terminalReason,
+    });
+
+    return {
+      kind: "terminal",
+      terminal,
+    };
+  }
+
+  console.info("OpenCode monitor slice handing off for retry", {
+    todoId,
+    sessionId,
+    sessionStatus: sessionStatus?.type ?? "unknown",
+  });
+
+  return { kind: "retry" };
 }

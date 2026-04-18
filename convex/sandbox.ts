@@ -5,7 +5,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
 import {
-  configureSandboxGitIdentity,
+  configureGitIdentity,
   getSandbox,
   requireSandboxAccessConfig,
 } from "./lib/sandboxHelpers";
@@ -86,19 +86,13 @@ export const spawnSandboxForTodo = internalAction({
     });
 
     try {
-      await configureSandboxGitIdentity(
+      await configureGitIdentity(
         sandbox,
         SANDBOX_GIT_USER_NAME,
         SANDBOX_GIT_USER_EMAIL,
       );
     } catch (error) {
-      await sandbox.stop().catch((stopError) => {
-        console.warn("Failed to stop sandbox after git config failure", {
-          todoId: args.todoId,
-          error:
-            stopError instanceof Error ? stopError.message : String(stopError),
-        });
-      });
+      await sandbox.stop();
       throw error;
     }
 

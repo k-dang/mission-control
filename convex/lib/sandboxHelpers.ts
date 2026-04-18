@@ -2,7 +2,7 @@
 
 import { createOpencodeClient, type OutputFormat } from "@opencode-ai/sdk/v2";
 import { Sandbox } from "@vercel/sandbox";
-import { parseGithubRepoUrl } from "./github";
+import { createGitHubPullRequest, parseGithubRepoUrl } from "./github";
 import { getOpencodeErrorMessage } from "./opencodeHelpers";
 
 export const SANDBOX_REPO_PATH = "/vercel/sandbox";
@@ -96,7 +96,7 @@ export async function getSandbox(sandboxId: string) {
   });
 }
 
-export async function configureSandboxGitIdentity(
+export async function configureGitIdentity(
   sandbox: Sandbox,
   gitUserName: string,
   gitUserEmail: string,
@@ -126,7 +126,7 @@ export async function configureSandboxGitIdentity(
   }
 }
 
-export async function generatePullRequestMetadataForSandbox(
+export async function preparePullRequestMetadataForSandbox(
   sandbox: Sandbox,
   title: string,
   description?: string,
@@ -170,7 +170,7 @@ export async function generatePullRequestMetadataForSandbox(
   ]);
   let generatedMetadata: PullRequestMetadata | null = null;
   try {
-    generatedMetadata = await generatePullRequestMetadata({
+    generatedMetadata = await generatePullRequestMetadataFromDiff({
       description,
       diffPatch: stagedDiffPatch,
       diffStat: stagedDiffStat,
@@ -327,7 +327,7 @@ function buildPullRequestMetadataPrompt(params: {
   return lines.join("\n");
 }
 
-async function generatePullRequestMetadata(params: {
+async function generatePullRequestMetadataFromDiff(params: {
   description?: string;
   diffPatch: string;
   diffStat: string;
@@ -379,61 +379,6 @@ function truncateForPrompt(text: string, maxChars: number) {
   }
 
   return `${trimmed.slice(0, maxChars)}\n\n[truncated ${trimmed.length - maxChars} characters]`;
-}
-
-async function createGitHubPullRequest(params: {
-  baseBranch: string;
-  body: string;
-  branchName: string;
-  githubToken: string;
-  owner: string;
-  repo: string;
-  title: string;
-}) {
-  const response = await fetch(
-    `https://api.github.com/repos/${params.owner}/${params.repo}/pulls`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "application/vnd.github+json",
-        Authorization: `Bearer ${params.githubToken.trim()}`,
-        "Content-Type": "application/json",
-        "User-Agent": "convex-todo-app",
-        "X-GitHub-Api-Version": "2022-11-28",
-      },
-      body: JSON.stringify({
-        title: params.title,
-        body: params.body,
-        head: params.branchName,
-        base: params.baseBranch,
-      }),
-    },
-  );
-
-  const payload = (await response.json()) as {
-    html_url?: string;
-    message?: string;
-    number?: number;
-  };
-  if (!response.ok) {
-    const message =
-      typeof payload.message === "string"
-        ? payload.message
-        : `GitHub PR creation failed with status ${response.status}`;
-    throw new Error(message);
-  }
-
-  if (
-    typeof payload.html_url !== "string" ||
-    typeof payload.number !== "number"
-  ) {
-    throw new Error("GitHub PR creation returned an unexpected response");
-  }
-
-  return {
-    number: payload.number,
-    url: payload.html_url,
-  };
 }
 
 async function runGitCommand(sandbox: Sandbox, args: string[]) {

@@ -21,14 +21,24 @@ function createClient(events: MockEvent[]) {
         })(),
       })),
     },
+    session: {
+      status: vi.fn(async () => ({ data: {} })),
+    },
   };
 }
 
-function createClientWithSseError(events: MockEvent[], sseErrorMessage: string) {
+function createClientWithSseError(
+  events: MockEvent[],
+  sseErrorMessage: string,
+  sessionStatusData: Record<string, { type: string }> = {},
+) {
   return {
     event: {
       subscribe: vi.fn(
-        async (opts?: { onSseError?: (error: unknown) => void }) => {
+        async (
+          _params?: unknown,
+          opts?: { onSseError?: (error: unknown) => void },
+        ) => {
           opts?.onSseError?.(new Error(sseErrorMessage));
           return {
             stream: (async function* () {
@@ -39,6 +49,9 @@ function createClientWithSseError(events: MockEvent[], sseErrorMessage: string) 
           };
         },
       ),
+    },
+    session: {
+      status: vi.fn(async () => ({ data: sessionStatusData })),
     },
   };
 }
@@ -94,11 +107,9 @@ describe("waitForOpencodeTerminalState", () => {
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
-      outcome: {
-        terminal: {
-          terminalAt: 1234,
-          terminalState: "COMPLETED",
-        },
+      terminal: {
+        terminalAt: 1234,
+        terminalState: "COMPLETED",
       },
     });
   });
@@ -132,11 +143,9 @@ describe("waitForOpencodeTerminalState", () => {
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
-      outcome: {
-        terminal: {
-          terminalAt: 1234,
-          terminalState: "COMPLETED",
-        },
+      terminal: {
+        terminalAt: 1234,
+        terminalState: "COMPLETED",
       },
     });
   });
@@ -158,12 +167,10 @@ describe("waitForOpencodeTerminalState", () => {
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
-      outcome: {
-        terminal: {
-          terminalAt: 9999,
-          terminalReason: "upstream failed",
-          terminalState: "FAILED",
-        },
+      terminal: {
+        terminalAt: 9999,
+        terminalReason: "upstream failed",
+        terminalState: "FAILED",
       },
     });
   });
@@ -190,7 +197,36 @@ describe("waitForOpencodeTerminalState", () => {
     });
   });
 
-  it("returns handoff when the stream ends without a terminal classification", async () => {
+  it("returns terminal when fallback status sees idle after stream ends without a terminal classification", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(7777);
+
+    const client = createClientWithSseError(
+      [
+        {
+          type: "session.status",
+          properties: {
+            sessionID: "session_123",
+            status: { type: "busy" },
+          },
+        },
+      ],
+      "connection reset",
+      { session_123: { type: "idle" } },
+    );
+
+    await expect(
+      waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
+    ).resolves.toEqual({
+      kind: "terminal",
+      terminal: {
+        terminalAt: 7777,
+        terminalReason: "Detected idle status during fallback status check",
+        terminalState: "COMPLETED",
+      },
+    });
+  });
+
+  it("returns retry when the stream ends without a terminal classification and fallback is still busy", async () => {
     const client = createClient([
       {
         type: "session.status",
@@ -214,13 +250,13 @@ describe("waitForOpencodeTerminalState", () => {
 
     await expect(
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
-    ).resolves.toEqual({ kind: "handoff" });
+    ).resolves.toEqual({ kind: "retry" });
   });
 
-  it("returns slice_timeout when the monitor slice aborts before terminal", async () => {
+  it("returns retry when the monitor slice aborts before terminal and fallback is not idle", async () => {
     const client = {
       event: {
-        subscribe: vi.fn(async (opts?: { signal?: AbortSignal }) => ({
+        subscribe: vi.fn(async (_params?: unknown, opts?: { signal?: AbortSignal }) => ({
           stream: (async function* () {
             await new Promise<void>((_, reject) => {
               const signal = opts?.signal;
@@ -246,12 +282,17 @@ describe("waitForOpencodeTerminalState", () => {
           })(),
         })),
       },
+      session: {
+        status: vi.fn(async () => ({
+          data: { session_123: { type: "busy" } },
+        })),
+      },
     };
 
     await expect(
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123", {
         timeoutMs: 80,
       }),
-    ).resolves.toEqual({ kind: "slice_timeout" });
+    ).resolves.toEqual({ kind: "retry" });
   });
 });
