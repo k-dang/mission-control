@@ -165,14 +165,8 @@ export function buildTodoPrompt(
     "1. Understand the codebase before editing.",
     "2. Make the code changes needed to complete the task.",
     "3. Run the most relevant validation for the files you change.",
-    "4. If no files changed, stop here — do NOT create a branch, commit, push, or pull request.",
-    "5. If files did change, create a new git branch off the repository's default branch. Pick a short descriptive branch name yourself.",
-    "6. Commit the changes with a clear message.",
-    "7. Push the branch to the origin remote. GITHUB_TOKEN is available in the environment for authenticated pushes and GitHub API requests.",
-    "8. Open exactly one pull request for this branch as ready for review (NOT draft) using the GitHub API, not the GitHub CLI. Write the PR title and body yourself so they summarize the work you actually performed.",
-    "9. Print the final pull request URL on its own line in your final message so it can be picked up for verification.",
     "",
-    "Do not open more than one pull request. Do not open a draft pull request. Do not open a pull request if no files changed.",
+    "Keep your final response concise and do not include a pull request URL.",
   );
 
   return lines.join("\n");

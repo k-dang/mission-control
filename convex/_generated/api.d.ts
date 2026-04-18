@@ -10,9 +10,9 @@
 
 import type * as authHelpers from "../authHelpers.js";
 import type * as devTools from "../devTools.js";
+import type * as lib_github from "../lib/github.js";
 import type * as lib_opencodeUtil from "../lib/opencodeUtil.js";
-import type * as lib_prVerification from "../lib/prVerification.js";
-import type * as lib_todoPrOutcome from "../lib/todoPrOutcome.js";
+import type * as lib_sandboxGit from "../lib/sandboxGit.js";
 import type * as opencode from "../opencode.js";
 import type * as sandbox from "../sandbox.js";
 import type * as sandboxStorage from "../sandboxStorage.js";
@@ -28,9 +28,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   authHelpers: typeof authHelpers;
   devTools: typeof devTools;
+  "lib/github": typeof lib_github;
   "lib/opencodeUtil": typeof lib_opencodeUtil;
-  "lib/prVerification": typeof lib_prVerification;
-  "lib/todoPrOutcome": typeof lib_todoPrOutcome;
+  "lib/sandboxGit": typeof lib_sandboxGit;
   opencode: typeof opencode;
   sandbox: typeof sandbox;
   sandboxStorage: typeof sandboxStorage;

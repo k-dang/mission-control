@@ -7,23 +7,12 @@ import {
   query,
 } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
-import { buildTodoPatchForPrVerificationOutcome } from "./lib/todoPrOutcome";
 
 const statusValidator = v.union(
   v.literal("TODO"),
   v.literal("INPROGRESS"),
   v.literal("COMPLETED"),
   v.literal("FAILED"),
-);
-
-const prVerificationOutcomeValidator = v.union(
-  v.object({
-    kind: v.literal("verified"),
-    prUrl: v.string(),
-  }),
-  v.object({
-    kind: v.literal("verificationFailed"),
-  }),
 );
 
 const todoValidator = v.object({
@@ -68,11 +57,13 @@ export const getById = internalQuery({
 export const updateInternal = internalMutation({
   args: {
     todoId: v.id("todos"),
+    prUrl: v.optional(v.union(v.string(), v.null())),
     status: v.optional(statusValidator),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const patch: {
+      prUrl?: string | undefined;
       status?: "TODO" | "INPROGRESS" | "COMPLETED" | "FAILED";
     } = {};
 
@@ -80,34 +71,14 @@ export const updateInternal = internalMutation({
       patch.status = args.status;
     }
 
+    if (args.prUrl !== undefined) {
+      patch.prUrl = args.prUrl?.trim() || undefined;
+    }
+
     if (Object.keys(patch).length > 0) {
       await ctx.db.patch("todos", args.todoId, patch);
     }
 
-    return null;
-  },
-});
-
-export const applyPrVerificationOutcome = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-    outcome: prVerificationOutcomeValidator,
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const todo = await ctx.db.get("todos", args.todoId);
-    if (!todo) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Todo not found",
-      });
-    }
-
-    await ctx.db.patch(
-      "todos",
-      args.todoId,
-      buildTodoPatchForPrVerificationOutcome(args.outcome),
-    );
     return null;
   },
 });

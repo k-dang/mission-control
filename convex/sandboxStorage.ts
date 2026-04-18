@@ -4,7 +4,6 @@ import {
   internalQuery,
   query,
 } from "./_generated/server";
-import { internal } from "./_generated/api";
 import { requireAuthenticated } from "./authHelpers";
 
 const opencodeStreamStateValidator = v.union(
@@ -65,9 +64,20 @@ export const getSandboxForTodo = query({
   returns: v.union(sandboxRowValidator, v.null()),
   handler: async (ctx, args) => {
     await requireAuthenticated(ctx);
-    return await ctx.runQuery(internal.sandboxStorage.getSandboxByTodoId, {
-      todoId: args.todoId,
-    });
+    const row = await ctx.db
+      .query("todoSandboxes")
+      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
+      .unique();
+    if (!row) {
+      return null;
+    }
+    return {
+      _id: row._id,
+      _creationTime: row._creationTime,
+      todoId: row.todoId,
+      sandboxId: row.sandboxId,
+      opencode: row.opencode,
+    };
   },
 });
 
@@ -162,6 +172,33 @@ export const setOpencodeTerminalState = internalMutation({
         terminalAt: args.terminalAt,
         terminalReason: args.terminalReason,
         shutdownSafe: true,
+      },
+    });
+    return null;
+  },
+});
+
+export const setOpencodeTerminalReason = internalMutation({
+  args: {
+    todoId: v.id("todos"),
+    terminalReason: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("todoSandboxes")
+      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
+      .unique();
+    if (!existing) {
+      throw new Error(
+        `No sandbox row for todo ${args.todoId}; cannot update OpenCode terminal reason`,
+      );
+    }
+
+    await ctx.db.patch("todoSandboxes", existing._id, {
+      opencode: {
+        ...existing.opencode,
+        terminalReason: args.terminalReason,
       },
     });
     return null;

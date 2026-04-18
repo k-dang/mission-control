@@ -1,11 +1,12 @@
 "use node";
 
-import { createOpencodeClient, type OpencodeClient } from "@opencode-ai/sdk";
+import { createOpencodeClient } from "@opencode-ai/sdk";
 import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { type ActionCtx, internalAction } from "./_generated/server";
+import { createPullRequestForSandbox } from "./lib/sandboxGit";
 import {
   buildOpencodeConfigJson,
   buildTodoPrompt,
@@ -13,14 +14,6 @@ import {
   waitForOpencodeHealth,
   waitForOpencodeTerminalState,
 } from "./lib/opencodeUtil";
-import {
-  classifyPrVerification,
-  extractPrVerificationSignals,
-  parseGithubRepoUrl,
-  parsePrUrl,
-  prUrlMatchesRepo,
-  verifyPrExistsOnGitHub,
-} from "./lib/prVerification";
 
 const OPENCODE_PORT = 4096;
 const OPENCODE_BIN = "/home/vercel-sandbox/.opencode/bin/opencode";
@@ -176,6 +169,7 @@ export const runOpencodeForTodo = internalAction({
       console.error("OpenCode failed", { todoId: args.todoId, error: message });
       await ctx.runMutation(internal.todos.updateInternal, {
         todoId: args.todoId,
+        prUrl: null,
         status: "FAILED",
       });
       await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
@@ -238,10 +232,10 @@ export const monitorOpencodeForTodo = internalAction({
             terminalReason: `OpenCode event stream failed: ${outcome.reason}`,
             terminalState: "FAILED",
           },
+          todoDescription: todo.description,
           todoGithubUrl: todo.githubUrl,
           todoId: args.todoId,
-          client,
-          sessionId: sandboxRow.opencode.sessionId,
+          todoTitle: todo.title,
         });
         return null;
       }
@@ -258,10 +252,10 @@ export const monitorOpencodeForTodo = internalAction({
               terminalReason: "Detected idle status during scheduled monitor handoff",
               terminalState: "COMPLETED",
             },
+            todoDescription: todo.description,
             todoGithubUrl: todo.githubUrl,
             todoId: args.todoId,
-            client,
-            sessionId: sandboxRow.opencode.sessionId,
+            todoTitle: todo.title,
           });
           return null;
         }
@@ -280,16 +274,17 @@ export const monitorOpencodeForTodo = internalAction({
         ctx,
         sandboxId: sandboxRow.sandboxId,
         terminal: outcome.outcome.terminal,
+        todoDescription: todo.description,
         todoGithubUrl: todo.githubUrl,
         todoId: args.todoId,
-        client,
-        sessionId: sandboxRow.opencode.sessionId,
+        todoTitle: todo.title,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error("OpenCode monitor failed", { todoId: args.todoId, error: message });
       await ctx.runMutation(internal.todos.updateInternal, {
         todoId: args.todoId,
+        prUrl: null,
         status: "FAILED",
       });
       await ctx.runAction(internal.sandbox.shutdownSandboxForTodo, {
@@ -304,26 +299,26 @@ export const monitorOpencodeForTodo = internalAction({
 });
 
 async function finalizeOpencodeRun(params: {
-  client: OpencodeClient;
   ctx: ActionCtx;
   sandboxId: string;
-  sessionId: string;
   terminal: {
     terminalAt: number;
     terminalReason?: string;
     terminalState: "COMPLETED" | "FAILED" | "CANCELLED";
   };
+  todoDescription: string | undefined;
   todoGithubUrl: string | undefined;
   todoId: Id<"todos">;
+  todoTitle: string;
 }) {
   const {
-    client,
     ctx,
     sandboxId,
-    sessionId,
     terminal,
+    todoDescription,
     todoGithubUrl,
     todoId,
+    todoTitle,
   } = params;
 
   await ctx.runMutation(internal.sandboxStorage.setOpencodeTerminalState, {
@@ -336,17 +331,19 @@ async function finalizeOpencodeRun(params: {
   if (terminal.terminalState === "FAILED") {
     await ctx.runMutation(internal.todos.updateInternal, {
       todoId,
+      prUrl: null,
       status: "FAILED",
     });
   }
 
   if (terminal.terminalState === "COMPLETED") {
-    await verifyAndApplyPrOutcome({
+    await persistCompletedRunOutcome({
       ctx,
-      client,
-      sessionId,
-      todoId,
+      sandboxId,
+      todoDescription,
       todoGithubUrl,
+      todoId,
+      todoTitle,
     });
   }
 
@@ -356,86 +353,57 @@ async function finalizeOpencodeRun(params: {
   });
 }
 
-async function verifyAndApplyPrOutcome(params: {
+async function persistCompletedRunOutcome(params: {
   ctx: ActionCtx;
-  client: OpencodeClient;
-  sessionId: string;
-  todoId: Id<"todos">;
+  sandboxId: string;
+  todoDescription: string | undefined;
   todoGithubUrl: string | undefined;
+  todoId: Id<"todos">;
+  todoTitle: string;
 }) {
-  const { ctx, client, sessionId, todoId, todoGithubUrl } = params;
-
-  let candidatePrUrl: string | null = null;
-  let finalAssistantText = "";
-  let verified = false;
+  const { ctx, sandboxId, todoDescription, todoGithubUrl, todoId, todoTitle } =
+    params;
 
   try {
-    const messagesResult = await client.session.messages({
-      path: { id: sessionId },
+    const result = await createPullRequestForSandbox({
+      description: todoDescription,
+      githubToken: process.env.GITHUB_TOKEN,
+      repoUrl: todoGithubUrl,
+      sandboxId,
+      title: todoTitle,
     });
-    if (messagesResult.error || !messagesResult.data) {
-      console.warn("Unable to read OpenCode messages for PR verification", {
+
+    if (result.kind === "noChanges") {
+      // OpenCode finished successfully but left no net diff, so there is
+      // nothing to commit or turn into a pull request for this todo.
+      await ctx.runMutation(internal.todos.updateInternal, {
         todoId,
-        sessionId,
-        error: getOpencodeErrorMessage(messagesResult.error),
+        prUrl: null,
+        status: "COMPLETED",
       });
-    } else {
-      const signals = extractPrVerificationSignals(messagesResult.data);
-      candidatePrUrl = signals.candidatePrUrl;
-      finalAssistantText = signals.finalAssistantText;
-
-      if (candidatePrUrl) {
-        const parsedPr = parsePrUrl(candidatePrUrl);
-        const repo = todoGithubUrl ? parseGithubRepoUrl(todoGithubUrl) : null;
-        if (parsedPr && (!repo || prUrlMatchesRepo(parsedPr, repo))) {
-          candidatePrUrl = parsedPr.canonicalUrl;
-          verified = await verifyPrExistsOnGitHub(
-            parsedPr,
-            process.env.GITHUB_TOKEN,
-          );
-        } else {
-          console.warn("OpenCode PR URL did not match todo repository", {
-            todoId,
-            sessionId,
-            extracted: candidatePrUrl,
-            todoGithubUrl,
-          });
-          candidatePrUrl = null;
-        }
-      }
+      return;
     }
-  } catch (error) {
-    console.warn("PR verification threw an error", {
+
+    await ctx.runMutation(internal.todos.updateInternal, {
       todoId,
-      sessionId,
-      error: error instanceof Error ? error.message : String(error),
+      prUrl: result.prUrl,
+      status: "COMPLETED",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("PR creation failed after OpenCode completed", {
+      todoId,
+      sandboxId,
+      error: message,
+    });
+    await ctx.runMutation(internal.sandboxStorage.setOpencodeTerminalReason, {
+      todoId,
+      terminalReason: `Post-run PR creation failed: ${message}`,
+    });
+    await ctx.runMutation(internal.todos.updateInternal, {
+      todoId,
+      prUrl: null,
+      status: "FAILED",
     });
   }
-
-  const classification = classifyPrVerification({
-    candidatePrUrl,
-    finalAssistantText,
-    verified,
-  });
-
-  console.info("PR verification classification", {
-    todoId,
-    sessionId,
-    candidatePrUrl,
-    finalAssistantText,
-    verified,
-    classification: classification.kind,
-  });
-
-  if (classification.kind === "noop") {
-    return;
-  }
-
-  await ctx.runMutation(internal.todos.applyPrVerificationOutcome, {
-    todoId,
-    outcome:
-      classification.kind === "verified"
-        ? { kind: "verified", prUrl: classification.prUrl }
-        : { kind: "verificationFailed" },
-  });
 }
