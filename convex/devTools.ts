@@ -8,7 +8,7 @@ const MISSION_CONTROL = { owner: "k-dang", repo: "mission-control" } as const;
 const DEV_TOOLS_DISABLED_ERROR = "Not found.";
 
 function areDevToolsEnabled() {
-  return process.env.ENABLE_LOCAL_DEV_TOOLS === "1";
+  return process.env.NODE_ENV !== "production";
 }
 
 function githubHeaders(token: string) {
