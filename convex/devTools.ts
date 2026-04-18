@@ -5,6 +5,11 @@ import { v } from "convex/values";
 import { action } from "./_generated/server";
 
 const MISSION_CONTROL = { owner: "k-dang", repo: "mission-control" } as const;
+const DEV_TOOLS_DISABLED_ERROR = "Not found.";
+
+function areDevToolsEnabled() {
+  return process.env.ENABLE_LOCAL_DEV_TOOLS === "1";
+}
 
 function githubHeaders(token: string) {
   return {
@@ -54,6 +59,15 @@ export const checkGithubToken = action({
     error: v.union(v.string(), v.null()),
   }),
   handler: async () => {
+    if (!areDevToolsEnabled()) {
+      return {
+        configured: false,
+        authenticated: false,
+        login: null,
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
     const token = process.env.GITHUB_TOKEN;
 
     if (!token?.trim()) {
@@ -117,6 +131,16 @@ export const createMissionControlTestPullRequest = action({
     error: v.union(v.string(), v.null()),
   }),
   handler: async () => {
+    if (!areDevToolsEnabled()) {
+      return {
+        ok: false,
+        pullRequestUrl: null,
+        pullRequestNumber: null,
+        branch: null,
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
     const token = process.env.GITHUB_TOKEN;
 
     if (!token?.trim()) {
