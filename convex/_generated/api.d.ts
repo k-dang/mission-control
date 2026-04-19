@@ -14,10 +14,10 @@ import type * as lib_github from "../lib/github.js";
 import type * as lib_opencodeHelpers from "../lib/opencodeHelpers.js";
 import type * as lib_sandboxHelpers from "../lib/sandboxHelpers.js";
 import type * as opencode from "../opencode.js";
-import type * as opencodeState from "../opencodeState.js";
 import type * as sandbox from "../sandbox.js";
 import type * as todoNotifications from "../todoNotifications.js";
 import type * as todoSandboxes from "../todoSandboxes.js";
+import type * as todoSessionState from "../todoSessionState.js";
 import type * as todos from "../todos.js";
 
 import type {
@@ -33,10 +33,10 @@ declare const fullApi: ApiFromModules<{
   "lib/opencodeHelpers": typeof lib_opencodeHelpers;
   "lib/sandboxHelpers": typeof lib_sandboxHelpers;
   opencode: typeof opencode;
-  opencodeState: typeof opencodeState;
   sandbox: typeof sandbox;
   todoNotifications: typeof todoNotifications;
   todoSandboxes: typeof todoSandboxes;
+  todoSessionState: typeof todoSessionState;
   todos: typeof todos;
 }>;
 

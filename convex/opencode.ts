@@ -297,7 +297,7 @@ async function finalizeOpencodeRun(
     }
   }
 
-  await ctx.runMutation(internal.opencodeState.recordOpencodeTerminal, {
+  await ctx.runMutation(internal.todoSessionState.recordOpencodeTerminal, {
     todoId: args.todoId,
     streamState: terminal.terminalState,
     terminalAt: terminal.terminalAt,

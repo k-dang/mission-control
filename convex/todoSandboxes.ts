@@ -177,30 +177,3 @@ export const setOpencodeTerminalState = internalMutation({
     return null;
   },
 });
-
-export const setOpencodeTerminalReason = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-    terminalReason: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("todoSandboxes")
-      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-      .unique();
-    if (!existing) {
-      throw new Error(
-        `No sandbox row for todo ${args.todoId}; cannot update OpenCode terminal reason`,
-      );
-    }
-
-    await ctx.db.patch("todoSandboxes", existing._id, {
-      opencode: {
-        ...existing.opencode,
-        terminalReason: args.terminalReason,
-      },
-    });
-    return null;
-  },
-});
