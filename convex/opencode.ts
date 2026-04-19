@@ -236,6 +236,22 @@ export const monitorOpencodeStream = internalAction({
         todoStatus: resolved.todoStatus,
         prUrl: resolved.prUrl,
       });
+
+      if (resolved.prUrl) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.notifications.sendDiscordWebhook,
+          {
+            content: `Pull request created for todo "${args.todoTitle}": ${resolved.prUrl}`,
+            context: {
+              todoId: args.todoId,
+              sandboxId: args.sandboxId,
+              prUrl: resolved.prUrl,
+            },
+          },
+        );
+      }
+
       await stopSandboxSafely(sandbox, args.todoId, args.sandboxId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";

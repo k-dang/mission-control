@@ -1,39 +1,27 @@
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 
-const statusValidator = v.union(
-  v.literal("TODO"),
-  v.literal("INPROGRESS"),
-  v.literal("COMPLETED"),
-  v.literal("FAILED"),
-);
-
-export const logTodoStatusTransition = internalAction({
+export const sendDiscordWebhook = internalAction({
   args: {
-    todoId: v.id("todos"),
-    fromStatus: statusValidator,
-    toStatus: statusValidator,
-    timestampMs: v.number(),
+    content: v.string(),
+    context: v.optional(v.record(v.string(), v.string())),
   },
   returns: v.null(),
   handler: async (_ctx, args) => {
     const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
     if (!webhookUrl) {
       console.warn(
-        "DISCORD_WEBHOOK_URL is not configured; skipping todo status webhook",
-        args,
+        "DISCORD_WEBHOOK_URL is not configured; skipping Discord webhook",
+        args.context,
       );
       return null;
     }
-
-    const timestampIso = new Date(args.timestampMs).toISOString();
-    const content = `Todo ${args.todoId} moved ${args.fromStatus} -> ${args.toStatus} at ${timestampIso}`;
 
     try {
       const response = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content: args.content }),
       });
 
       if (!response.ok) {
@@ -42,13 +30,13 @@ export const logTodoStatusTransition = internalAction({
           status: response.status,
           statusText: response.statusText,
           responseBody: responseBody.slice(0, 500),
-          ...args,
+          context: args.context,
         });
       }
     } catch (error) {
       console.error("Discord webhook request threw an error", {
         error: error instanceof Error ? error.message : String(error),
-        ...args,
+        context: args.context,
       });
     }
 

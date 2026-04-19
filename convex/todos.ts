@@ -220,12 +220,14 @@ export const update = mutation({
 
       await ctx.scheduler.runAfter(
         0,
-        internal.todoNotifications.logTodoStatusTransition,
+        internal.notifications.sendDiscordWebhook,
         {
-          todoId: args.todoId,
-          fromStatus,
-          toStatus: args.status,
-          timestampMs: Date.now(),
+          content: `Todo ${args.todoId} moved ${fromStatus} -> ${args.status}`,
+          context: {
+            todoId: args.todoId,
+            fromStatus,
+            toStatus: args.status,
+          },
         },
       );
 
