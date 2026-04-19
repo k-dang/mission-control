@@ -215,6 +215,13 @@ export const update = mutation({
     }
 
     if (args.status !== undefined && args.status !== todo.status) {
+      if (todo.status !== "TODO" || args.status !== "INPROGRESS") {
+        throw new ConvexError({
+          code: "INVALID_STATUS_TRANSITION",
+          message: `Cannot change status from ${todo.status} to ${args.status}. Only TODO -> INPROGRESS is allowed from the UI.`,
+        });
+      }
+
       const fromStatus = todo.status;
       patch.status = args.status;
 
@@ -237,7 +244,6 @@ export const update = mutation({
         .unique();
 
       if (
-        args.status === "INPROGRESS" &&
         (args.githubUrl?.trim() || todo.githubUrl) &&
         !sandboxRow
       ) {
@@ -245,17 +251,6 @@ export const update = mutation({
           todoId: args.todoId,
           githubUrl: args.githubUrl?.trim() || todo.githubUrl!,
         });
-      }
-
-      if (args.status === "COMPLETED" && sandboxRow?.sandboxId) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.sandbox.shutdownSandboxForTodo,
-          {
-            todoId: args.todoId,
-            sandboxId: sandboxRow.sandboxId,
-          },
-        );
       }
     }
 

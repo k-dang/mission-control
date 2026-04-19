@@ -113,7 +113,10 @@ export function TaskDetailPanel({
   const descriptionFieldId = useId();
   const githubUrlFieldId = useId();
 
+  const isEditable = todo.status === "TODO";
+
   const commitTitle = () => {
+    if (!isEditable) return;
     const trimmed = editTitle.trim();
     if (trimmed && trimmed !== todo.title) {
       updateTodo({ todoId: todo._id, title: trimmed });
@@ -123,6 +126,7 @@ export function TaskDetailPanel({
   };
 
   const commitDescription = () => {
+    if (!isEditable) return;
     const trimmed = editDescription.trim();
     if (trimmed !== (todo.description ?? "")) {
       updateTodo({
@@ -133,6 +137,7 @@ export function TaskDetailPanel({
   };
 
   const commitGithubUrl = () => {
+    if (!isEditable) return;
     const trimmed = editGithubUrl.trim();
     if (trimmed !== (todo.githubUrl ?? "")) {
       updateTodo({ todoId: todo._id, githubUrl: trimmed || "" });
@@ -140,12 +145,10 @@ export function TaskDetailPanel({
   };
 
   const handleStatusChange = (status: Doc<"todos">["status"]) => {
-    if (status !== todo.status) {
-      updateTodo({ todoId: todo._id, status });
-      if (status === "COMPLETED" && todo.status === "INPROGRESS") {
-        onClose();
-      }
-    }
+    if (todo.status !== "TODO") return;
+    if (status === todo.status) return;
+    if (status !== "INPROGRESS") return;
+    updateTodo({ todoId: todo._id, status });
   };
 
   const handleDelete = async () => {
@@ -200,7 +203,12 @@ export function TaskDetailPanel({
             }
             handleKeyDownRevert(e, () => setEditTitle(todo.title));
           }}
-          className="mt-1 h-auto rounded-lg border border-border/20 bg-muted/30 px-3 py-2 text-lg font-semibold shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-0"
+          readOnly={!isEditable}
+          aria-readonly={!isEditable}
+          className={cn(
+            "mt-1 h-auto rounded-lg border border-border/20 bg-muted/30 px-3 py-2 text-lg font-semibold shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-0",
+            !isEditable && "cursor-not-allowed opacity-70",
+          )}
         />
       </SheetHeader>
 
@@ -226,15 +234,29 @@ export function TaskDetailPanel({
               const isActive = opt.value === todo.status;
               const meta = STATUS_META[opt.value];
               const Icon = opt.icon;
+              const statusLocked = todo.status !== "TODO";
+              const pillDisabled =
+                statusLocked ||
+                (todo.status === "TODO" &&
+                  (opt.value === "COMPLETED" || opt.value === "FAILED"));
               return (
                 <button
                   key={opt.value}
+                  type="button"
+                  disabled={pillDisabled}
+                  aria-disabled={pillDisabled}
                   onClick={() => handleStatusChange(opt.value)}
                   className={cn(
-                    "flex cursor-pointer items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
+                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
+                    pillDisabled
+                      ? "cursor-not-allowed opacity-50"
+                      : "cursor-pointer",
                     isActive
                       ? opt.colorClass
                       : "text-muted-foreground/40 hover:text-muted-foreground/70",
+                    pillDisabled &&
+                      !isActive &&
+                      "hover:text-muted-foreground/40",
                   )}
                   style={
                     isActive
@@ -275,11 +297,14 @@ export function TaskDetailPanel({
                 setEditDescription(todo.description ?? ""),
               )
             }
-            placeholder="Add a description..."
+            readOnly={!isEditable}
+            aria-readonly={!isEditable}
+            placeholder={isEditable ? "Add a description..." : ""}
             className={cn(
               "min-h-16 resize-none rounded-lg border border-border/20 bg-muted/30 px-3 py-2.5 text-sm shadow-none",
               "text-foreground outline-none transition-colors placeholder:text-muted-foreground/40",
               "focus-visible:border-primary/40 focus-visible:ring-0",
+              !isEditable && "cursor-not-allowed opacity-70",
             )}
           />
         </div>
@@ -311,8 +336,13 @@ export function TaskDetailPanel({
                     setEditGithubUrl(todo.githubUrl ?? ""),
                   );
                 }}
-                placeholder="https://github.com/owner/repo"
-                className="h-auto min-w-0 flex-1 truncate rounded-lg border border-border/20 bg-muted/30 px-3 py-2 text-sm shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-0"
+                readOnly={!isEditable}
+                aria-readonly={!isEditable}
+                placeholder={isEditable ? "https://github.com/owner/repo" : ""}
+                className={cn(
+                  "h-auto min-w-0 flex-1 truncate rounded-lg border border-border/20 bg-muted/30 px-3 py-2 text-sm shadow-none outline-none transition-colors placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-0",
+                  !isEditable && "cursor-not-allowed opacity-70",
+                )}
               />
               {editGithubUrl.trim() && (
                 <a
