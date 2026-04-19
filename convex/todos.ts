@@ -173,60 +173,6 @@ export const create = mutation({
   },
 });
 
-export const moveToInProgress = mutation({
-  args: {
-    todoId: v.id("todos"),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await requireAuthenticated(ctx);
-
-    const todo = await ctx.db.get("todos", args.todoId);
-
-    if (!todo) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Todo not found",
-      });
-    }
-
-    if (todo.status === "INPROGRESS") {
-      return null;
-    }
-
-    if (todo.status !== "TODO") {
-      throw new ConvexError({
-        code: "INVALID_TRANSITION",
-        message: "Only TODO items can move to INPROGRESS",
-      });
-    }
-
-    const fromStatus = todo.status;
-    await ctx.db.patch("todos", args.todoId, { status: "INPROGRESS" });
-    await ctx.scheduler.runAfter(
-      0,
-      internal.todoNotifications.logTodoStatusTransition,
-      {
-        todoId: args.todoId,
-        fromStatus,
-        toStatus: "INPROGRESS",
-        timestampMs: Date.now(),
-      },
-    );
-    const sandboxRow = await ctx.db
-      .query("todoSandboxes")
-      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-      .unique();
-    if (todo.githubUrl && !sandboxRow) {
-      await ctx.scheduler.runAfter(0, internal.sandbox.spawnSandboxForTodo, {
-        todoId: args.todoId,
-        githubUrl: todo.githubUrl,
-      });
-    }
-    return null;
-  },
-});
-
 export const update = mutation({
   args: {
     todoId: v.id("todos"),

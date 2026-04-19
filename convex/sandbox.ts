@@ -67,14 +67,13 @@ export const spawnSandboxForTodo = internalAction({
       return null;
     }
     const { projectId, teamId, token } = requireSandboxAccessConfig();
-    const githubToken = process.env.GITHUB_TOKEN;
     const sandbox = await Sandbox.create({
       source: { type: "git", url: args.githubUrl },
       ports: [4096],
       runtime: "node24",
       timeout: 10 * 60 * 1000,
       env: {
-        ...(githubToken ? { GITHUB_TOKEN: githubToken } : {}),
+        GITHUB_TOKEN: process.env.GITHUB_TOKEN!,
         GIT_AUTHOR_NAME: SANDBOX_GIT_USER_NAME,
         GIT_AUTHOR_EMAIL: SANDBOX_GIT_USER_EMAIL,
         GIT_COMMITTER_NAME: SANDBOX_GIT_USER_NAME,

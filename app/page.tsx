@@ -52,7 +52,7 @@ export default function Home() {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const todos = useQuery(api.todos.listByStatus, isAuthenticated ? {} : "skip");
   const createTodo = useMutation(api.todos.create);
-  const moveTodoToInProgress = useMutation(api.todos.moveToInProgress);
+  const updateTodo = useMutation(api.todos.update);
 
   const [title, setTitle] = useState(CREATE_TODO_DEFAULT_TITLE);
   const [description, setDescription] = useState(
@@ -142,7 +142,10 @@ export default function Home() {
     }
 
     try {
-      await moveTodoToInProgress({ todoId: todoId as Id<"todos"> });
+      await updateTodo({
+        todoId: todoId as Id<"todos">,
+        status: "INPROGRESS",
+      });
     } catch (error: unknown) {
       setDropError(getErrorMessage(error));
     }
