@@ -1,8 +1,12 @@
 "use node";
 
 import { Sandbox } from "@vercel/sandbox";
+import type { Id } from "../_generated/dataModel";
 
 export const SANDBOX_REPO_PATH = "/vercel/sandbox";
+
+export const SANDBOX_GIT_USER_NAME = "k-dang";
+export const SANDBOX_GIT_USER_EMAIL = "k-dang@users.noreply.github.com";
 
 type SandboxAccessConfig = {
   projectId: string;
@@ -54,5 +58,26 @@ export async function configureGitIdentity(
     throw new Error(
       `Failed to configure sandbox git user.email (exit ${emailResult.exitCode})${output ? `: ${output.slice(0, 2000)}` : ""}`,
     );
+  }
+}
+
+export async function stopSandboxSafely(args: {
+  todoId: Id<"todos">;
+  sandboxId: string;
+  sandbox?: Sandbox;
+}) {
+  try {
+    const target = args.sandbox ?? (await getSandbox(args.sandboxId));
+    await target.stop();
+    console.info("Sandbox stopped for todo", {
+      todoId: args.todoId,
+      sandboxId: args.sandboxId,
+    });
+  } catch (error) {
+    console.warn("Failed to stop sandbox", {
+      todoId: args.todoId,
+      sandboxId: args.sandboxId,
+      error,
+    });
   }
 }

@@ -12,6 +12,7 @@ import type * as authHelpers from "../authHelpers.js";
 import type * as devTools from "../devTools.js";
 import type * as lib_github from "../lib/github.js";
 import type * as lib_opencodeHelpers from "../lib/opencodeHelpers.js";
+import type * as lib_opencodeSandbox from "../lib/opencodeSandbox.js";
 import type * as lib_pullRequest from "../lib/pullRequest.js";
 import type * as lib_sandboxHelpers from "../lib/sandboxHelpers.js";
 import type * as notifications from "../notifications.js";
@@ -32,6 +33,7 @@ declare const fullApi: ApiFromModules<{
   devTools: typeof devTools;
   "lib/github": typeof lib_github;
   "lib/opencodeHelpers": typeof lib_opencodeHelpers;
+  "lib/opencodeSandbox": typeof lib_opencodeSandbox;
   "lib/pullRequest": typeof lib_pullRequest;
   "lib/sandboxHelpers": typeof lib_sandboxHelpers;
   notifications: typeof notifications;

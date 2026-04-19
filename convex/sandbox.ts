@@ -4,40 +4,13 @@ import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalAction } from "./_generated/server";
+import { OPENCODE_PORT } from "./lib/opencodeHelpers";
 import {
   configureGitIdentity,
-  getSandbox,
   requireSandboxAccessConfig,
+  SANDBOX_GIT_USER_EMAIL,
+  SANDBOX_GIT_USER_NAME,
 } from "./lib/sandboxHelpers";
-
-const SANDBOX_GIT_USER_NAME = "k-dang";
-const SANDBOX_GIT_USER_EMAIL = "k-dang@users.noreply.github.com";
-
-export const shutdownSandboxForTodo = internalAction({
-  args: {
-    todoId: v.id("todos"),
-    sandboxId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    try {
-      const sandbox = await getSandbox(args.sandboxId);
-      await sandbox.stop();
-      console.info("Sandbox stopped for todo", {
-        todoId: args.todoId,
-        sandboxId: args.sandboxId,
-      });
-    } catch (error) {
-      console.warn("Failed to stop sandbox", {
-        todoId: args.todoId,
-        sandboxId: args.sandboxId,
-        error,
-      });
-    }
-
-    return null;
-  },
-});
 
 export const spawnSandboxForTodo = internalAction({
   args: {
@@ -70,7 +43,7 @@ export const spawnSandboxForTodo = internalAction({
     const { projectId, teamId, token } = requireSandboxAccessConfig();
     const sandbox = await Sandbox.create({
       source: { type: "git", url: args.githubUrl },
-      ports: [4096],
+      ports: [OPENCODE_PORT],
       runtime: "node24",
       timeout: 10 * 60 * 1000,
       env: {

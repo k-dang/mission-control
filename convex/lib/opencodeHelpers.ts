@@ -4,6 +4,14 @@ import {
   type OpencodeClient,
 } from "@opencode-ai/sdk/v2";
 
+export const OPENCODE_PORT = 4096;
+export const OPENCODE_BIN = "/home/vercel-sandbox/.opencode/bin/opencode";
+export const OPENCODE_CONFIG_PATH =
+  "/home/vercel-sandbox/.config/opencode/opencode.json";
+export const OPENCODE_PROVIDER_ID = "vercel";
+export const DEFAULT_VERCEL_MODEL = "moonshotai/kimi-k2.5";
+export const DEFAULT_VERCEL_SMALL_MODEL = "openai/gpt-5-nano";
+
 const OPENCODE_HEALTH_POLL_INTERVAL_MS = 500;
 const OPENCODE_HEALTH_TIMEOUT_MS = 30_000;
 const OPENCODE_EVENT_MAX_RETRY_ATTEMPTS = 5;
@@ -84,29 +92,6 @@ export async function waitForOpencodeHealth(client: OpencodeClient) {
 
   throw new Error(
     `OpenCode did not become healthy within ${OPENCODE_HEALTH_TIMEOUT_MS}ms`,
-  );
-}
-
-export function buildOpencodeConfigJson(
-  aiGatewayApiKey: string,
-  modelId: string,
-  smallModelId: string,
-) {
-  return JSON.stringify(
-    {
-      $schema: "https://opencode.ai/config.json",
-      enabled_providers: ["vercel"],
-      provider: {
-        vercel: {
-          options: { apiKey: aiGatewayApiKey },
-          models: { [modelId]: {}, [smallModelId]: {} },
-        },
-      },
-      model: modelId,
-      small_model: smallModelId,
-    },
-    null,
-    2,
   );
 }
 
