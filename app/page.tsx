@@ -40,6 +40,7 @@ const STAT_COLORS = {
   todo: "oklch(0.75 0.15 55)",
   inprogress: "oklch(0.65 0.17 250)",
   completed: "oklch(0.68 0.14 155)",
+  failed: "oklch(0.58 0.22 25)",
 };
 
 const CREATE_TODO_DEFAULT_GITHUB_URL =
@@ -157,7 +158,7 @@ export default function Home() {
 
   const sheetOpen = selectedTodoId !== null;
   const resolvedTodo = todos
-    ? ([...todos.todo, ...todos.inprogress, ...todos.completed].find(
+    ? ([...todos.todo, ...todos.inprogress, ...todos.completed, ...todos.failed].find(
         (t) => t._id === selectedTodoId,
       ) ?? null)
     : null;
@@ -181,8 +182,8 @@ export default function Home() {
             </div>
             <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
           </div>
-          <div className="grid gap-5 md:grid-cols-3">
-            {[0, 1, 2].map((col) => (
+          <div className="grid gap-5 md:grid-cols-4">
+            {[0, 1, 2, 3].map((col) => (
               <div
                 key={col}
                 className="rounded-xl border border-border/30 bg-card/20 p-4"
@@ -226,8 +227,8 @@ export default function Home() {
             <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
           </div>
           {/* Skeleton columns */}
-          <div className="grid gap-5 md:grid-cols-3">
-            {[0, 1, 2].map((col) => (
+          <div className="grid gap-5 md:grid-cols-4">
+            {[0, 1, 2, 3].map((col) => (
               <div
                 key={col}
                 className="rounded-xl border border-border/30 bg-card/20 p-4"
@@ -286,6 +287,15 @@ export default function Home() {
                 />
                 <span className="font-mono text-[10px] font-semibold text-muted-foreground">
                   {todos.completed.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: STAT_COLORS.failed }}
+                />
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                  {todos.failed.length}
                 </span>
               </div>
             </div>
@@ -440,7 +450,7 @@ export default function Home() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-3 md:overflow-hidden">
+        <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-4 md:overflow-hidden">
           <KanbanColumn
             status="TODO"
             todos={todos.todo}
@@ -465,6 +475,13 @@ export default function Home() {
           <KanbanColumn
             status="COMPLETED"
             todos={todos.completed}
+            draggable={false}
+            onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
+          />
+          <KanbanColumn
+            status="FAILED"
+            todos={todos.failed}
             draggable={false}
             onDragStart={handleDragStart}
             onCardClick={handleCardClick}

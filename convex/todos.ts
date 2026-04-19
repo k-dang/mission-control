@@ -89,11 +89,12 @@ export const listByStatus = query({
     todo: v.array(todoValidator),
     inprogress: v.array(todoValidator),
     completed: v.array(todoValidator),
+    failed: v.array(todoValidator),
   }),
   handler: async (ctx) => {
     await requireAuthenticated(ctx);
 
-    const [todo, inprogress, completed] = await Promise.all([
+    const [todo, inprogress, completed, failed] = await Promise.all([
       ctx.db
         .query("todos")
         .withIndex("by_status", (q) => q.eq("status", "TODO"))
@@ -107,6 +108,11 @@ export const listByStatus = query({
       ctx.db
         .query("todos")
         .withIndex("by_status", (q) => q.eq("status", "COMPLETED"))
+        .order("desc")
+        .collect(),
+      ctx.db
+        .query("todos")
+        .withIndex("by_status", (q) => q.eq("status", "FAILED"))
         .order("desc")
         .collect(),
     ]);
@@ -131,6 +137,15 @@ export const listByStatus = query({
         prUrl: item.prUrl,
       })),
       completed: completed.map((item) => ({
+        _id: item._id,
+        _creationTime: item._creationTime,
+        title: item.title,
+        description: item.description,
+        status: item.status,
+        githubUrl: item.githubUrl,
+        prUrl: item.prUrl,
+      })),
+      failed: failed.map((item) => ({
         _id: item._id,
         _creationTime: item._creationTime,
         title: item.title,
