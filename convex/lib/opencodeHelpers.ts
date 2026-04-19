@@ -8,21 +8,17 @@ const OPENCODE_HEALTH_POLL_INTERVAL_MS = 500;
 const OPENCODE_HEALTH_TIMEOUT_MS = 30_000;
 const OPENCODE_EVENT_MAX_RETRY_ATTEMPTS = 5;
 
-type OpencodeTerminalState = "COMPLETED" | "FAILED" | "CANCELLED";
+type TerminalState = "COMPLETED" | "FAILED" | "CANCELLED";
 
-export type OpencodeTerminalResult = {
+export type TerminalResult = {
   terminalAt: number;
   terminalReason?: string;
-  terminalState: OpencodeTerminalState;
+  terminalState: TerminalState;
 };
 
-/** Result of watching the OpenCode event stream for one monitor slice. */
 export type WaitForOpencodeTerminalStateResult =
-  | { kind: "terminal"; terminal: OpencodeTerminalResult }
-  | /** Slice ended without terminal state after SSE + status fallback; caller should reschedule. */
-    { kind: "retry" }
-  | /** Stream closed without a terminal event after a non-retryable SSE failure (e.g. 410 Gone). */
-    { kind: "stream_unrecoverable"; reason: string }
+  | ({ kind: "terminal" } & TerminalResult)
+  | { kind: "retry" };
 
 type WaitForOpencodeTerminalStateOptions = {
   timeoutMs?: number;
@@ -65,9 +61,7 @@ function isHealthyResponse(health: unknown): health is { healthy: true } {
   );
 }
 
-export async function waitForOpencodeHealth(
-  client: OpencodeClient,
-) {
+export async function waitForOpencodeHealth(client: OpencodeClient) {
   const deadline = Date.now() + OPENCODE_HEALTH_TIMEOUT_MS;
 
   while (Date.now() < deadline) {
@@ -157,9 +151,7 @@ export function getOpencodeErrorMessage(error: unknown) {
   }
 }
 
-function getTerminalResultFromError(
-  event: EventSessionError,
-): OpencodeTerminalResult {
+function getTerminalResultFromError(event: EventSessionError): TerminalResult {
   const error = event.properties.error;
   const terminalAt = Date.now();
 
@@ -183,7 +175,7 @@ function getTerminalResultFromError(
 function getTerminalResultForEvent(
   event: Event,
   sessionId: string,
-): OpencodeTerminalResult | null {
+): TerminalResult | null {
   if (
     event.type === "session.status" &&
     event.properties.sessionID === sessionId &&
@@ -233,7 +225,10 @@ function logOpencodeMilestone(
   sessionId: string,
   todoId: string,
 ) {
-  if (event.type === "session.status" && event.properties.sessionID === sessionId) {
+  if (
+    event.type === "session.status" &&
+    event.properties.sessionID === sessionId
+  ) {
     const status = event.properties.status;
     if (status.type === "idle") {
       return;
@@ -266,7 +261,10 @@ function logOpencodeMilestone(
     return;
   }
 
-  if (event.type === "todo.updated" && event.properties.sessionID === sessionId) {
+  if (
+    event.type === "todo.updated" &&
+    event.properties.sessionID === sessionId
+  ) {
     const summary = summarizeTodos(event.properties.todos);
     if (state.lastTodoSummary === summary) {
       return;
@@ -282,7 +280,10 @@ function logOpencodeMilestone(
     return;
   }
 
-  if (event.type === "session.compacted" && event.properties.sessionID === sessionId) {
+  if (
+    event.type === "session.compacted" &&
+    event.properties.sessionID === sessionId
+  ) {
     console.info("OpenCode session compacted", {
       todoId,
       sessionId,
@@ -450,7 +451,6 @@ export async function waitForOpencodeTerminalState(
       },
     );
 
-    let sawAnyEvent = false;
     const logState: OpencodeStreamLogState = {
       seenCompactionPartIds: new Set(),
       seenPatchPartIds: new Set(),
@@ -461,15 +461,6 @@ export async function waitForOpencodeTerminalState(
     };
 
     for await (const event of eventStream.stream) {
-      if (!sawAnyEvent) {
-        sawAnyEvent = true;
-        console.info("OpenCode SSE first event (stream is live)", {
-          todoId,
-          sessionId,
-          eventType: event.type,
-        });
-      }
-
       logOpencodeMilestone(event, logState, sessionId, todoId);
 
       const terminal = getTerminalResultForEvent(event, sessionId);
@@ -480,15 +471,27 @@ export async function waitForOpencodeTerminalState(
           terminalState: terminal.terminalState,
           terminalReason: terminal.terminalReason,
         });
-        return { kind: "terminal", terminal };
+        return { kind: "terminal", ...terminal };
       }
     }
 
-    if (lastSseErrorMessage && isUnrecoverableSseErrorMessage(lastSseErrorMessage)) {
-      return {
-        kind: "stream_unrecoverable",
-        reason: lastSseErrorMessage,
+    if (
+      lastSseErrorMessage &&
+      isUnrecoverableSseErrorMessage(lastSseErrorMessage)
+    ) {
+      const terminal = {
+        terminalAt: Date.now(),
+        terminalReason: `OpenCode event stream failed: ${lastSseErrorMessage}`,
+        terminalState: "FAILED" as const,
       };
+
+      console.warn("OpenCode SSE stream unrecoverable, finalizing as FAILED", {
+        todoId,
+        sessionId,
+        terminalReason: terminal.terminalReason,
+      });
+
+      return { kind: "terminal", ...terminal };
     }
   } catch (error) {
     if (!abortController?.signal.aborted) {
@@ -516,10 +519,7 @@ export async function waitForOpencodeTerminalState(
       terminalReason: terminal.terminalReason,
     });
 
-    return {
-      kind: "terminal",
-      terminal,
-    };
+    return { kind: "terminal", ...terminal };
   }
 
   console.info("OpenCode monitor slice handing off for retry", {

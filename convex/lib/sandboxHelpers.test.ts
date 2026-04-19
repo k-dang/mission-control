@@ -3,7 +3,7 @@ import {
   buildFallbackPullRequestMetadata,
   buildPullRequestBody,
   normalizePullRequestMetadata,
-} from "./sandboxHelpers";
+} from "./pullRequest";
 
 describe("buildPullRequestBody", () => {
   it("reuses the todo description when present", () => {

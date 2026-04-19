@@ -107,10 +107,8 @@ describe("waitForOpencodeTerminalState", () => {
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
-      terminal: {
-        terminalAt: 1234,
-        terminalState: "COMPLETED",
-      },
+      terminalAt: 1234,
+      terminalState: "COMPLETED",
     });
   });
 
@@ -143,10 +141,8 @@ describe("waitForOpencodeTerminalState", () => {
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
-      terminal: {
-        terminalAt: 1234,
-        terminalState: "COMPLETED",
-      },
+      terminalAt: 1234,
+      terminalState: "COMPLETED",
     });
   });
 
@@ -167,15 +163,15 @@ describe("waitForOpencodeTerminalState", () => {
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
-      terminal: {
-        terminalAt: 9999,
-        terminalReason: "upstream failed",
-        terminalState: "FAILED",
-      },
+      terminalAt: 9999,
+      terminalReason: "upstream failed",
+      terminalState: "FAILED",
     });
   });
 
-  it("returns stream_unrecoverable when SSE reports 410 Gone and stream ends without terminal", async () => {
+  it("returns FAILED terminal when SSE reports 410 Gone and stream ends without terminal", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(5555);
+
     const client = createClientWithSseError(
       [
         {
@@ -192,8 +188,10 @@ describe("waitForOpencodeTerminalState", () => {
     await expect(
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
     ).resolves.toEqual({
-      kind: "stream_unrecoverable",
-      reason: "SSE failed: 410 Gone",
+      kind: "terminal",
+      terminalAt: 5555,
+      terminalReason: "OpenCode event stream failed: SSE failed: 410 Gone",
+      terminalState: "FAILED",
     });
   });
 
@@ -218,11 +216,9 @@ describe("waitForOpencodeTerminalState", () => {
       waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
-      terminal: {
-        terminalAt: 7777,
-        terminalReason: "Detected idle status during fallback status check",
-        terminalState: "COMPLETED",
-      },
+      terminalAt: 7777,
+      terminalReason: "Detected idle status during fallback status check",
+      terminalState: "COMPLETED",
     });
   });
 

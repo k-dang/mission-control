@@ -1,20 +1,18 @@
 "use node";
 
 import { createOpencodeClient } from "@opencode-ai/sdk/v2";
+import type { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { type ActionCtx, internalAction } from "./_generated/server";
-import {
-  createPullRequestForSandbox,
-  preparePullRequestMetadataForSandbox,
-  getSandbox,
-} from "./lib/sandboxHelpers";
+import { internalAction } from "./_generated/server";
+import { createPullRequest } from "./lib/pullRequest";
+import { getSandbox } from "./lib/sandboxHelpers";
 import {
   buildOpencodeConfigJson,
   buildTodoPrompt,
   getOpencodeErrorMessage,
-  type OpencodeTerminalResult,
+  type TerminalResult,
   waitForOpencodeHealth,
   waitForOpencodeTerminalState,
 } from "./lib/opencodeHelpers";
@@ -51,7 +49,7 @@ export const runTodo = internalAction({
       return null;
     }
 
-    let sandbox: OpencodeSandbox | undefined;
+    let sandbox: Sandbox | undefined;
     try {
       const AI_GATEWAY_API_KEY = process.env.AI_GATEWAY_API_KEY;
       if (!AI_GATEWAY_API_KEY?.trim()) {
@@ -125,11 +123,7 @@ export const runTodo = internalAction({
         parts: [
           {
             type: "text",
-            text: buildTodoPrompt(
-              todo.title,
-              todo.description,
-              todo.githubUrl,
-            ),
+            text: buildTodoPrompt(todo.title, todo.description, todo.githubUrl),
           },
         ],
       });
@@ -216,15 +210,6 @@ export const monitorOpencodeStream = internalAction({
         { timeoutMs: OPENCODE_MONITOR_SLICE_MS },
       );
 
-      if (outcome.kind === "stream_unrecoverable") {
-        await finalizeOpencodeRun(ctx, sandbox, args, {
-          terminalAt: Date.now(),
-          terminalReason: `OpenCode event stream failed: ${outcome.reason}`,
-          terminalState: "FAILED",
-        });
-        return null;
-      }
-
       if (outcome.kind === "retry") {
         await ctx.scheduler.runAfter(
           OPENCODE_MONITOR_RETRY_DELAY_MS,
@@ -242,10 +227,22 @@ export const monitorOpencodeStream = internalAction({
         return null;
       }
 
-      await finalizeOpencodeRun(ctx, sandbox, args, outcome.terminal);
+      const resolved = await resolveOpencodeOutcome(sandbox, args, outcome);
+      await ctx.runMutation(internal.todoSessionState.setTerminalState, {
+        todoId: args.todoId,
+        streamState: outcome.terminalState,
+        terminalAt: outcome.terminalAt,
+        terminalReason: resolved.terminalReason,
+        todoStatus: resolved.todoStatus,
+        prUrl: resolved.prUrl,
+      });
+      await stopSandboxSafely(sandbox, args.todoId, args.sandboxId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
-      console.error("OpenCode monitor failed", { todoId: args.todoId, error: message });
+      console.error("OpenCode monitor failed", {
+        todoId: args.todoId,
+        error: message,
+      });
       await ctx.runMutation(internal.todos.updateInternal, {
         todoId: args.todoId,
         prUrl: null,
@@ -269,76 +266,61 @@ type FinalizeArgs = {
   todoTitle: string;
 };
 
-type OpencodeSandbox = Awaited<ReturnType<typeof getSandbox>>;
+type ResolvedOpencodeOutcome = {
+  todoStatus: "COMPLETED" | "FAILED";
+  terminalReason: string | undefined;
+  prUrl: string | undefined;
+};
 
-async function finalizeOpencodeRun(
-  ctx: ActionCtx,
-  sandbox: OpencodeSandbox,
+async function resolveOpencodeOutcome(
+  sandbox: Sandbox,
   args: FinalizeArgs,
-  terminal: OpencodeTerminalResult,
-) {
-  let todoStatus: "COMPLETED" | "FAILED" =
-    terminal.terminalState === "COMPLETED" ? "COMPLETED" : "FAILED";
-  let terminalReason = terminal.terminalReason;
-  let prUrl: string | undefined;
-
-  if (terminal.terminalState === "COMPLETED") {
-    try {
-      prUrl = await createPullRequestFromSandbox(sandbox, args);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("PR creation failed after OpenCode completed", {
-        todoId: args.todoId,
-        sandboxId: args.sandboxId,
-        error: message,
-      });
-      todoStatus = "FAILED";
-      terminalReason = `Post-run PR creation failed: ${message}`;
-    }
+  terminal: TerminalResult,
+): Promise<ResolvedOpencodeOutcome> {
+  if (terminal.terminalState !== "COMPLETED") {
+    return {
+      todoStatus: "FAILED",
+      terminalReason: terminal.terminalReason,
+      prUrl: undefined,
+    };
   }
 
-  await ctx.runMutation(internal.todoSessionState.recordOpencodeTerminal, {
-    todoId: args.todoId,
-    streamState: terminal.terminalState,
-    terminalAt: terminal.terminalAt,
-    terminalReason,
-    todoStatus,
-    prUrl,
-  });
-
-  await stopSandboxSafely(sandbox, args.todoId, args.sandboxId);
-}
-
-async function createPullRequestFromSandbox(
-  sandbox: OpencodeSandbox,
-  args: FinalizeArgs,
-): Promise<string | undefined> {
-  const metadataResult = await preparePullRequestMetadataForSandbox(
-    sandbox,
-    args.todoTitle,
-    args.todoDescription,
-    args.opencodeSessionId,
-    args.opencodeUrl,
-    {
-      modelID: DEFAULT_VERCEL_SMALL_MODEL,
-      providerID: OPENCODE_PROVIDER_ID,
-    },
-  );
-  if (metadataResult.kind === "noChanges") {
-    return undefined;
+  try {
+    const result = await createPullRequest(sandbox, {
+      title: args.todoTitle,
+      description: args.todoDescription,
+      repoUrl: args.todoGithubUrl,
+      prSummary: {
+        opencodeSessionId: args.opencodeSessionId,
+        opencodeUrl: args.opencodeUrl,
+        model: {
+          modelID: DEFAULT_VERCEL_SMALL_MODEL,
+          providerID: OPENCODE_PROVIDER_ID,
+        },
+      },
+    });
+    return {
+      todoStatus: "COMPLETED",
+      terminalReason: terminal.terminalReason,
+      prUrl: result.kind === "noChanges" ? undefined : result.prUrl,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("PR creation failed after OpenCode completed", {
+      todoId: args.todoId,
+      sandboxId: args.sandboxId,
+      error: message,
+    });
+    return {
+      todoStatus: "FAILED",
+      terminalReason: `Post-run PR creation failed: ${message}`,
+      prUrl: undefined,
+    };
   }
-
-  const result = await createPullRequestForSandbox(
-    sandbox,
-    metadataResult.prMetadata,
-    args.todoGithubUrl,
-    process.env.GITHUB_TOKEN,
-  );
-  return result.kind === "noChanges" ? undefined : result.prUrl;
 }
 
 async function stopSandboxSafely(
-  sandbox: OpencodeSandbox,
+  sandbox: Sandbox,
   todoId: Id<"todos">,
   sandboxId: string,
 ) {

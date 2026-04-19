@@ -12,7 +12,7 @@ const todoTerminalStatusValidator = v.union(
   v.literal("FAILED"),
 );
 
-export const recordOpencodeTerminal = internalMutation({
+export const setTerminalState = internalMutation({
   args: {
     todoId: v.id("todos"),
     streamState: opencodeTerminalStateValidator,
