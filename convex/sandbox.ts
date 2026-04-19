@@ -56,7 +56,7 @@ export const spawnSandboxForTodo = internalAction({
       return null;
     }
     const existingSandbox = await ctx.runQuery(
-      internal.sandboxStorage.getSandboxByTodoId,
+      internal.todoSandboxes.getSandboxByTodoId,
       { todoId: args.todoId },
     );
     if (existingSandbox) {
@@ -66,6 +66,7 @@ export const spawnSandboxForTodo = internalAction({
       });
       return null;
     }
+
     const { projectId, teamId, token } = requireSandboxAccessConfig();
     const sandbox = await Sandbox.create({
       source: { type: "git", url: args.githubUrl },
@@ -74,10 +75,6 @@ export const spawnSandboxForTodo = internalAction({
       timeout: 10 * 60 * 1000,
       env: {
         GITHUB_TOKEN: process.env.GITHUB_TOKEN!,
-        GIT_AUTHOR_NAME: SANDBOX_GIT_USER_NAME,
-        GIT_AUTHOR_EMAIL: SANDBOX_GIT_USER_EMAIL,
-        GIT_COMMITTER_NAME: SANDBOX_GIT_USER_NAME,
-        GIT_COMMITTER_EMAIL: SANDBOX_GIT_USER_EMAIL,
       },
       teamId,
       projectId,
@@ -95,7 +92,7 @@ export const spawnSandboxForTodo = internalAction({
       throw error;
     }
 
-    await ctx.runMutation(internal.sandboxStorage.saveSandboxResult, {
+    await ctx.runMutation(internal.todoSandboxes.saveSandboxResult, {
       todoId: args.todoId,
       sandboxId: sandbox.sandboxId,
     });

@@ -16,8 +16,8 @@ import type * as lib_sandboxHelpers from "../lib/sandboxHelpers.js";
 import type * as opencode from "../opencode.js";
 import type * as opencodeState from "../opencodeState.js";
 import type * as sandbox from "../sandbox.js";
-import type * as sandboxStorage from "../sandboxStorage.js";
 import type * as todoNotifications from "../todoNotifications.js";
+import type * as todoSandboxes from "../todoSandboxes.js";
 import type * as todos from "../todos.js";
 
 import type {
@@ -35,8 +35,8 @@ declare const fullApi: ApiFromModules<{
   opencode: typeof opencode;
   opencodeState: typeof opencodeState;
   sandbox: typeof sandbox;
-  sandboxStorage: typeof sandboxStorage;
   todoNotifications: typeof todoNotifications;
+  todoSandboxes: typeof todoSandboxes;
   todos: typeof todos;
 }>;
 

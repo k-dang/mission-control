@@ -39,7 +39,7 @@ export const runTodo = internalAction({
       todoId: args.todoId,
     });
     const sandboxRow = await ctx.runQuery(
-      internal.sandboxStorage.getSandboxByTodoId,
+      internal.todoSandboxes.getSandboxByTodoId,
       {
         todoId: args.todoId,
       },
@@ -139,7 +139,7 @@ export const runTodo = internalAction({
         );
       }
 
-      await ctx.runMutation(internal.sandboxStorage.markOpencodeStarted, {
+      await ctx.runMutation(internal.todoSandboxes.markOpencodeStarted, {
         todoId: args.todoId,
         opencodeUrl: opencodePublicUrl,
         sessionId: session.data.id,

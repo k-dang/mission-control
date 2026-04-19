@@ -13,7 +13,7 @@
 
 **Why it matters:** Sandbox shutdown is a destructive action. We need one durable signal in Convex that says either "the stream started" or "the stream reached a terminal state and shutdown is now safe." We do not need message storage, token storage, or rich progress tracking for this version.
 
-**Evidence:** [convex/opencode.ts](/Users/kevin/Documents/dev/convex-todo-app/convex/opencode.ts) starts OpenCode and submits the prompt. [convex/sandboxStorage.ts](/Users/kevin/Documents/dev/convex-todo-app/convex/sandboxStorage.ts) stores sandbox metadata and a coarse failure path, but nothing durable about OpenCode stream lifecycle.
+**Evidence:** [convex/opencode.ts](/Users/kevin/Documents/dev/convex-todo-app/convex/opencode.ts) starts OpenCode and submits the prompt. [convex/todoSandboxes.ts](/Users/kevin/Documents/dev/convex-todo-app/convex/todoSandboxes.ts) stores sandbox metadata and a coarse failure path, but nothing durable about OpenCode stream lifecycle.
 
 ## Recommendation
 

@@ -97,7 +97,7 @@ export function TaskDetailPanel({
 }) {
   const updateTodo = useMutation(api.todos.update);
   const deleteTodo = useMutation(api.todos.remove);
-  const sandbox = useQuery(api.sandboxStorage.getSandboxForTodo, {
+  const sandbox = useQuery(api.todoSandboxes.getSandboxForTodo, {
     todoId: todo._id,
   });
 
