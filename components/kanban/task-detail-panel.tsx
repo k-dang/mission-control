@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useRef, useId, type KeyboardEvent } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
@@ -187,6 +188,12 @@ export function TaskDetailPanel({
               {currentStatusOption.label}
             </span>
           </div>
+          <Button asChild variant="ghost" size="sm" className="gap-1.5">
+            <Link href={`/todos/${todo._id}`}>
+              Open page
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
         </div>
         <SheetTitle className="sr-only">{todo.title}</SheetTitle>
         <SheetDescription className="sr-only">

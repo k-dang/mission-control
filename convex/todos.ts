@@ -54,6 +54,27 @@ export const getById = internalQuery({
   },
 });
 
+export const get = query({
+  args: { todoId: v.id("todos") },
+  returns: v.union(todoValidator, v.null()),
+  handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+
+    const todo = await ctx.db.get("todos", args.todoId);
+    if (!todo) return null;
+
+    return {
+      _id: todo._id,
+      _creationTime: todo._creationTime,
+      title: todo.title,
+      description: todo.description,
+      status: todo.status,
+      githubUrl: todo.githubUrl,
+      prUrl: todo.prUrl,
+    };
+  },
+});
+
 export const updateInternal = internalMutation({
   args: {
     todoId: v.id("todos"),
