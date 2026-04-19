@@ -12,6 +12,11 @@ import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
 import { getErrorMessage } from "@/lib/errors";
+import {
+  CREATE_TODO_DEFAULT_DESCRIPTION,
+  CREATE_TODO_DEFAULT_GITHUB_URL,
+  CREATE_TODO_DEFAULT_TITLE,
+} from "@/lib/todo-defaults";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import {
   Dialog,
@@ -41,12 +46,6 @@ const STAT_COLORS = {
   inprogress: "oklch(0.65 0.17 250)",
   completed: "oklch(0.68 0.14 155)",
 };
-
-const CREATE_TODO_DEFAULT_GITHUB_URL =
-  "https://github.com/k-dang/mission-control";
-const CREATE_TODO_DEFAULT_TITLE = "Adding a new FAILED column";
-const CREATE_TODO_DEFAULT_DESCRIPTION =
-  "Add a new FAILED column so failed tasks have a dedicated place in the workflow.";
 
 export default function Home() {
   const { isLoading, isAuthenticated } = useConvexAuth();
