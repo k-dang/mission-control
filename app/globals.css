@@ -239,6 +239,117 @@
   box-shadow: 0 0 20px oklch(0.75 0.15 55 / 10%);
 }
 
+/* ============ Mission Dossier (todo detail page) ============ */
+
+/* Grid backdrop — faint technical grid behind the dossier body */
+.dossier-grid {
+  background-image:
+    linear-gradient(to right, oklch(1 0 0 / 3%) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(1 0 0 / 3%) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+
+/* Corner brackets — crosshair L-marks at dossier corners */
+.dossier-corners::before,
+.dossier-corners::after,
+.dossier-corners > .corner-tl,
+.dossier-corners > .corner-tr {
+  content: "";
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-color: var(--dossier-accent, oklch(0.75 0.15 55 / 70%));
+  pointer-events: none;
+  z-index: 2;
+}
+.dossier-corners > .corner-tl {
+  top: -1px;
+  left: -1px;
+  border-top: 1.5px solid;
+  border-left: 1.5px solid;
+  border-top-left-radius: 6px;
+}
+.dossier-corners > .corner-tr {
+  top: -1px;
+  right: -1px;
+  border-top: 1.5px solid;
+  border-right: 1.5px solid;
+  border-top-right-radius: 6px;
+}
+.dossier-corners::before {
+  bottom: -1px;
+  left: -1px;
+  border-bottom: 1.5px solid;
+  border-left: 1.5px solid;
+  border-bottom-left-radius: 6px;
+}
+.dossier-corners::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 1.5px solid;
+  border-right: 1.5px solid;
+  border-bottom-right-radius: 6px;
+}
+
+/* Scanline sweep inside a badge/pill */
+.scan-sweep {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.scan-sweep::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    110deg,
+    transparent 40%,
+    oklch(1 0 0 / 14%) 50%,
+    transparent 60%
+  );
+  transform: translateX(-100%);
+  animation: scan-sweep 3.8s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes scan-sweep {
+  0%, 35% { transform: translateX(-100%); }
+  70%, 100% { transform: translateX(100%); }
+}
+
+/* Radar — concentric rings with a slow sweep */
+.radar-pulse circle {
+  transform-origin: center;
+  animation: radar-ring 3.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+}
+.radar-pulse circle:nth-child(2) { animation-delay: 0.8s; }
+.radar-pulse circle:nth-child(3) { animation-delay: 1.6s; }
+@keyframes radar-ring {
+  0% { r: 4; opacity: 0.9; }
+  100% { r: 44; opacity: 0; }
+}
+
+/* Staggered reveal */
+.reveal {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: reveal-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
+}
+@keyframes reveal-up {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Blinking cursor for live ticker */
+.tick-cursor::after {
+  content: "▊";
+  margin-left: 2px;
+  opacity: 0.6;
+  animation: tick-blink 1.05s step-end infinite;
+}
+@keyframes tick-blink {
+  50% { opacity: 0; }
+}
+
 /* Dark scrollbar */
 .dark ::-webkit-scrollbar {
   width: 6px;

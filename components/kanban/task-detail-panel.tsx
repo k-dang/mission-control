@@ -171,29 +171,21 @@ export function TaskDetailPanel({
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <SheetHeader className="border-b border-border/30 pb-4 pt-8">
-        <div className="flex items-center justify-between pr-8">
-          <div className="flex items-center gap-2">
-            <span
-              className={cn(
-                "inline-block h-2.5 w-2.5 rounded-full",
-                STATUS_DOT_COLOR[todo.status],
-              )}
-            />
-            <span
-              className={cn(
-                "font-mono text-[10px] font-bold uppercase tracking-[0.15em]",
-                currentStatusOption.colorClass,
-              )}
-            >
-              {currentStatusOption.label}
-            </span>
-          </div>
-          <Button asChild variant="ghost" size="sm" className="gap-1.5">
-            <Link href={`/todos/${todo._id}`}>
-              Open page
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
-          </Button>
+        <div className="flex items-center gap-2 pr-8">
+          <span
+            className={cn(
+              "inline-block h-2.5 w-2.5 rounded-full",
+              STATUS_DOT_COLOR[todo.status],
+            )}
+          />
+          <span
+            className={cn(
+              "font-mono text-[10px] font-bold uppercase tracking-[0.15em]",
+              currentStatusOption.colorClass,
+            )}
+          >
+            {currentStatusOption.label}
+          </span>
         </div>
         <SheetTitle className="sr-only">{todo.title}</SheetTitle>
         <SheetDescription className="sr-only">
@@ -399,6 +391,12 @@ export function TaskDetailPanel({
 
         {/* Actions */}
         <div className="flex items-center gap-3 border-t border-border/20 pt-4">
+          <Button asChild variant="ghost" size="sm" className="gap-1.5">
+            <Link href={`/todos/${todo._id}`}>
+              Open page
+              <ExternalLink className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
           <div className="ml-auto">
             {showDeleteConfirm ? (
               <div className="flex items-center gap-3">
