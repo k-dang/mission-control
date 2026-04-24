@@ -91,14 +91,13 @@ function formatAbsoluteTimestamp(ms: number) {
 }
 
 function useElapsed(startMs: number | undefined) {
-  const [now, setNow] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (startMs === undefined) return;
-    setNow(Date.now());
     const id = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(id);
   }, [startMs]);
-  if (startMs === undefined || now === null) return null;
+  if (startMs === undefined) return null;
   return now - startMs;
 }
 
