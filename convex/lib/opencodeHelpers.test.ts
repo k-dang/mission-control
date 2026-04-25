@@ -1,14 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
+import type { Event } from "@opencode-ai/sdk/v2";
 import {
   isUnrecoverableSseErrorMessage,
   type AppendTodoEventCallback,
   waitForOpencodeTerminalState,
 } from "./opencodeHelpers";
 
-type MockEvent = {
-  type: string;
-  properties: Record<string, unknown>;
-};
+type MockEvent = Event;
 
 function createClient(events: MockEvent[]) {
   return {
@@ -81,7 +79,7 @@ describe("waitForOpencodeTerminalState", () => {
     ]);
 
     await expect(
-      waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
+      waitForOpencodeTerminalState(client, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
       terminalAt: 1234,
@@ -96,6 +94,7 @@ describe("waitForOpencodeTerminalState", () => {
       {
         type: "message.part.updated",
         properties: {
+          sessionID: "session_123",
           part: {
             id: "patch_1",
             sessionID: "session_123",
@@ -104,6 +103,7 @@ describe("waitForOpencodeTerminalState", () => {
             hash: "abc123",
             files: ["src/foo.ts"],
           },
+          time: 1234,
         },
       },
       {
@@ -115,7 +115,7 @@ describe("waitForOpencodeTerminalState", () => {
     ]);
 
     await expect(
-      waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
+      waitForOpencodeTerminalState(client, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
       terminalAt: 1234,
@@ -131,13 +131,16 @@ describe("waitForOpencodeTerminalState", () => {
         type: "session.error",
         properties: {
           sessionID: "session_123",
-          error: new Error("upstream failed"),
+          error: {
+            name: "UnknownError",
+            data: { message: "upstream failed" },
+          },
         },
       },
     ]);
 
     await expect(
-      waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
+      waitForOpencodeTerminalState(client, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
       terminalAt: 9999,
@@ -163,7 +166,7 @@ describe("waitForOpencodeTerminalState", () => {
     );
 
     await expect(
-      waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
+      waitForOpencodeTerminalState(client, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
       terminalAt: 5555,
@@ -190,7 +193,7 @@ describe("waitForOpencodeTerminalState", () => {
     );
 
     await expect(
-      waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
+      waitForOpencodeTerminalState(client, "session_123", "todo_123"),
     ).resolves.toEqual({
       kind: "terminal",
       terminalAt: 7777,
@@ -211,18 +214,20 @@ describe("waitForOpencodeTerminalState", () => {
       {
         type: "message.part.updated",
         properties: {
+          sessionID: "session_123",
           part: {
             id: "part_1",
             sessionID: "session_123",
             type: "step-start",
             messageID: "message_1",
           },
+          time: 1234,
         },
       },
     ]);
 
     await expect(
-      waitForOpencodeTerminalState(client as never, "session_123", "todo_123"),
+      waitForOpencodeTerminalState(client, "session_123", "todo_123"),
     ).resolves.toEqual({ kind: "retry" });
   });
 
@@ -246,13 +251,14 @@ describe("waitForOpencodeTerminalState", () => {
                 reject(new DOMException("Aborted", "AbortError"));
               });
             });
-            yield {
+            const idleEvent: MockEvent = {
               type: "session.status",
               properties: {
                 sessionID: "session_123",
                 status: { type: "idle" },
               },
             };
+            yield idleEvent;
           })(),
         })),
       },
@@ -265,7 +271,7 @@ describe("waitForOpencodeTerminalState", () => {
 
     try {
       const outcome = waitForOpencodeTerminalState(
-        client as never,
+        client,
         "session_123",
         "todo_123",
       );
@@ -284,6 +290,7 @@ describe("waitForOpencodeTerminalState", () => {
       {
         type: "message.part.updated",
         properties: {
+          sessionID: "session_123",
           part: {
             id: "patch_1",
             sessionID: "session_123",
@@ -292,6 +299,7 @@ describe("waitForOpencodeTerminalState", () => {
             hash: "abc123",
             files: ["src/a.ts", "src/b.ts"],
           },
+          time: 1234,
         },
       },
       {
@@ -303,7 +311,7 @@ describe("waitForOpencodeTerminalState", () => {
     ]);
 
     await waitForOpencodeTerminalState(
-      client as never,
+      client,
       "session_123",
       "todo_123",
       onAppendTodoEvent,
@@ -329,23 +337,27 @@ describe("waitForOpencodeTerminalState", () => {
       {
         type: "message.part.updated",
         properties: {
+          sessionID: "session_123",
           part: {
             id: "s1",
             sessionID: "session_123",
             type: "step-start",
             messageID: "message_1",
           },
+          time: 1234,
         },
       },
       {
         type: "message.part.updated",
         properties: {
+          sessionID: "session_123",
           part: {
             id: "s1",
             sessionID: "session_123",
             type: "step-start",
             messageID: "message_1",
           },
+          time: 1234,
         },
       },
       {
@@ -357,7 +369,7 @@ describe("waitForOpencodeTerminalState", () => {
     ]);
 
     await waitForOpencodeTerminalState(
-      client as never,
+      client,
       "session_123",
       "todo_123",
       onAppendTodoEvent,

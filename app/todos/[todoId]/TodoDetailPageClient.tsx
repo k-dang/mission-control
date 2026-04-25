@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
@@ -26,6 +33,7 @@ import {
 } from "lucide-react";
 
 type Status = Doc<"todos">["status"];
+type DossierStyle = CSSProperties & { "--dossier-accent": string };
 
 const STATUS_META: Record<
   Status,
@@ -509,6 +517,7 @@ export function TodoDetailPageClient({
   const status = STATUS_META[todo.status];
   const StatusIcon = status.icon;
   const hasUplinks = Boolean(todo.githubUrl || todo.prUrl);
+  const dossierStyle: DossierStyle = { "--dossier-accent": status.accent };
 
   return (
     <main className="grain-overlay relative min-h-screen">
@@ -524,7 +533,7 @@ export function TodoDetailPageClient({
 
       <div
         className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-6 md:p-10"
-        style={{ ["--dossier-accent" as string]: status.accent }}
+        style={dossierStyle}
       >
         {/* Top row: back + dossier tag */}
         <div

@@ -67,6 +67,7 @@ export default function Home() {
     null,
   );
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const draggedTodoIdRef = useRef<Id<"todos"> | null>(null);
 
   const resetForm = useCallback(() => {
     setTitle(CREATE_TODO_DEFAULT_TITLE);
@@ -124,9 +125,14 @@ export default function Home() {
     event: DragEvent<HTMLDivElement>,
     todoId: Id<"todos">,
   ) => {
+    draggedTodoIdRef.current = todoId;
     event.dataTransfer.setData("text/todo-id", todoId);
     event.dataTransfer.effectAllowed = "move";
     setDropError(null);
+  };
+
+  const handleDragEnd = () => {
+    draggedTodoIdRef.current = null;
   };
 
   const handleDropOnInProgress = async (event: DragEvent<HTMLDivElement>) => {
@@ -134,14 +140,15 @@ export default function Home() {
     setIsDropTargetActive(false);
     setDropError(null);
 
-    const todoId = event.dataTransfer.getData("text/todo-id");
+    const todoId = draggedTodoIdRef.current;
+    draggedTodoIdRef.current = null;
     if (!todoId) {
       return;
     }
 
     try {
       await updateTodo({
-        todoId: todoId as Id<"todos">,
+        todoId,
         status: "INPROGRESS",
       });
     } catch (error: unknown) {
@@ -439,6 +446,7 @@ export default function Home() {
             todos={todos.todo}
             draggable
             onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
             onCardClick={handleCardClick}
           />
           <KanbanColumn

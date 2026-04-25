@@ -8,19 +8,11 @@ import { SANDBOX_REPO_PATH } from "./sandboxHelpers";
 
 const DEFAULT_PR_BASE_BRANCH = "main";
 const MAX_PR_DIFF_PROMPT_CHARS = 12_000;
-const PULL_REQUEST_METADATA_PROPERTIES = {
-  title: {
-    type: "string",
-    description:
-      "A concise pull request title describing the actual completed change.",
-  },
-  body: {
-    type: "string",
-    description:
-      "A concise markdown pull request body that starts with '## Summary' and uses 1-3 bullets.",
-  },
-} as const;
-const REQUIRED_PULL_REQUEST_METADATA_FIELDS = ["title", "body"] as const;
+
+export type PullRequestMetadata = {
+  title: string;
+  body: string;
+};
 
 const STRUCTURED_PR_METADATA_FORMAT = {
   type: "json_schema",
@@ -28,14 +20,21 @@ const STRUCTURED_PR_METADATA_FORMAT = {
   schema: {
     type: "object",
     additionalProperties: false,
-    properties: PULL_REQUEST_METADATA_PROPERTIES,
-    required: REQUIRED_PULL_REQUEST_METADATA_FIELDS,
+    properties: {
+      title: {
+        type: "string",
+        description:
+          "A concise pull request title describing the actual completed change.",
+      },
+      body: {
+        type: "string",
+        description:
+          "A concise markdown pull request body that starts with '## Summary' and uses 1-3 bullets.",
+      },
+    },
+    required: ["title", "body"],
   },
 } satisfies OutputFormat;
-
-export type PullRequestMetadata = {
-  [Key in keyof typeof PULL_REQUEST_METADATA_PROPERTIES]: string;
-};
 
 export function buildPullRequestBody(title: string, description?: string) {
   const trimmedDescription = description?.trim();
@@ -56,7 +55,9 @@ export function buildFallbackPullRequestMetadata(
   };
 }
 
-export function normalizePullRequestMetadata(structured: unknown) {
+export function normalizePullRequestMetadata(
+  structured: unknown,
+): PullRequestMetadata | null {
   if (!structured || typeof structured !== "object") {
     return null;
   }
@@ -208,7 +209,7 @@ export async function generatePullRequestMetadataFromDiff(
   }
 
   const client = createOpencodeClient({ baseUrl: opencodeUrl });
-  const response = await client.session.prompt({
+  const result = await client.session.prompt({
     format: STRUCTURED_PR_METADATA_FORMAT,
     model: prSummary.model,
     parts: [
@@ -220,12 +221,12 @@ export async function generatePullRequestMetadataFromDiff(
     sessionID: opencodeSessionId,
   });
 
-  const promptError = response.error ?? response.data?.info.error;
+  const promptError = result.error ?? result.data?.info.error;
   if (promptError) {
     throw new Error(getOpencodeErrorMessage(promptError));
   }
 
-  const metadata = normalizePullRequestMetadata(response.data?.info.structured);
+  const metadata = normalizePullRequestMetadata(result.data?.info.structured);
   if (!metadata) {
     throw new Error(
       "OpenCode structured PR metadata response did not include a non-empty title and body",

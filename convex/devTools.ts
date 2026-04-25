@@ -20,14 +20,32 @@ function githubHeaders(token: string) {
   } as const;
 }
 
+function getObjectField(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null || !(key in value)) {
+    return undefined;
+  }
+
+  return Reflect.get(value, key);
+}
+
+function getStringField(value: unknown, key: string): string | undefined {
+  const field = getObjectField(value, key);
+  return typeof field === "string" ? field : undefined;
+}
+
+function getNumberField(value: unknown, key: string): number | undefined {
+  const field = getObjectField(value, key);
+  return typeof field === "number" ? field : undefined;
+}
+
 async function readGithubError(response: Response): Promise<string> {
   try {
-    const body = (await response.json()) as {
-      message?: string;
-      errors?: Array<{ message?: string }>;
-    };
-    const detail = body.errors?.map((e) => e.message).filter(Boolean).join("; ");
-    return [body.message, detail].filter(Boolean).join(" — ") || response.statusText;
+    const body = await response.json();
+    const errors = getObjectField(body, "errors");
+    const detail = Array.isArray(errors)
+      ? errors.map((error) => getStringField(error, "message")).filter(Boolean).join("; ")
+      : undefined;
+    return [getStringField(body, "message"), detail].filter(Boolean).join(" — ") || response.statusText;
   } catch {
     return response.statusText;
   }
@@ -46,8 +64,8 @@ async function getBranchHeadCommitSha(
   if (!res.ok) {
     return null;
   }
-  const data = (await res.json()) as { object?: { sha?: string } };
-  return data.object?.sha ?? null;
+  const data = await res.json();
+  return getStringField(getObjectField(data, "object"), "sha") ?? null;
 }
 
 export const checkGithubToken = action({
@@ -85,11 +103,11 @@ export const checkGithubToken = action({
       });
 
       if (response.status === 200) {
-        const body = (await response.json()) as { login?: string };
+        const body = await response.json();
         return {
           configured: true,
           authenticated: true,
-          login: body.login ?? null,
+          login: getStringField(body, "login") ?? null,
           error: null,
         };
       }
@@ -171,8 +189,17 @@ export const createMissionControlTestPullRequest = action({
         };
       }
 
-      const repoJson = (await repoRes.json()) as { default_branch: string };
-      const base = repoJson.default_branch;
+      const repoJson = await repoRes.json();
+      const base = getStringField(repoJson, "default_branch");
+      if (!base) {
+        return {
+          ok: false,
+          pullRequestUrl: null,
+          pullRequestNumber: null,
+          branch: null,
+          error: "GitHub repository response did not include a default branch.",
+        };
+      }
 
       const baseSha = await getBranchHeadCommitSha(owner, repo, base, headers);
       if (!baseSha) {
@@ -284,15 +311,12 @@ export const createMissionControlTestPullRequest = action({
         };
       }
 
-      const prJson = (await prRes.json()) as {
-        html_url?: string;
-        number?: number;
-      };
+      const prJson = await prRes.json();
 
       return {
         ok: true,
-        pullRequestUrl: prJson.html_url ?? null,
-        pullRequestNumber: prJson.number ?? null,
+        pullRequestUrl: getStringField(prJson, "html_url") ?? null,
+        pullRequestNumber: getNumberField(prJson, "number") ?? null,
         branch,
         error: null,
       };

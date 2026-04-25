@@ -1,15 +1,12 @@
 export function getErrorMessage(error: unknown): string {
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "data" in error &&
-    typeof (error as { data?: unknown }).data === "object" &&
-    (error as { data?: unknown }).data !== null &&
-    "message" in ((error as { data?: unknown }).data as { message?: unknown }) &&
-    typeof ((error as { data?: unknown }).data as { message?: unknown }).message ===
-      "string"
-  ) {
-    return ((error as { data?: unknown }).data as { message: string }).message;
+  if (typeof error === "object" && error !== null && "data" in error) {
+    const { data } = error;
+    if (typeof data === "object" && data !== null && "message" in data) {
+      const { message } = data;
+      if (typeof message === "string") {
+        return message;
+      }
+    }
   }
 
   if (error instanceof Error) {

@@ -6,6 +6,14 @@ export function parseGithubRepoUrl(githubUrl: string) {
   return { owner: match[1], repo: match[2] };
 }
 
+function getObjectField(value: unknown, key: string): unknown {
+  if (typeof value !== "object" || value === null || !(key in value)) {
+    return undefined;
+  }
+
+  return Reflect.get(value, key);
+}
+
 export async function createGitHubPullRequest(params: {
   baseBranch: string;
   body: string;
@@ -35,28 +43,24 @@ export async function createGitHubPullRequest(params: {
     },
   );
 
-  const payload = (await response.json()) as {
-    html_url?: string;
-    message?: string;
-    number?: number;
-  };
+  const payload = await response.json();
+  const message = getObjectField(payload, "message");
+  const htmlUrl = getObjectField(payload, "html_url");
+  const number = getObjectField(payload, "number");
   if (!response.ok) {
-    const message =
-      typeof payload.message === "string"
-        ? payload.message
+    const errorMessage =
+      typeof message === "string"
+        ? message
         : `GitHub PR creation failed with status ${response.status}`;
-    throw new Error(message);
+    throw new Error(errorMessage);
   }
 
-  if (
-    typeof payload.html_url !== "string" ||
-    typeof payload.number !== "number"
-  ) {
+  if (typeof htmlUrl !== "string" || typeof number !== "number") {
     throw new Error("GitHub PR creation returned an unexpected response");
   }
 
   return {
-    number: payload.number,
-    url: payload.html_url,
+    number,
+    url: htmlUrl,
   };
 }

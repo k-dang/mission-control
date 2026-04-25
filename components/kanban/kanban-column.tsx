@@ -68,6 +68,7 @@ export function KanbanColumn({
   todos,
   draggable,
   onDragStart,
+  onDragEnd,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -78,6 +79,7 @@ export function KanbanColumn({
   todos: Doc<"todos">[];
   draggable: boolean;
   onDragStart: (event: DragEvent<HTMLDivElement>, todoId: Id<"todos">) => void;
+  onDragEnd?: () => void;
   onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
   onDragLeave?: () => void;
   onDrop?: (event: DragEvent<HTMLDivElement>) => void;
@@ -143,6 +145,7 @@ export function KanbanColumn({
                 todo={todo}
                 draggable={draggable}
                 onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
                 index={i}
                 onClick={onCardClick}
               />

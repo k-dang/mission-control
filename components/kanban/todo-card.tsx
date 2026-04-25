@@ -15,12 +15,14 @@ export function TodoCard({
   todo,
   draggable,
   onDragStart,
+  onDragEnd,
   index,
   onClick,
 }: {
   todo: Doc<"todos">;
   draggable: boolean;
   onDragStart: (event: DragEvent<HTMLDivElement>, todoId: Id<"todos">) => void;
+  onDragEnd?: () => void;
   index: number;
   onClick?: (todo: Doc<"todos">) => void;
 }) {
@@ -36,6 +38,7 @@ export function TodoCard({
       }}
       onDragEnd={() => {
         isDragging.current = false;
+        onDragEnd?.();
       }}
       onClick={() => {
         if (!isDragging.current && onClick) {

@@ -31,6 +31,24 @@ export type OpencodeWaitOutcome =
   | ({ kind: "terminal" } & TerminalResult)
   | { kind: "retry" };
 
+type OpencodeEventClient = {
+  event: {
+    subscribe: (
+      parameters?: { directory?: string; workspace?: string },
+      options?: {
+        onSseError?: (error: unknown) => void;
+        signal?: AbortSignal;
+        sseMaxRetryAttempts?: number;
+      },
+    ) => Promise<{ stream: AsyncIterable<Event> }>;
+  };
+  session: {
+    status: () => Promise<{
+      data?: Record<string, { type?: string }>;
+    }>;
+  };
+};
+
 export type AppendTodoEventCallback = (input: TodoEventInput) => Promise<void>;
 
 const defaultAppendTodoEvent: AppendTodoEventCallback = async () => {};
@@ -132,6 +150,15 @@ export function getOpencodeErrorMessage(error: unknown) {
   }
   if (typeof error === "string") {
     return error;
+  }
+  if (typeof error === "object" && error !== null && "data" in error) {
+    const { data } = error;
+    if (typeof data === "object" && data !== null && "message" in data) {
+      const { message } = data;
+      if (typeof message === "string") {
+        return message;
+      }
+    }
   }
   try {
     return JSON.stringify(error);
@@ -470,7 +497,7 @@ async function ingestOpencodeMilestoneEvent(
 }
 
 export async function waitForOpencodeTerminalState(
-  client: OpencodeClient,
+  client: OpencodeEventClient,
   sessionId: string,
   todoId: string,
   onAppendTodoEvent: AppendTodoEventCallback = defaultAppendTodoEvent,

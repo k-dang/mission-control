@@ -19,42 +19,46 @@ import { Textarea } from "@/components/ui/textarea";
 import type { LucideIcon } from "lucide-react";
 import { ExternalLink, Clock, Circle, RotateCw, CheckCircle2, XCircle } from "lucide-react";
 
-const STATUS_OPTIONS: {
+type StatusOption = {
   value: Doc<"todos">["status"];
   label: string;
   colorClass: string;
   bgClass: string;
   icon: LucideIcon;
-}[] = [
-  {
+};
+
+const STATUS_OPTIONS_BY_STATUS: Record<Doc<"todos">["status"], StatusOption> = {
+  TODO: {
     value: "TODO",
     label: "TODO",
     colorClass: "text-col-todo",
     bgClass: "bg-col-todo",
     icon: Circle,
   },
-  {
+  INPROGRESS: {
     value: "INPROGRESS",
     label: "IN PROGRESS",
     colorClass: "text-col-inprogress",
     bgClass: "bg-col-inprogress",
     icon: RotateCw,
   },
-  {
+  COMPLETED: {
     value: "COMPLETED",
     label: "COMPLETED",
     colorClass: "text-col-completed",
     bgClass: "bg-col-completed",
     icon: CheckCircle2,
   },
-  {
+  FAILED: {
     value: "FAILED",
     label: "FAILED",
     colorClass: "text-col-failed",
     bgClass: "bg-col-failed",
     icon: XCircle,
   },
-];
+};
+
+const STATUS_OPTIONS = Object.values(STATUS_OPTIONS_BY_STATUS);
 
 const STATUS_META: Record<
   Doc<"todos">["status"],
@@ -157,16 +161,17 @@ export function TaskDetailPanel({
     onClose();
   };
 
-  const handleKeyDownRevert = (e: KeyboardEvent, revert: () => void) => {
+  const handleKeyDownRevert = (
+    e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+    revert: () => void,
+  ) => {
     if (e.key === "Escape") {
       revert();
-      (e.target as HTMLElement).blur();
+      e.currentTarget.blur();
     }
   };
 
-  const currentStatusOption = STATUS_OPTIONS.find(
-    (s) => s.value === todo.status,
-  )!;
+  const currentStatusOption = STATUS_OPTIONS_BY_STATUS[todo.status];
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
@@ -198,7 +203,7 @@ export function TaskDetailPanel({
           onBlur={commitTitle}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              (e.target as HTMLElement).blur();
+              e.currentTarget.blur();
             }
             handleKeyDownRevert(e, () => setEditTitle(todo.title));
           }}
@@ -329,7 +334,7 @@ export function TaskDetailPanel({
                 onBlur={commitGithubUrl}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                    (e.target as HTMLElement).blur();
+                    e.currentTarget.blur();
                   }
                   handleKeyDownRevert(e, () =>
                     setEditGithubUrl(todo.githubUrl ?? ""),
