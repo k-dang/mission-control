@@ -4,6 +4,8 @@ import {
   type OpencodeClient,
 } from "@opencode-ai/sdk/v2";
 
+import type { TodoEventInput } from "./todoEventValidator";
+
 export const OPENCODE_PORT = 4096;
 export const OPENCODE_BIN = "/home/vercel-sandbox/.opencode/bin/opencode";
 export const OPENCODE_CONFIG_PATH =
@@ -28,9 +30,7 @@ export type WaitForOpencodeTerminalStateResult =
   | ({ kind: "terminal" } & TerminalResult)
   | { kind: "retry" };
 
-type WaitForOpencodeTerminalStateOptions = {
-  timeoutMs?: number;
-};
+export type AppendTodoEventCallback = (input: TodoEventInput) => Promise<void>;
 
 /**
  * HTTP-style SSE failures that will not heal by rescheduling the same URL/session.
@@ -48,6 +48,7 @@ export function isUnrecoverableSseErrorMessage(message: string): boolean {
 type OpencodeStreamLogState = {
   lastSessionStatus?: string;
   lastTodoSummary?: string;
+  sessionCompactedSeq: number;
   seenCompactionPartIds: Set<string>;
   seenPatchPartIds: Set<string>;
   seenStepFinishPartIds: Set<string>;
@@ -204,12 +205,31 @@ function summarizeTodos(todos: Array<{ status: string }>) {
     .join(", ");
 }
 
-function logOpencodeMilestone(
+function isToolEventStatus(
+  status: string,
+): status is "running" | "completed" | "error" {
+  return status === "running" || status === "completed" || status === "error";
+}
+
+async function logOpencodeMilestone(
   event: Event,
   state: OpencodeStreamLogState,
   sessionId: string,
   todoId: string,
+  onAppendTodoEvent?: AppendTodoEventCallback,
 ) {
+  if (
+    event.type === "session.error" &&
+    event.properties.sessionID === sessionId
+  ) {
+    const message = getOpencodeErrorMessage(event.properties.error);
+    const eventKey = `error:${message}`;
+    if (onAppendTodoEvent) {
+      await onAppendTodoEvent({ eventKey, event: { kind: "error", message } });
+    }
+    return;
+  }
+
   if (
     event.type === "session.status" &&
     event.properties.sessionID === sessionId
@@ -228,21 +248,45 @@ function logOpencodeMilestone(
     }
     state.lastSessionStatus = summary;
 
+    const eventKey = `session_status:${summary}`;
+
     if (status.type === "busy") {
       console.info("OpenCode session started work", {
         todoId,
         sessionId,
       });
+      if (onAppendTodoEvent) {
+        await onAppendTodoEvent({
+          eventKey,
+          event: { kind: "session_status", statusType: "busy" },
+        });
+      }
       return;
     }
 
-    console.warn("OpenCode session retrying", {
-      todoId,
-      sessionId,
-      attempt: status.attempt,
-      message: status.message,
-      next: status.next,
-    });
+    if (status.type === "retry") {
+      console.warn("OpenCode session retrying", {
+        todoId,
+        sessionId,
+        attempt: status.attempt,
+        message: status.message,
+        next: status.next,
+      });
+      if (onAppendTodoEvent) {
+        await onAppendTodoEvent({
+          eventKey,
+          event: {
+            kind: "session_status",
+            statusType: "retry",
+            message: status.message,
+            attempt: status.attempt,
+            next: status.next,
+          },
+        });
+      }
+      return;
+    }
+
     return;
   }
 
@@ -256,12 +300,24 @@ function logOpencodeMilestone(
     }
     state.lastTodoSummary = summary;
 
+    const eventKey = `todo_updated:${summary}`;
+
     console.info("OpenCode todo list updated", {
       todoId,
       sessionId,
       todoCount: event.properties.todos.length,
       summary,
     });
+    if (onAppendTodoEvent) {
+      await onAppendTodoEvent({
+        eventKey,
+        event: {
+          kind: "todo_updated",
+          todoCount: event.properties.todos.length,
+          summary,
+        },
+      });
+    }
     return;
   }
 
@@ -269,10 +325,16 @@ function logOpencodeMilestone(
     event.type === "session.compacted" &&
     event.properties.sessionID === sessionId
   ) {
+    state.sessionCompactedSeq += 1;
+    const eventKey = `session_compacted:${sessionId}:${state.sessionCompactedSeq}`;
+
     console.info("OpenCode session compacted", {
       todoId,
       sessionId,
     });
+    if (onAppendTodoEvent) {
+      await onAppendTodoEvent({ eventKey, event: { kind: "session_compacted" } });
+    }
     return;
   }
 
@@ -291,11 +353,19 @@ function logOpencodeMilestone(
     }
     state.seenStepStartPartIds.add(part.id);
 
+    const eventKey = `step_start:${part.id}`;
+
     console.info("OpenCode step started", {
       todoId,
       sessionId,
       messageId: part.messageID,
     });
+    if (onAppendTodoEvent) {
+      await onAppendTodoEvent({
+        eventKey,
+        event: { kind: "step_start", messageId: part.messageID },
+      });
+    }
     return;
   }
 
@@ -305,12 +375,24 @@ function logOpencodeMilestone(
     }
     state.seenStepFinishPartIds.add(part.id);
 
+    const eventKey = `step_finish:${part.id}`;
+
     console.info("OpenCode step finished", {
       todoId,
       sessionId,
       messageId: part.messageID,
       reason: part.reason,
     });
+    if (onAppendTodoEvent) {
+      await onAppendTodoEvent({
+        eventKey,
+        event: {
+          kind: "step_finish",
+          messageId: part.messageID,
+          reason: part.reason,
+        },
+      });
+    }
     return;
   }
 
@@ -322,6 +404,12 @@ function logOpencodeMilestone(
     }
     state.toolStateByCallId.set(part.callID, nextStatus);
 
+    if (!isToolEventStatus(nextStatus)) {
+      return;
+    }
+
+    const eventKey = `tool:${part.callID}:${nextStatus}`;
+
     if (nextStatus === "running") {
       console.info("OpenCode tool started", {
         todoId,
@@ -329,6 +417,17 @@ function logOpencodeMilestone(
         tool: part.tool,
         title: part.state.title,
       });
+      if (onAppendTodoEvent) {
+        await onAppendTodoEvent({
+          eventKey,
+          event: {
+            kind: "tool",
+            tool: part.tool,
+            status: "running",
+            title: part.state.title,
+          },
+        });
+      }
       return;
     }
 
@@ -339,6 +438,17 @@ function logOpencodeMilestone(
         tool: part.tool,
         title: part.state.title,
       });
+      if (onAppendTodoEvent) {
+        await onAppendTodoEvent({
+          eventKey,
+          event: {
+            kind: "tool",
+            tool: part.tool,
+            status: "completed",
+            title: part.state.title,
+          },
+        });
+      }
       return;
     }
 
@@ -349,6 +459,27 @@ function logOpencodeMilestone(
         tool: part.tool,
         error: part.state.error,
       });
+      if (onAppendTodoEvent) {
+        const errorText = part.state.error
+          ? getOpencodeErrorMessage(part.state.error)
+          : "Unknown tool error";
+        const title =
+          "title" in part.state &&
+          part.state.title !== undefined &&
+          part.state.title !== null
+            ? String(part.state.title)
+            : undefined;
+        await onAppendTodoEvent({
+          eventKey,
+          event: {
+            kind: "tool",
+            tool: part.tool,
+            status: "error",
+            title,
+            error: errorText,
+          },
+        });
+      }
     }
     return;
   }
@@ -359,12 +490,21 @@ function logOpencodeMilestone(
     }
     state.seenPatchPartIds.add(part.id);
 
+    const eventKey = `patch:${part.id}`;
+    const files = part.files.slice(0, 100);
+
     console.info("OpenCode patch created", {
       todoId,
       sessionId,
       fileCount: part.files.length,
       files: part.files.slice(0, 5),
     });
+    if (onAppendTodoEvent) {
+      await onAppendTodoEvent({
+        eventKey,
+        event: { kind: "patch", fileCount: part.files.length, files },
+      });
+    }
     return;
   }
 
@@ -374,11 +514,19 @@ function logOpencodeMilestone(
     }
     state.seenCompactionPartIds.add(part.id);
 
+    const eventKey = `compaction:${part.id}`;
+
     console.info("OpenCode compaction created", {
       todoId,
       sessionId,
       auto: part.auto,
     });
+    if (onAppendTodoEvent) {
+      await onAppendTodoEvent({
+        eventKey,
+        event: { kind: "compaction", auto: part.auto },
+      });
+    }
     return;
   }
 
@@ -388,12 +536,24 @@ function logOpencodeMilestone(
     }
     state.seenSubtaskPartIds.add(part.id);
 
+    const eventKey = `subtask:${part.id}`;
+
     console.info("OpenCode subtask started", {
       todoId,
       sessionId,
       agent: part.agent,
       description: part.description,
     });
+    if (onAppendTodoEvent) {
+      await onAppendTodoEvent({
+        eventKey,
+        event: {
+          kind: "subtask",
+          agent: part.agent,
+          description: part.description,
+        },
+      });
+    }
   }
 }
 
@@ -401,7 +561,10 @@ export async function waitForOpencodeTerminalState(
   client: OpencodeClient,
   sessionId: string,
   todoId: string,
-  options: WaitForOpencodeTerminalStateOptions = {},
+  options: {
+    timeoutMs?: number;
+    onAppendTodoEvent?: AppendTodoEventCallback;
+  } = {},
 ): Promise<WaitForOpencodeTerminalStateResult> {
   const abortController =
     typeof options.timeoutMs === "number" ? new AbortController() : null;
@@ -437,6 +600,7 @@ export async function waitForOpencodeTerminalState(
     );
 
     const logState: OpencodeStreamLogState = {
+      sessionCompactedSeq: 0,
       seenCompactionPartIds: new Set(),
       seenPatchPartIds: new Set(),
       seenStepFinishPartIds: new Set(),
@@ -446,7 +610,13 @@ export async function waitForOpencodeTerminalState(
     };
 
     for await (const event of eventStream.stream) {
-      logOpencodeMilestone(event, logState, sessionId, todoId);
+      await logOpencodeMilestone(
+        event,
+        logState,
+        sessionId,
+        todoId,
+        options.onAppendTodoEvent,
+      );
 
       const terminal = getTerminalResultForEvent(event, sessionId);
       if (terminal) {

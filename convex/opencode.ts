@@ -121,7 +121,24 @@ export const monitorOpencodeStream = internalAction({
         client,
         args.opencodeSessionId,
         args.todoId,
-        { timeoutMs: OPENCODE_MONITOR_SLICE_MS },
+        {
+          timeoutMs: OPENCODE_MONITOR_SLICE_MS,
+          onAppendTodoEvent: async (e) => {
+            try {
+              await ctx.runMutation(internal.todoEvents.append, {
+                todoId: args.todoId,
+                opencodeSessionId: args.opencodeSessionId,
+                eventKey: e.eventKey,
+                event: e.event,
+              });
+            } catch (err) {
+              console.warn("Failed to append todo event", {
+                todoId: args.todoId,
+                err,
+              });
+            }
+          },
+        },
       );
 
       if (outcome.kind === "retry") {

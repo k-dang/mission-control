@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { todoEventPayloadValidator } from "./lib/todoEventValidator";
 
 export default defineSchema({
   todos: defineTable({
@@ -34,4 +35,13 @@ export default defineSchema({
       shutdownSafe: v.boolean(),
     }),
   }).index("by_todoId", ["todoId"]),
+
+  todoEvents: defineTable({
+    todoId: v.id("todos"),
+    opencodeSessionId: v.string(),
+    eventKey: v.string(),
+    event: todoEventPayloadValidator,
+  })
+    .index("by_todoId", ["todoId"])
+    .index("by_todoId_and_eventKey", ["todoId", "eventKey"]),
 });

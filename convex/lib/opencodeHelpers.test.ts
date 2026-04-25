@@ -3,6 +3,7 @@ import {
   isUnrecoverableSseErrorMessage,
   waitForOpencodeTerminalState,
 } from "./opencodeHelpers";
+import type { TodoEventInput } from "./todoEventValidator";
 
 type MockEvent = {
   type: string;
@@ -266,5 +267,98 @@ describe("waitForOpencodeTerminalState", () => {
         timeoutMs: 80,
       }),
     ).resolves.toEqual({ kind: "retry" });
+  });
+
+  it("calls onAppendTodoEvent for patch with expected event key and file count", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1234);
+    const onAppendTodoEvent = vi.fn(async (_e: TodoEventInput) => {});
+
+    const client = createClient([
+      {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            id: "patch_1",
+            sessionID: "session_123",
+            messageID: "message_1",
+            type: "patch",
+            hash: "abc123",
+            files: ["src/a.ts", "src/b.ts"],
+          },
+        },
+      },
+      {
+        type: "session.idle",
+        properties: {
+          sessionID: "session_123",
+        },
+      },
+    ]);
+
+    await waitForOpencodeTerminalState(
+      client as never,
+      "session_123",
+      "todo_123",
+      { onAppendTodoEvent },
+    );
+
+    expect(onAppendTodoEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventKey: "patch:patch_1",
+        event: {
+          kind: "patch",
+          fileCount: 2,
+          files: ["src/a.ts", "src/b.ts"],
+        },
+      }),
+    );
+  });
+
+  it("dedupes onAppendTodoEvent for duplicate step-start in the same slice", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(1234);
+    const onAppendTodoEvent = vi.fn(async (_e: TodoEventInput) => {});
+
+    const client = createClient([
+      {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            id: "s1",
+            sessionID: "session_123",
+            type: "step-start",
+            messageID: "message_1",
+          },
+        },
+      },
+      {
+        type: "message.part.updated",
+        properties: {
+          part: {
+            id: "s1",
+            sessionID: "session_123",
+            type: "step-start",
+            messageID: "message_1",
+          },
+        },
+      },
+      {
+        type: "session.idle",
+        properties: {
+          sessionID: "session_123",
+        },
+      },
+    ]);
+
+    await waitForOpencodeTerminalState(
+      client as never,
+      "session_123",
+      "todo_123",
+      { onAppendTodoEvent },
+    );
+
+    const stepStartCalls = onAppendTodoEvent.mock.calls.filter(
+      (call) => call[0].eventKey === "step_start:s1",
+    );
+    expect(stepStartCalls).toHaveLength(1);
   });
 });
