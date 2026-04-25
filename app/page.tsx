@@ -4,7 +4,6 @@ import {
   useState,
   useRef,
   useCallback,
-  useEffect,
   type DragEvent,
   type SubmitEvent,
 } from "react";
@@ -154,19 +153,14 @@ export default function Home() {
     setSelectedTodoId(todo._id);
   }, []);
 
-  const sheetOpen = selectedTodoId !== null;
   const resolvedTodo = todos
     ? ([...todos.todo, ...todos.inprogress, ...todos.completed].find(
         (t) => t._id === selectedTodoId,
       ) ?? null)
     : null;
 
-  // Auto-close sheet if todo was deleted
-  useEffect(() => {
-    if (selectedTodoId && todos && !resolvedTodo) {
-      setSelectedTodoId(null);
-    }
-  }, [selectedTodoId, todos, resolvedTodo]);
+  // Auto-close sheet if the selected todo was deleted
+  const sheetOpen = resolvedTodo !== null;
 
   if (isLoading) {
     return (

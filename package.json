@@ -10,6 +10,7 @@
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint . --ignore-pattern \"convex/_generated/**\" --ignore-pattern \"opensrc/**\"",
+    "typecheck": "tsc --noEmit && tsc --noEmit --project convex/tsconfig.json",
     "test": "vitest run"
   },
   "dependencies": {
