@@ -488,12 +488,10 @@ export function TodoDetailPageClient({
       <main className="grain-overlay relative min-h-screen">
         <div className="ambient-bg" />
         <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 p-6 md:p-10">
-          <Button asChild variant="ghost" className="w-fit font-mono text-[11px] uppercase tracking-[0.22em]">
-            <Link href="/">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Return to command
-            </Link>
-          </Button>
+          <Link href="/" className="flex w-fit items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Return to command
+          </Link>
           <section className="relative overflow-hidden rounded-3xl border border-destructive/30 bg-card/60 p-10 backdrop-blur-xl">
             <div className="absolute inset-0 dossier-grid opacity-40" aria-hidden />
             <div className="relative">
@@ -540,16 +538,13 @@ export function TodoDetailPageClient({
           className="reveal flex items-center justify-between"
           style={{ animationDelay: "0ms" }}
         >
-          <Button
-            asChild
-            variant="ghost"
-            className="h-auto w-fit gap-2 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground"
+          <Link
+            href="/"
+            className="flex w-fit items-center gap-2 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground transition-colors"
           >
-            <Link href="/">
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Return to command
-            </Link>
-          </Button>
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Return to command
+          </Link>
           <div className="hidden items-center gap-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/60 md:flex">
             <Signal className="h-3 w-3" />
             <span>clearance</span>
