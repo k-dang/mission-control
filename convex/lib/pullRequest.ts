@@ -2,12 +2,18 @@
 
 import { createOpencodeClient, type OutputFormat } from "@opencode-ai/sdk/v2";
 import type { Sandbox } from "@vercel/sandbox";
+import { z } from "zod";
 import { createGitHubPullRequest, parseGithubRepoUrl } from "./github";
 import { getOpencodeErrorMessage } from "./opencodeHelpers";
 import { SANDBOX_REPO_PATH } from "./sandboxHelpers";
 
 const DEFAULT_PR_BASE_BRANCH = "main";
 const MAX_PR_DIFF_PROMPT_CHARS = 12_000;
+
+const pullRequestMetadataSchema = z.object({
+  body: z.string().trim().min(1),
+  title: z.string().trim().min(1),
+});
 
 const STRUCTURED_PR_METADATA_FORMAT = {
   type: "json_schema",
@@ -48,18 +54,8 @@ function buildFallbackPullRequestMetadata(
 export function normalizePullRequestMetadata(
   structured: unknown,
 ) {
-  if (!structured || typeof structured !== "object") {
-    return null;
-  }
-
-  const record = structured as Record<string, unknown>;
-  const title = typeof record.title === "string" ? record.title.trim() : "";
-  const body = typeof record.body === "string" ? record.body.trim() : "";
-  if (!title || !body) {
-    return null;
-  }
-
-  return { body, title };
+  const metadata = pullRequestMetadataSchema.safeParse(structured);
+  return metadata.success ? metadata.data : null;
 }
 
 type PrSummaryConfig = {

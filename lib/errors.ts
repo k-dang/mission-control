@@ -1,12 +1,15 @@
+import { z } from "zod";
+
+const convexErrorSchema = z.object({
+  data: z.object({
+    message: z.string(),
+  }),
+});
+
 export function getErrorMessage(error: unknown): string {
-  if (typeof error === "object" && error !== null && "data" in error) {
-    const { data } = error;
-    if (typeof data === "object" && data !== null && "message" in data) {
-      const { message } = data;
-      if (typeof message === "string") {
-        return message;
-      }
-    }
+  const parsed = convexErrorSchema.safeParse(error);
+  if (parsed.success) {
+    return parsed.data.data.message;
   }
 
   if (error instanceof Error) {

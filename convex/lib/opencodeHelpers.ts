@@ -3,6 +3,7 @@ import {
   type EventSessionError,
   type OpencodeClient,
 } from "@opencode-ai/sdk/v2";
+import { z } from "zod";
 
 import type { TodoEventInput } from "./todoEventValidator";
 
@@ -78,17 +79,18 @@ type OpencodeStreamLogState = {
   toolStateByCallId: Map<string, string>;
 };
 
+const healthyResponseSchema = z.object({
+  healthy: z.literal(true),
+});
+
+const opencodeErrorSchema = z.object({
+  data: z.object({
+    message: z.string(),
+  }),
+});
+
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function isHealthyResponse(health: unknown): health is { healthy: true } {
-  return (
-    typeof health === "object" &&
-    health !== null &&
-    "healthy" in health &&
-    health.healthy === true
-  );
 }
 
 export async function waitForOpencodeHealth(client: OpencodeClient) {
@@ -98,8 +100,9 @@ export async function waitForOpencodeHealth(client: OpencodeClient) {
     try {
       const result = await client.global.health();
 
-      if (!result.error && isHealthyResponse(result.data)) {
-        return result.data;
+      const health = healthyResponseSchema.safeParse(result.data);
+      if (!result.error && health.success) {
+        return health.data;
       }
     } catch {
       // Ignore transient startup errors until the deadline expires.
@@ -151,14 +154,9 @@ export function getOpencodeErrorMessage(error: unknown) {
   if (typeof error === "string") {
     return error;
   }
-  if (typeof error === "object" && error !== null && "data" in error) {
-    const { data } = error;
-    if (typeof data === "object" && data !== null && "message" in data) {
-      const { message } = data;
-      if (typeof message === "string") {
-        return message;
-      }
-    }
+  const parsed = opencodeErrorSchema.safeParse(error);
+  if (parsed.success) {
+    return parsed.data.data.message;
   }
   try {
     return JSON.stringify(error);

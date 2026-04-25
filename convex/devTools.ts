@@ -2,10 +2,41 @@
 
 import { Buffer } from "node:buffer";
 import { v } from "convex/values";
+import { z } from "zod";
 import { action } from "./_generated/server";
 
 const MISSION_CONTROL = { owner: "k-dang", repo: "mission-control" } as const;
 const DEV_TOOLS_DISABLED_ERROR = "Not found.";
+
+const githubBranchRefSchema = z.object({
+  object: z.object({
+    sha: z.string(),
+  }),
+});
+
+const githubErrorSchema = z.object({
+  errors: z
+    .array(
+      z.object({
+        message: z.string(),
+      }),
+    )
+    .optional(),
+  message: z.string().optional(),
+});
+
+const githubPullRequestSchema = z.object({
+  html_url: z.string(),
+  number: z.number(),
+});
+
+const githubRepoSchema = z.object({
+  default_branch: z.string(),
+});
+
+const githubUserSchema = z.object({
+  login: z.string().optional(),
+});
 
 function areDevToolsEnabled() {
   return process.env.NODE_ENV !== "production";
@@ -20,32 +51,19 @@ function githubHeaders(token: string) {
   } as const;
 }
 
-function getObjectField(value: unknown, key: string): unknown {
-  if (typeof value !== "object" || value === null || !(key in value)) {
-    return undefined;
-  }
-
-  return Reflect.get(value, key);
-}
-
-function getStringField(value: unknown, key: string): string | undefined {
-  const field = getObjectField(value, key);
-  return typeof field === "string" ? field : undefined;
-}
-
-function getNumberField(value: unknown, key: string): number | undefined {
-  const field = getObjectField(value, key);
-  return typeof field === "number" ? field : undefined;
-}
-
 async function readGithubError(response: Response): Promise<string> {
   try {
     const body = await response.json();
-    const errors = getObjectField(body, "errors");
-    const detail = Array.isArray(errors)
-      ? errors.map((error) => getStringField(error, "message")).filter(Boolean).join("; ")
-      : undefined;
-    return [getStringField(body, "message"), detail].filter(Boolean).join(" — ") || response.statusText;
+    const parsed = githubErrorSchema.safeParse(body);
+    if (!parsed.success) {
+      return response.statusText;
+    }
+
+    const detail = parsed.data.errors
+      ?.map((error) => error.message)
+      .filter(Boolean)
+      .join("; ");
+    return [parsed.data.message, detail].filter(Boolean).join(" — ") || response.statusText;
   } catch {
     return response.statusText;
   }
@@ -65,7 +83,8 @@ async function getBranchHeadCommitSha(
     return null;
   }
   const data = await res.json();
-  return getStringField(getObjectField(data, "object"), "sha") ?? null;
+  const parsed = githubBranchRefSchema.safeParse(data);
+  return parsed.success ? parsed.data.object.sha : null;
 }
 
 export const checkGithubToken = action({
@@ -104,10 +123,11 @@ export const checkGithubToken = action({
 
       if (response.status === 200) {
         const body = await response.json();
+        const parsed = githubUserSchema.safeParse(body);
         return {
           configured: true,
           authenticated: true,
-          login: getStringField(body, "login") ?? null,
+          login: parsed.success ? (parsed.data.login ?? null) : null,
           error: null,
         };
       }
@@ -190,7 +210,8 @@ export const createMissionControlTestPullRequest = action({
       }
 
       const repoJson = await repoRes.json();
-      const base = getStringField(repoJson, "default_branch");
+      const repoPayload = githubRepoSchema.safeParse(repoJson);
+      const base = repoPayload.success ? repoPayload.data.default_branch : null;
       if (!base) {
         return {
           ok: false,
@@ -312,11 +333,12 @@ export const createMissionControlTestPullRequest = action({
       }
 
       const prJson = await prRes.json();
+      const prPayload = githubPullRequestSchema.safeParse(prJson);
 
       return {
         ok: true,
-        pullRequestUrl: getStringField(prJson, "html_url") ?? null,
-        pullRequestNumber: getNumberField(prJson, "number") ?? null,
+        pullRequestUrl: prPayload.success ? prPayload.data.html_url : null,
+        pullRequestNumber: prPayload.success ? prPayload.data.number : null,
         branch,
         error: null,
       };
