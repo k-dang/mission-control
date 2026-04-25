@@ -9,11 +9,6 @@ import { SANDBOX_REPO_PATH } from "./sandboxHelpers";
 const DEFAULT_PR_BASE_BRANCH = "main";
 const MAX_PR_DIFF_PROMPT_CHARS = 12_000;
 
-export type PullRequestMetadata = {
-  title: string;
-  body: string;
-};
-
 const STRUCTURED_PR_METADATA_FORMAT = {
   type: "json_schema",
   retryCount: 2,
@@ -36,28 +31,23 @@ const STRUCTURED_PR_METADATA_FORMAT = {
   },
 } satisfies OutputFormat;
 
-export function buildPullRequestBody(title: string, description?: string) {
-  const trimmedDescription = description?.trim();
-  if (trimmedDescription) {
-    return trimmedDescription;
-  }
-
-  return `Automated PR for todo: ${title.trim()}`;
-}
-
-export function buildFallbackPullRequestMetadata(
+function buildFallbackPullRequestMetadata(
   title: string,
   description?: string,
-): PullRequestMetadata {
+) {
+  const trimmedTitle = title.trim();
+  const trimmedDescription = description?.trim();
+
   return {
-    body: buildPullRequestBody(title, description),
-    title: title.trim(),
+    body: trimmedDescription || `Automated PR for todo: ${trimmedTitle}`,
+    title: trimmedTitle,
   };
 }
 
+// This should be handled by the SDK as structured-output, but its not yet supported.
 export function normalizePullRequestMetadata(
   structured: unknown,
-): PullRequestMetadata | null {
+) {
   if (!structured || typeof structured !== "object") {
     return null;
   }
@@ -72,22 +62,26 @@ export function normalizePullRequestMetadata(
   return { body, title };
 }
 
+type PrSummaryConfig = {
+  opencodeSessionId: string;
+  opencodeUrl: string;
+  model: {
+    modelID: string;
+    providerID: string;
+  };
+};
+
+type CreatePullRequestParams = {
+  title: string;
+  description?: string;
+  repoUrl?: string;
+  baseBranch?: string;
+  prSummary?: PrSummaryConfig;
+};
+
 export async function createPullRequest(
   sandbox: Sandbox,
-  params: {
-    title: string;
-    description?: string;
-    repoUrl?: string;
-    baseBranch?: string;
-    prSummary?: {
-      opencodeSessionId: string;
-      opencodeUrl: string;
-      model: {
-        modelID: string;
-        providerID: string;
-      };
-    };
-  },
+  params: CreatePullRequestParams,
 ) {
   const githubToken = process.env.GITHUB_TOKEN?.trim();
   if (!githubToken) {
@@ -109,11 +103,14 @@ export async function createPullRequest(
     sandbox.sandboxId,
   );
 
-  return publishPullRequest(sandbox, context, metadata, githubToken);
+  return publishPullRequest(
+    sandbox,
+    context,
+    metadata.title,
+    metadata.body,
+    githubToken,
+  );
 }
-
-type CreatePullRequestParams = Parameters<typeof createPullRequest>[1];
-type PrSummaryConfig = NonNullable<CreatePullRequestParams["prSummary"]>;
 
 async function collectStagedPullRequestContext(
   sandbox: Sandbox,
@@ -185,23 +182,10 @@ type StagedPullRequestContext = Extract<
   { kind: "ready" }
 >["context"];
 
-function buildPullRequestMetadataContext(context: StagedPullRequestContext) {
-  return {
-    description: context.description,
-    diffPatch: context.staged.diffPatch,
-    diffStat: context.staged.diffStat,
-    title: context.title,
-  };
-}
-
-type PullRequestMetadataContext = ReturnType<
-  typeof buildPullRequestMetadataContext
->;
-
 export async function generatePullRequestMetadataFromDiff(
-  context: PullRequestMetadataContext,
+  context: StagedPullRequestContext,
   prSummary: PrSummaryConfig,
-): Promise<PullRequestMetadata> {
+) {
   const opencodeSessionId = prSummary.opencodeSessionId.trim();
   const opencodeUrl = prSummary.opencodeUrl.trim();
   if (!opencodeSessionId || !opencodeUrl) {
@@ -240,16 +224,13 @@ async function resolvePullRequestMetadataForContext(
   context: StagedPullRequestContext,
   prSummary: PrSummaryConfig | undefined,
   sandboxId: string,
-): Promise<PullRequestMetadata> {
+) {
   if (!prSummary) {
     return buildFallbackPullRequestMetadata(context.title, context.description);
   }
 
   try {
-    return await generatePullRequestMetadataFromDiff(
-      buildPullRequestMetadataContext(context),
-      prSummary,
-    );
+    return await generatePullRequestMetadataFromDiff(context, prSummary);
   } catch (error) {
     console.warn("Falling back to todo-based PR metadata", {
       error: error instanceof Error ? error.message : String(error),
@@ -262,12 +243,13 @@ async function resolvePullRequestMetadataForContext(
 async function publishPullRequest(
   sandbox: Sandbox,
   context: StagedPullRequestContext,
-  metadata: PullRequestMetadata,
+  title: string,
+  description: string,
   githubToken: string,
 ) {
-  const branchName = buildBranchName(metadata.title);
+  const branchName = buildBranchName(title);
   await runGitCommand(sandbox, ["checkout", "-b", branchName]);
-  await runGitCommand(sandbox, ["commit", "-m", metadata.title]);
+  await runGitCommand(sandbox, ["commit", "-m", title]);
 
   const authenticatedRemote =
     `https://x-access-token:${githubToken}@github.com/` +
@@ -285,12 +267,12 @@ async function publishPullRequest(
   ).trim();
   const pullRequest = await createGitHubPullRequest({
     baseBranch: context.repo.baseBranch,
-    body: metadata.body,
+    body: description,
     branchName,
     githubToken,
     owner: context.repo.owner,
     repo: context.repo.repo,
-    title: metadata.title,
+    title,
   });
 
   return {
@@ -302,7 +284,7 @@ async function publishPullRequest(
   };
 }
 
-function buildPullRequestMetadataPrompt(params: PullRequestMetadataContext) {
+function buildPullRequestMetadataPrompt(context: StagedPullRequestContext) {
   const lines = [
     "Generate pull request metadata for the actual staged git changes below.",
     "Base the result on the staged diff, not just the original task text.",
@@ -312,21 +294,27 @@ function buildPullRequestMetadataPrompt(params: PullRequestMetadataContext) {
     "- Return a markdown PR body that starts with `## Summary` and contains 1-3 bullets.",
     "- Do not mention tests or validation unless they are explicitly shown in the diff/context below.",
     "",
-    `Original task title: ${params.title}`,
+    `Original task title: ${context.title}`,
   ];
 
-  const trimmedDescription = params.description?.trim();
+  const trimmedDescription = context.description?.trim();
   if (trimmedDescription) {
     lines.push(`Original task description: ${trimmedDescription}`);
   }
 
+  const trimmedDiffPatch = context.staged.diffPatch.trim();
+  const diffPatchForPrompt =
+    trimmedDiffPatch.length > MAX_PR_DIFF_PROMPT_CHARS
+      ? `${trimmedDiffPatch.slice(0, MAX_PR_DIFF_PROMPT_CHARS)}\n\n[truncated ${trimmedDiffPatch.length - MAX_PR_DIFF_PROMPT_CHARS} characters]`
+      : trimmedDiffPatch || "(empty)";
+
   lines.push(
     "",
     "Staged diff stat:",
-    params.diffStat || "(empty)",
+    context.staged.diffStat || "(empty)",
     "",
     "Staged diff patch:",
-    truncateForPrompt(params.diffPatch, MAX_PR_DIFF_PROMPT_CHARS),
+    diffPatchForPrompt,
   );
 
   return lines.join("\n");
@@ -340,15 +328,6 @@ function buildBranchName(title: string) {
     .slice(0, 40);
 
   return `mission-control/${slug || "todo"}-${Date.now()}`;
-}
-
-function truncateForPrompt(text: string, maxChars: number) {
-  const trimmed = text.trim();
-  if (trimmed.length <= maxChars) {
-    return trimmed || "(empty)";
-  }
-
-  return `${trimmed.slice(0, maxChars)}\n\n[truncated ${trimmed.length - maxChars} characters]`;
 }
 
 async function runGitCommand(sandbox: Sandbox, args: string[]) {
