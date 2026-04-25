@@ -1,17 +1,20 @@
+import { z } from "zod";
+
+const githubPullRequestSchema = z.object({
+  html_url: z.string(),
+  number: z.number(),
+});
+
+const githubErrorSchema = z.object({
+  message: z.string(),
+});
+
 export function parseGithubRepoUrl(githubUrl: string) {
   const match = githubUrl.match(
     /github\.com[:/]+([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?(?:[/?#]|$)/i,
   );
   if (!match) return null;
   return { owner: match[1], repo: match[2] };
-}
-
-function getObjectField(value: unknown, key: string): unknown {
-  if (typeof value !== "object" || value === null || !(key in value)) {
-    return undefined;
-  }
-
-  return Reflect.get(value, key);
 }
 
 export async function createGitHubPullRequest(params: {
@@ -43,24 +46,22 @@ export async function createGitHubPullRequest(params: {
     },
   );
 
-  const payload = await response.json();
-  const message = getObjectField(payload, "message");
-  const htmlUrl = getObjectField(payload, "html_url");
-  const number = getObjectField(payload, "number");
+  const payload: unknown = await response.json();
   if (!response.ok) {
-    const errorMessage =
-      typeof message === "string"
-        ? message
-        : `GitHub PR creation failed with status ${response.status}`;
+    const errorPayload = githubErrorSchema.safeParse(payload);
+    const errorMessage = errorPayload.success
+      ? errorPayload.data.message
+      : `GitHub PR creation failed with status ${response.status}`;
     throw new Error(errorMessage);
   }
 
-  if (typeof htmlUrl !== "string" || typeof number !== "number") {
+  const pullRequestPayload = githubPullRequestSchema.safeParse(payload);
+  if (!pullRequestPayload.success) {
     throw new Error("GitHub PR creation returned an unexpected response");
   }
 
   return {
-    number,
-    url: htmlUrl,
+    number: pullRequestPayload.data.number,
+    url: pullRequestPayload.data.html_url,
   };
 }
