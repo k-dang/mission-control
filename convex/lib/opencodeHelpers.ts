@@ -17,6 +17,7 @@ export const DEFAULT_VERCEL_SMALL_MODEL = "openai/gpt-5-nano";
 const OPENCODE_HEALTH_POLL_INTERVAL_MS = 500;
 const OPENCODE_HEALTH_TIMEOUT_MS = 30_000;
 const OPENCODE_EVENT_MAX_RETRY_ATTEMPTS = 5;
+const OPENCODE_MONITOR_SLICE_MS = 120_000;
 
 type TerminalState = "COMPLETED" | "FAILED" | "CANCELLED";
 
@@ -26,11 +27,13 @@ export type TerminalResult = {
   terminalState: TerminalState;
 };
 
-export type WaitForOpencodeTerminalStateResult =
+export type OpencodeWaitOutcome =
   | ({ kind: "terminal" } & TerminalResult)
   | { kind: "retry" };
 
 export type AppendTodoEventCallback = (input: TodoEventInput) => Promise<void>;
+
+const defaultAppendTodoEvent: AppendTodoEventCallback = async () => {};
 
 /**
  * HTTP-style SSE failures that will not heal by rescheduling the same URL/session.
@@ -211,12 +214,11 @@ function isToolEventStatus(
   return status === "running" || status === "completed" || status === "error";
 }
 
-async function logOpencodeMilestone(
+async function ingestOpencodeMilestoneEvent(
   event: Event,
   state: OpencodeStreamLogState,
   sessionId: string,
-  todoId: string,
-  onAppendTodoEvent?: AppendTodoEventCallback,
+  appendTodoEvent: AppendTodoEventCallback,
 ) {
   if (
     event.type === "session.error" &&
@@ -224,9 +226,7 @@ async function logOpencodeMilestone(
   ) {
     const message = getOpencodeErrorMessage(event.properties.error);
     const eventKey = `error:${message}`;
-    if (onAppendTodoEvent) {
-      await onAppendTodoEvent({ eventKey, event: { kind: "error", message } });
-    }
+    await appendTodoEvent({ eventKey, event: { kind: "error", message } });
     return;
   }
 
@@ -251,39 +251,24 @@ async function logOpencodeMilestone(
     const eventKey = `session_status:${summary}`;
 
     if (status.type === "busy") {
-      console.info("OpenCode session started work", {
-        todoId,
-        sessionId,
+      await appendTodoEvent({
+        eventKey,
+        event: { kind: "session_status", statusType: "busy" },
       });
-      if (onAppendTodoEvent) {
-        await onAppendTodoEvent({
-          eventKey,
-          event: { kind: "session_status", statusType: "busy" },
-        });
-      }
       return;
     }
 
     if (status.type === "retry") {
-      console.warn("OpenCode session retrying", {
-        todoId,
-        sessionId,
-        attempt: status.attempt,
-        message: status.message,
-        next: status.next,
+      await appendTodoEvent({
+        eventKey,
+        event: {
+          kind: "session_status",
+          statusType: "retry",
+          message: status.message,
+          attempt: status.attempt,
+          next: status.next,
+        },
       });
-      if (onAppendTodoEvent) {
-        await onAppendTodoEvent({
-          eventKey,
-          event: {
-            kind: "session_status",
-            statusType: "retry",
-            message: status.message,
-            attempt: status.attempt,
-            next: status.next,
-          },
-        });
-      }
       return;
     }
 
@@ -302,22 +287,14 @@ async function logOpencodeMilestone(
 
     const eventKey = `todo_updated:${summary}`;
 
-    console.info("OpenCode todo list updated", {
-      todoId,
-      sessionId,
-      todoCount: event.properties.todos.length,
-      summary,
+    await appendTodoEvent({
+      eventKey,
+      event: {
+        kind: "todo_updated",
+        todoCount: event.properties.todos.length,
+        summary,
+      },
     });
-    if (onAppendTodoEvent) {
-      await onAppendTodoEvent({
-        eventKey,
-        event: {
-          kind: "todo_updated",
-          todoCount: event.properties.todos.length,
-          summary,
-        },
-      });
-    }
     return;
   }
 
@@ -328,13 +305,10 @@ async function logOpencodeMilestone(
     state.sessionCompactedSeq += 1;
     const eventKey = `session_compacted:${sessionId}:${state.sessionCompactedSeq}`;
 
-    console.info("OpenCode session compacted", {
-      todoId,
-      sessionId,
+    await appendTodoEvent({
+      eventKey,
+      event: { kind: "session_compacted" },
     });
-    if (onAppendTodoEvent) {
-      await onAppendTodoEvent({ eventKey, event: { kind: "session_compacted" } });
-    }
     return;
   }
 
@@ -355,17 +329,10 @@ async function logOpencodeMilestone(
 
     const eventKey = `step_start:${part.id}`;
 
-    console.info("OpenCode step started", {
-      todoId,
-      sessionId,
-      messageId: part.messageID,
+    await appendTodoEvent({
+      eventKey,
+      event: { kind: "step_start", messageId: part.messageID },
     });
-    if (onAppendTodoEvent) {
-      await onAppendTodoEvent({
-        eventKey,
-        event: { kind: "step_start", messageId: part.messageID },
-      });
-    }
     return;
   }
 
@@ -377,22 +344,14 @@ async function logOpencodeMilestone(
 
     const eventKey = `step_finish:${part.id}`;
 
-    console.info("OpenCode step finished", {
-      todoId,
-      sessionId,
-      messageId: part.messageID,
-      reason: part.reason,
+    await appendTodoEvent({
+      eventKey,
+      event: {
+        kind: "step_finish",
+        messageId: part.messageID,
+        reason: part.reason,
+      },
     });
-    if (onAppendTodoEvent) {
-      await onAppendTodoEvent({
-        eventKey,
-        event: {
-          kind: "step_finish",
-          messageId: part.messageID,
-          reason: part.reason,
-        },
-      });
-    }
     return;
   }
 
@@ -411,75 +370,51 @@ async function logOpencodeMilestone(
     const eventKey = `tool:${part.callID}:${nextStatus}`;
 
     if (nextStatus === "running") {
-      console.info("OpenCode tool started", {
-        todoId,
-        sessionId,
-        tool: part.tool,
-        title: part.state.title,
+      await appendTodoEvent({
+        eventKey,
+        event: {
+          kind: "tool",
+          tool: part.tool,
+          status: "running",
+          title: part.state.title,
+        },
       });
-      if (onAppendTodoEvent) {
-        await onAppendTodoEvent({
-          eventKey,
-          event: {
-            kind: "tool",
-            tool: part.tool,
-            status: "running",
-            title: part.state.title,
-          },
-        });
-      }
       return;
     }
 
     if (nextStatus === "completed") {
-      console.info("OpenCode tool finished", {
-        todoId,
-        sessionId,
-        tool: part.tool,
-        title: part.state.title,
+      await appendTodoEvent({
+        eventKey,
+        event: {
+          kind: "tool",
+          tool: part.tool,
+          status: "completed",
+          title: part.state.title,
+        },
       });
-      if (onAppendTodoEvent) {
-        await onAppendTodoEvent({
-          eventKey,
-          event: {
-            kind: "tool",
-            tool: part.tool,
-            status: "completed",
-            title: part.state.title,
-          },
-        });
-      }
       return;
     }
 
     if (nextStatus === "error") {
-      console.warn("OpenCode tool failed", {
-        todoId,
-        sessionId,
-        tool: part.tool,
-        error: part.state.error,
+      const errorText = part.state.error
+        ? getOpencodeErrorMessage(part.state.error)
+        : "Unknown tool error";
+      const title =
+        "title" in part.state &&
+        part.state.title !== undefined &&
+        part.state.title !== null
+          ? String(part.state.title)
+          : undefined;
+      await appendTodoEvent({
+        eventKey,
+        event: {
+          kind: "tool",
+          tool: part.tool,
+          status: "error",
+          title,
+          error: errorText,
+        },
       });
-      if (onAppendTodoEvent) {
-        const errorText = part.state.error
-          ? getOpencodeErrorMessage(part.state.error)
-          : "Unknown tool error";
-        const title =
-          "title" in part.state &&
-          part.state.title !== undefined &&
-          part.state.title !== null
-            ? String(part.state.title)
-            : undefined;
-        await onAppendTodoEvent({
-          eventKey,
-          event: {
-            kind: "tool",
-            tool: part.tool,
-            status: "error",
-            title,
-            error: errorText,
-          },
-        });
-      }
     }
     return;
   }
@@ -493,18 +428,10 @@ async function logOpencodeMilestone(
     const eventKey = `patch:${part.id}`;
     const files = part.files.slice(0, 100);
 
-    console.info("OpenCode patch created", {
-      todoId,
-      sessionId,
-      fileCount: part.files.length,
-      files: part.files.slice(0, 5),
+    await appendTodoEvent({
+      eventKey,
+      event: { kind: "patch", fileCount: part.files.length, files },
     });
-    if (onAppendTodoEvent) {
-      await onAppendTodoEvent({
-        eventKey,
-        event: { kind: "patch", fileCount: part.files.length, files },
-      });
-    }
     return;
   }
 
@@ -516,17 +443,10 @@ async function logOpencodeMilestone(
 
     const eventKey = `compaction:${part.id}`;
 
-    console.info("OpenCode compaction created", {
-      todoId,
-      sessionId,
-      auto: part.auto,
+    await appendTodoEvent({
+      eventKey,
+      event: { kind: "compaction", auto: part.auto },
     });
-    if (onAppendTodoEvent) {
-      await onAppendTodoEvent({
-        eventKey,
-        event: { kind: "compaction", auto: part.auto },
-      });
-    }
     return;
   }
 
@@ -538,22 +458,14 @@ async function logOpencodeMilestone(
 
     const eventKey = `subtask:${part.id}`;
 
-    console.info("OpenCode subtask started", {
-      todoId,
-      sessionId,
-      agent: part.agent,
-      description: part.description,
+    await appendTodoEvent({
+      eventKey,
+      event: {
+        kind: "subtask",
+        agent: part.agent,
+        description: part.description,
+      },
     });
-    if (onAppendTodoEvent) {
-      await onAppendTodoEvent({
-        eventKey,
-        event: {
-          kind: "subtask",
-          agent: part.agent,
-          description: part.description,
-        },
-      });
-    }
   }
 }
 
@@ -561,17 +473,13 @@ export async function waitForOpencodeTerminalState(
   client: OpencodeClient,
   sessionId: string,
   todoId: string,
-  options: {
-    timeoutMs?: number;
-    onAppendTodoEvent?: AppendTodoEventCallback;
-  } = {},
-): Promise<WaitForOpencodeTerminalStateResult> {
-  const abortController =
-    typeof options.timeoutMs === "number" ? new AbortController() : null;
-  const timeoutId =
-    abortController && options.timeoutMs
-      ? setTimeout(() => abortController.abort(), options.timeoutMs)
-      : null;
+  onAppendTodoEvent: AppendTodoEventCallback = defaultAppendTodoEvent,
+): Promise<OpencodeWaitOutcome> {
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(
+    () => abortController.abort(),
+    OPENCODE_MONITOR_SLICE_MS,
+  );
 
   let lastSseErrorMessage: string | undefined;
 
@@ -583,7 +491,7 @@ export async function waitForOpencodeTerminalState(
           const message = getOpencodeErrorMessage(error);
           lastSseErrorMessage = message;
           if (
-            abortController?.signal.aborted &&
+            abortController.signal.aborted &&
             message === "This operation was aborted"
           ) {
             return;
@@ -594,7 +502,7 @@ export async function waitForOpencodeTerminalState(
             error: message,
           });
         },
-        signal: abortController?.signal,
+        signal: abortController.signal,
         sseMaxRetryAttempts: OPENCODE_EVENT_MAX_RETRY_ATTEMPTS,
       },
     );
@@ -610,12 +518,11 @@ export async function waitForOpencodeTerminalState(
     };
 
     for await (const event of eventStream.stream) {
-      await logOpencodeMilestone(
+      await ingestOpencodeMilestoneEvent(
         event,
         logState,
         sessionId,
-        todoId,
-        options.onAppendTodoEvent,
+        onAppendTodoEvent,
       );
 
       const terminal = getTerminalResultForEvent(event, sessionId);
@@ -649,7 +556,7 @@ export async function waitForOpencodeTerminalState(
       return { kind: "terminal", ...terminal };
     }
   } catch (error) {
-    if (!abortController?.signal.aborted) {
+    if (!abortController.signal.aborted) {
       throw error;
     }
   } finally {

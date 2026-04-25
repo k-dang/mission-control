@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   isUnrecoverableSseErrorMessage,
+  type AppendTodoEventCallback,
   waitForOpencodeTerminalState,
 } from "./opencodeHelpers";
-import type { TodoEventInput } from "./todoEventValidator";
 
 type MockEvent = {
   type: string;
@@ -227,6 +227,7 @@ describe("waitForOpencodeTerminalState", () => {
   });
 
   it("returns retry when the monitor slice aborts before terminal and fallback is not idle", async () => {
+    vi.useFakeTimers();
     const client = {
       event: {
         subscribe: vi.fn(async (_params?: unknown, opts?: { signal?: AbortSignal }) => ({
@@ -262,16 +263,22 @@ describe("waitForOpencodeTerminalState", () => {
       },
     };
 
-    await expect(
-      waitForOpencodeTerminalState(client as never, "session_123", "todo_123", {
-        timeoutMs: 80,
-      }),
-    ).resolves.toEqual({ kind: "retry" });
+    try {
+      const outcome = waitForOpencodeTerminalState(
+        client as never,
+        "session_123",
+        "todo_123",
+      );
+      await vi.advanceTimersByTimeAsync(120_000);
+      await expect(outcome).resolves.toEqual({ kind: "retry" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("calls onAppendTodoEvent for patch with expected event key and file count", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1234);
-    const onAppendTodoEvent = vi.fn(async (_e: TodoEventInput) => {});
+    const onAppendTodoEvent = vi.fn<AppendTodoEventCallback>(async () => {});
 
     const client = createClient([
       {
@@ -299,7 +306,7 @@ describe("waitForOpencodeTerminalState", () => {
       client as never,
       "session_123",
       "todo_123",
-      { onAppendTodoEvent },
+      onAppendTodoEvent,
     );
 
     expect(onAppendTodoEvent).toHaveBeenCalledWith(
@@ -316,7 +323,7 @@ describe("waitForOpencodeTerminalState", () => {
 
   it("dedupes onAppendTodoEvent for duplicate step-start in the same slice", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1234);
-    const onAppendTodoEvent = vi.fn(async (_e: TodoEventInput) => {});
+    const onAppendTodoEvent = vi.fn<AppendTodoEventCallback>(async () => {});
 
     const client = createClient([
       {
@@ -353,7 +360,7 @@ describe("waitForOpencodeTerminalState", () => {
       client as never,
       "session_123",
       "todo_123",
-      { onAppendTodoEvent },
+      onAppendTodoEvent,
     );
 
     const stepStartCalls = onAppendTodoEvent.mock.calls.filter(
