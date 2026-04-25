@@ -284,7 +284,7 @@ async function publishPullRequest(
   };
 }
 
-function buildPullRequestMetadataPrompt(context: StagedPullRequestContext) {
+export function buildPullRequestMetadataPrompt(context: StagedPullRequestContext) {
   const lines = [
     "Generate pull request metadata for the actual staged git changes below.",
     "Base the result on the staged diff, not just the original task text.",
