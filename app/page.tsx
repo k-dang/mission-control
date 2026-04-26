@@ -7,7 +7,12 @@ import {
   type DragEvent,
   type SubmitEvent,
 } from "react";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import {
+  useConvexAuth,
+  useMutation,
+  usePaginatedQuery,
+  useQuery,
+} from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
 import { getErrorMessage } from "@/lib/errors";
@@ -46,9 +51,25 @@ const STAT_COLORS = {
   completed: "oklch(0.68 0.14 155)",
 };
 
+const KANBAN_PAGE_SIZE = 25;
+
 export default function Home() {
   const { isLoading, isAuthenticated } = useConvexAuth();
-  const todos = useQuery(api.todos.listByStatus, isAuthenticated ? {} : "skip");
+  const todoPage = usePaginatedQuery(
+    api.todos.listByStatusPage,
+    isAuthenticated ? { status: "TODO" } : "skip",
+    { initialNumItems: KANBAN_PAGE_SIZE },
+  );
+  const inprogressPage = usePaginatedQuery(
+    api.todos.listByStatusPage,
+    isAuthenticated ? { status: "INPROGRESS" } : "skip",
+    { initialNumItems: KANBAN_PAGE_SIZE },
+  );
+  const completedPage = usePaginatedQuery(
+    api.todos.listByStatusPage,
+    isAuthenticated ? { status: "COMPLETED" } : "skip",
+    { initialNumItems: KANBAN_PAGE_SIZE },
+  );
   const createTodo = useMutation(api.todos.create);
   const updateTodo = useMutation(api.todos.update);
 
@@ -65,6 +86,10 @@ export default function Home() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedTodoId, setSelectedTodoId] = useState<Id<"todos"> | null>(
     null,
+  );
+  const selectedTodo = useQuery(
+    api.todos.get,
+    isAuthenticated && selectedTodoId ? { todoId: selectedTodoId } : "skip",
   );
   const titleInputRef = useRef<HTMLInputElement>(null);
   const draggedTodoIdRef = useRef<Id<"todos"> | null>(null);
@@ -160,14 +185,24 @@ export default function Home() {
     setSelectedTodoId(todo._id);
   }, []);
 
-  const resolvedTodo = todos
-    ? ([...todos.todo, ...todos.inprogress, ...todos.completed].find(
-        (t) => t._id === selectedTodoId,
-      ) ?? null)
-    : null;
+  const todos = {
+    todo: todoPage.results,
+    inprogress: inprogressPage.results,
+    completed: completedPage.results,
+  };
+
+  const selectedLoadedTodo =
+    [...todos.todo, ...todos.inprogress, ...todos.completed].find(
+      (t) => t._id === selectedTodoId,
+    ) ?? null;
+  const resolvedTodo = selectedTodo ?? selectedLoadedTodo;
+  const isBoardLoading =
+    todoPage.status === "LoadingFirstPage" ||
+    inprogressPage.status === "LoadingFirstPage" ||
+    completedPage.status === "LoadingFirstPage";
 
   // Auto-close sheet if the selected todo was deleted
-  const sheetOpen = resolvedTodo !== null;
+  const sheetOpen = selectedTodoId !== null && resolvedTodo !== null;
 
   if (isLoading) {
     return (
@@ -212,7 +247,7 @@ export default function Home() {
     return null;
   }
 
-  if (!todos) {
+  if (isBoardLoading) {
     return (
       <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
         <div className="ambient-bg" />
@@ -448,6 +483,9 @@ export default function Home() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onCardClick={handleCardClick}
+            canLoadMore={todoPage.status === "CanLoadMore"}
+            isLoadingMore={todoPage.status === "LoadingMore"}
+            onLoadMore={() => todoPage.loadMore(KANBAN_PAGE_SIZE)}
           />
           <KanbanColumn
             status="INPROGRESS"
@@ -462,6 +500,9 @@ export default function Home() {
             onDrop={handleDropOnInProgress}
             isDropTarget={isDropTargetActive}
             onCardClick={handleCardClick}
+            canLoadMore={inprogressPage.status === "CanLoadMore"}
+            isLoadingMore={inprogressPage.status === "LoadingMore"}
+            onLoadMore={() => inprogressPage.loadMore(KANBAN_PAGE_SIZE)}
           />
           <KanbanColumn
             status="COMPLETED"
@@ -469,6 +510,9 @@ export default function Home() {
             draggable={false}
             onDragStart={handleDragStart}
             onCardClick={handleCardClick}
+            canLoadMore={completedPage.status === "CanLoadMore"}
+            isLoadingMore={completedPage.status === "LoadingMore"}
+            onLoadMore={() => completedPage.loadMore(KANBAN_PAGE_SIZE)}
           />
         </section>
       </div>

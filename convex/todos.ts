@@ -1,3 +1,7 @@
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from "convex/server";
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import {
@@ -24,6 +28,8 @@ const todoValidator = v.object({
   githubUrl: v.optional(v.string()),
   prUrl: v.optional(v.string()),
 });
+
+const LIST_BY_STATUS_TAKE = 100;
 
 export const getById = internalQuery({
   args: { todoId: v.id("todos") },
@@ -119,17 +125,17 @@ export const listByStatus = query({
         .query("todos")
         .withIndex("by_status", (q) => q.eq("status", "TODO"))
         .order("desc")
-        .collect(),
+        .take(LIST_BY_STATUS_TAKE),
       ctx.db
         .query("todos")
         .withIndex("by_status", (q) => q.eq("status", "INPROGRESS"))
         .order("desc")
-        .collect(),
+        .take(LIST_BY_STATUS_TAKE),
       ctx.db
         .query("todos")
         .withIndex("by_status", (q) => q.eq("status", "COMPLETED"))
         .order("desc")
-        .collect(),
+        .take(LIST_BY_STATUS_TAKE),
     ]);
 
     return {
@@ -161,6 +167,23 @@ export const listByStatus = query({
         prUrl: item.prUrl,
       })),
     };
+  },
+});
+
+export const listByStatusPage = query({
+  args: {
+    status: statusValidator,
+    paginationOpts: paginationOptsValidator,
+  },
+  returns: paginationResultValidator(todoValidator),
+  handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+
+    return await ctx.db
+      .query("todos")
+      .withIndex("by_status", (q) => q.eq("status", args.status))
+      .order("desc")
+      .paginate(args.paginationOpts);
   },
 });
 

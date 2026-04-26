@@ -9,9 +9,11 @@ import {
   ArrowRight,
   PartyPopper,
   CircleAlert,
+  Loader2,
 } from "lucide-react";
 import { TodoCard } from "./todo-card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
 
 const COLUMN_CONFIG: Record<
   Doc<"todos">["status"],
@@ -74,6 +76,9 @@ export function KanbanColumn({
   onDrop,
   isDropTarget,
   onCardClick,
+  canLoadMore,
+  isLoadingMore,
+  onLoadMore,
 }: {
   status: Doc<"todos">["status"];
   todos: Doc<"todos">[];
@@ -85,6 +90,9 @@ export function KanbanColumn({
   onDrop?: (event: DragEvent<HTMLDivElement>) => void;
   isDropTarget?: boolean;
   onCardClick?: (todo: Doc<"todos">) => void;
+  canLoadMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }) {
   const config = COLUMN_CONFIG[status];
   const Icon = config.icon;
@@ -151,6 +159,21 @@ export function KanbanColumn({
               />
             ))
           )}
+          {canLoadMore ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mt-1 w-full border border-border/40 bg-muted/20 text-xs text-muted-foreground hover:bg-muted/40"
+              disabled={isLoadingMore}
+              onClick={onLoadMore}
+            >
+              {isLoadingMore ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : null}
+              {isLoadingMore ? "Loading..." : "Load more"}
+            </Button>
+          ) : null}
         </div>
       </ScrollArea>
     </section>
