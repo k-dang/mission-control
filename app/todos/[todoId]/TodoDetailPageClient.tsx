@@ -13,7 +13,6 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
 import { formatRelativeTime } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
   Archive,
   ArrowLeft,
@@ -206,9 +205,7 @@ function describeTodoEventLine(event: TodoEventDoc["event"]) {
     case "step_finish":
       return {
         title: "Step",
-        detail: event.reason
-          ? `Finished — ${event.reason}`
-          : "Finished",
+        detail: event.reason ? `Finished — ${event.reason}` : "Finished",
       };
     case "tool": {
       const state =
@@ -220,17 +217,12 @@ function describeTodoEventLine(event: TodoEventDoc["event"]) {
       const name = [event.tool, event.title].filter(Boolean).join(" · ");
       return {
         title: `Tool ${state}`,
-        detail: event.error
-          ? `${name} — ${event.error}`
-          : name,
+        detail: event.error ? `${name} — ${event.error}` : name,
       };
     }
     case "patch": {
       const preview = event.files.slice(0, 3).join(", ");
-      const more =
-        event.fileCount > 3
-          ? ` · +${event.fileCount - 3} more`
-          : "";
+      const more = event.fileCount > 3 ? ` · +${event.fileCount - 3} more` : "";
       return {
         title: "Patch",
         detail: `${event.fileCount} file(s)${preview ? `: ${preview}` : ""}${more}`,
@@ -262,9 +254,7 @@ function describeTodoEventLine(event: TodoEventDoc["event"]) {
 
 type TodoEventIcon = typeof Circle;
 
-function getTodoEventMeta(
-  event: TodoEventDoc["event"],
-): {
+function getTodoEventMeta(event: TodoEventDoc["event"]): {
   icon: TodoEventIcon;
   chipClass: string;
   iconClass: string;
@@ -414,15 +404,15 @@ function LinkChannel({
   );
 }
 
-export function TodoDetailPageClient({
-  todoId,
-}: {
-  todoId: Id<"todos">;
-}) {
+export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const todo = useQuery(api.todos.get, isAuthenticated ? { todoId } : "skip");
   const todoEvents = useQuery(
     api.todoEvents.listRecentForTodo,
+    isAuthenticated ? { todoId } : "skip",
+  );
+  const toolCallCount = useQuery(
+    api.opencodeToolCallCounts.getForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
   const elapsed = useElapsed(todo?._creationTime);
@@ -450,8 +440,7 @@ export function TodoDetailPageClient({
   const onTransmissionListScroll = () => {
     const el = transmissionListRef.current;
     if (!el) return;
-    const nearBottom =
-      el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     stickToTransmissionEndRef.current = nearBottom;
   };
 
@@ -488,12 +477,18 @@ export function TodoDetailPageClient({
       <main className="grain-overlay relative min-h-screen">
         <div className="ambient-bg" />
         <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 p-6 md:p-10">
-          <Link href="/" className="flex w-fit items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground transition-colors">
+          <Link
+            href="/"
+            className="flex w-fit items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground transition-colors"
+          >
             <ArrowLeft className="h-3.5 w-3.5" />
             Return to command
           </Link>
           <section className="relative overflow-hidden rounded-3xl border border-destructive/30 bg-card/60 p-10 backdrop-blur-xl">
-            <div className="absolute inset-0 dossier-grid opacity-40" aria-hidden />
+            <div
+              className="absolute inset-0 dossier-grid opacity-40"
+              aria-hidden
+            />
             <div className="relative">
               <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-destructive/80">
                 · SIGNAL LOST //·// TRANSMISSION INVALID
@@ -713,7 +708,6 @@ export function TodoDetailPageClient({
                     {elapsed === null ? "T+--:--:--" : formatElapsed(elapsed)}
                   </dd>
                 </div>
-                <div className="h-px bg-border/30" />
                 <div>
                   <dt className="text-[9px] uppercase tracking-[0.24em] text-muted-foreground/50">
                     status
@@ -793,6 +787,19 @@ export function TodoDetailPageClient({
                   Transmission log
                 </p>
                 <span className="h-px flex-1 bg-border/40" />
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded border border-border/30 bg-background/25 px-2 py-1 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground/65">
+                  <Wrench
+                    className="h-3 w-3"
+                    style={{ color: status.accent }}
+                    aria-hidden
+                  />
+                  <span style={{ fontVariantNumeric: "tabular-nums" }}>
+                    {toolCallCount === undefined
+                      ? "--"
+                      : (toolCallCount?.count ?? 0)}
+                  </span>
+                  <span>tool calls</span>
+                </span>
                 <span className="font-mono text-[9px] uppercase tracking-[0.26em] text-muted-foreground/40">
                   04
                 </span>
@@ -809,8 +816,12 @@ export function TodoDetailPageClient({
                   const isErr = row.event.kind === "error";
                   const isToolErr =
                     row.event.kind === "tool" && row.event.status === "error";
-                  const { icon: EventIcon, chipClass, iconClass, kindLabel } =
-                    getTodoEventMeta(row.event);
+                  const {
+                    icon: EventIcon,
+                    chipClass,
+                    iconClass,
+                    kindLabel,
+                  } = getTodoEventMeta(row.event);
                   return (
                     <li
                       key={row._id}
@@ -838,9 +849,7 @@ export function TodoDetailPageClient({
                           </span>
                           <time
                             className="shrink-0 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/50"
-                            dateTime={new Date(
-                              row._creationTime,
-                            ).toISOString()}
+                            dateTime={new Date(row._creationTime).toISOString()}
                           >
                             {formatAbsoluteTimestamp(row._creationTime)}
                           </time>

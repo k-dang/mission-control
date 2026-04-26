@@ -235,32 +235,34 @@ describe("waitForOpencodeTerminalState", () => {
     vi.useFakeTimers();
     const client = {
       event: {
-        subscribe: vi.fn(async (_params?: unknown, opts?: { signal?: AbortSignal }) => ({
-          stream: (async function* () {
-            await new Promise<void>((_, reject) => {
-              const signal = opts?.signal;
-              if (!signal) {
-                reject(new Error("expected subscribe signal"));
-                return;
-              }
-              if (signal.aborted) {
-                reject(new DOMException("Aborted", "AbortError"));
-                return;
-              }
-              signal.addEventListener("abort", () => {
-                reject(new DOMException("Aborted", "AbortError"));
+        subscribe: vi.fn(
+          async (_params?: unknown, opts?: { signal?: AbortSignal }) => ({
+            stream: (async function* () {
+              await new Promise<void>((_, reject) => {
+                const signal = opts?.signal;
+                if (!signal) {
+                  reject(new Error("expected subscribe signal"));
+                  return;
+                }
+                if (signal.aborted) {
+                  reject(new DOMException("Aborted", "AbortError"));
+                  return;
+                }
+                signal.addEventListener("abort", () => {
+                  reject(new DOMException("Aborted", "AbortError"));
+                });
               });
-            });
-            const idleEvent: MockEvent = {
-              type: "session.status",
-              properties: {
-                sessionID: "session_123",
-                status: { type: "idle" },
-              },
-            };
-            yield idleEvent;
-          })(),
-        })),
+              const idleEvent: MockEvent = {
+                type: "session.status",
+                properties: {
+                  sessionID: "session_123",
+                  status: { type: "idle" },
+                },
+              };
+              yield idleEvent;
+            })(),
+          }),
+        ),
       },
       session: {
         status: vi.fn(async () => ({
@@ -357,6 +359,13 @@ describe("waitForOpencodeTerminalState", () => {
             type: "step-finish",
             messageID: "message_1",
             reason: "stop",
+            cost: 0,
+            tokens: {
+              cache: { read: 0, write: 0 },
+              input: 0,
+              output: 0,
+              reasoning: 0,
+            },
           },
           time: 1234,
         },

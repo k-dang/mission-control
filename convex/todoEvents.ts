@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { requireAuthenticated } from "./authHelpers";
 import { todoEventPayloadValidator } from "./lib/todoEventValidator";
+import { incrementToolCallCount } from "./opencodeToolCallCounts";
 import { internalMutation, query } from "./_generated/server";
 
 const todoEventDocValidator = v.object({
@@ -37,6 +38,13 @@ export const append = internalMutation({
       eventKey: args.eventKey,
       event: args.event,
     });
+
+    if (args.event.kind === "tool" && args.event.status === "running") {
+      await incrementToolCallCount(ctx, {
+        todoId: args.todoId,
+        opencodeSessionId: args.opencodeSessionId,
+      });
+    }
 
     return null;
   },

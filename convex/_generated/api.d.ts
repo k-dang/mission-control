@@ -18,6 +18,7 @@ import type * as lib_sandboxHelpers from "../lib/sandboxHelpers.js";
 import type * as lib_todoEventValidator from "../lib/todoEventValidator.js";
 import type * as notifications from "../notifications.js";
 import type * as opencode from "../opencode.js";
+import type * as opencodeToolCallCounts from "../opencodeToolCallCounts.js";
 import type * as sandbox from "../sandbox.js";
 import type * as todoEvents from "../todoEvents.js";
 import type * as todoSandboxes from "../todoSandboxes.js";
@@ -41,6 +42,7 @@ declare const fullApi: ApiFromModules<{
   "lib/todoEventValidator": typeof lib_todoEventValidator;
   notifications: typeof notifications;
   opencode: typeof opencode;
+  opencodeToolCallCounts: typeof opencodeToolCallCounts;
   sandbox: typeof sandbox;
   todoEvents: typeof todoEvents;
   todoSandboxes: typeof todoSandboxes;
