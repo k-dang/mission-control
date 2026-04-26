@@ -6,7 +6,7 @@
     "dev": "npm-run-all --parallel dev:frontend dev:backend",
     "dev:frontend": "next dev -p 3001",
     "dev:backend": "convex dev",
-    "predev": "convex dev --until-success && convex dashboard",
+    "predev": "convex dev --until-success",
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint . --ignore-pattern \"convex/_generated/**\" --ignore-pattern \"opensrc/**\"",

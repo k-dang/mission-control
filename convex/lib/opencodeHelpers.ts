@@ -73,8 +73,6 @@ type OpencodeStreamLogState = {
   sessionCompactedSeq: number;
   seenCompactionPartIds: Set<string>;
   seenPatchPartIds: Set<string>;
-  seenStepFinishPartIds: Set<string>;
-  seenStepStartPartIds: Set<string>;
   seenSubtaskPartIds: Set<string>;
   toolStateByCallId: Map<string, string>;
 };
@@ -346,40 +344,6 @@ async function ingestOpencodeMilestoneEvent(
     return;
   }
 
-  if (part.type === "step-start") {
-    if (state.seenStepStartPartIds.has(part.id)) {
-      return;
-    }
-    state.seenStepStartPartIds.add(part.id);
-
-    const eventKey = `step_start:${part.id}`;
-
-    await appendTodoEvent({
-      eventKey,
-      event: { kind: "step_start", messageId: part.messageID },
-    });
-    return;
-  }
-
-  if (part.type === "step-finish") {
-    if (state.seenStepFinishPartIds.has(part.id)) {
-      return;
-    }
-    state.seenStepFinishPartIds.add(part.id);
-
-    const eventKey = `step_finish:${part.id}`;
-
-    await appendTodoEvent({
-      eventKey,
-      event: {
-        kind: "step_finish",
-        messageId: part.messageID,
-        reason: part.reason,
-      },
-    });
-    return;
-  }
-
   if (part.type === "tool") {
     const previousStatus = state.toolStateByCallId.get(part.callID);
     const nextStatus = part.state.status;
@@ -536,8 +500,6 @@ export async function waitForOpencodeTerminalState(
       sessionCompactedSeq: 0,
       seenCompactionPartIds: new Set(),
       seenPatchPartIds: new Set(),
-      seenStepFinishPartIds: new Set(),
-      seenStepStartPartIds: new Set(),
       seenSubtaskPartIds: new Set(),
       toolStateByCallId: new Map(),
     };

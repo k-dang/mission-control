@@ -329,7 +329,7 @@ describe("waitForOpencodeTerminalState", () => {
     );
   });
 
-  it("dedupes onAppendTodoEvent for duplicate step-start in the same slice", async () => {
+  it("does not call onAppendTodoEvent for step start or finish parts", async () => {
     vi.spyOn(Date, "now").mockReturnValue(1234);
     const onAppendTodoEvent = vi.fn<AppendTodoEventCallback>(async () => {});
 
@@ -352,10 +352,11 @@ describe("waitForOpencodeTerminalState", () => {
         properties: {
           sessionID: "session_123",
           part: {
-            id: "s1",
+            id: "f1",
             sessionID: "session_123",
-            type: "step-start",
+            type: "step-finish",
             messageID: "message_1",
+            reason: "stop",
           },
           time: 1234,
         },
@@ -375,9 +376,6 @@ describe("waitForOpencodeTerminalState", () => {
       onAppendTodoEvent,
     );
 
-    const stepStartCalls = onAppendTodoEvent.mock.calls.filter(
-      (call) => call[0].eventKey === "step_start:s1",
-    );
-    expect(stepStartCalls).toHaveLength(1);
+    expect(onAppendTodoEvent).not.toHaveBeenCalled();
   });
 });
