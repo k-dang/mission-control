@@ -251,6 +251,20 @@ function describeTodoEventLine(event: TodoEventDoc["event"]) {
         title: "Agent todo list",
         detail: `${event.todoCount} item(s) · ${event.summary}`,
       };
+    case "tool_counts": {
+      const entries = Object.entries(event.counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([tool, count]) => `${tool}: ${count}`)
+        .join(", ");
+      const more = Object.keys(event.counts).length > 5
+        ? ` · +${Object.keys(event.counts).length - 5} more`
+        : "";
+      return {
+        title: "Tool counts",
+        detail: `${event.total} total · ${entries}${more}`,
+      };
+    }
     case "error":
       return { title: "Error", detail: event.message };
     default: {
@@ -367,6 +381,13 @@ function getTodoEventMeta(
         chipClass: "border-col-agent/25 bg-col-agent/6",
         iconClass: "text-col-agent",
         kindLabel: "Agent todo list",
+      };
+    case "tool_counts":
+      return {
+        icon: Wrench,
+        chipClass: "border-col-completed/25 bg-col-completed/5",
+        iconClass: "text-col-completed",
+        kindLabel: "Tool counts",
       };
     case "error":
       return {

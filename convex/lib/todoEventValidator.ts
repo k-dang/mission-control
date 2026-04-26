@@ -58,6 +58,11 @@ export const todoEventPayloadValidator = v.union(
     summary: v.string(),
   }),
   v.object({
+    kind: v.literal("tool_counts"),
+    counts: v.record(v.string(), v.number()),
+    total: v.number(),
+  }),
+  v.object({
     kind: v.literal("error"),
     message: v.string(),
   }),

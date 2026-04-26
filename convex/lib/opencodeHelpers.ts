@@ -77,6 +77,8 @@ type OpencodeStreamLogState = {
   seenStepStartPartIds: Set<string>;
   seenSubtaskPartIds: Set<string>;
   toolStateByCallId: Map<string, string>;
+  toolCallCounts: Map<string, number>;
+  lastToolCountsEventKey?: string;
 };
 
 const healthyResponseSchema = z.object({
@@ -408,6 +410,31 @@ async function ingestOpencodeMilestoneEvent(
     }
 
     if (nextStatus === "completed") {
+      // Count completed tool calls
+      state.toolCallCounts.set(
+        part.tool,
+        (state.toolCallCounts.get(part.tool) ?? 0) + 1,
+      );
+
+      const totalCalls = Array.from(state.toolCallCounts.values()).reduce(
+        (sum, count) => sum + count,
+        0,
+      );
+      const countsEventKey = `tool_counts:${totalCalls}`;
+
+      // Only emit if counts have changed
+      if (countsEventKey !== state.lastToolCountsEventKey) {
+        state.lastToolCountsEventKey = countsEventKey;
+        await appendTodoEvent({
+          eventKey: countsEventKey,
+          event: {
+            kind: "tool_counts",
+            counts: Object.fromEntries(state.toolCallCounts),
+            total: totalCalls,
+          },
+        });
+      }
+
       await appendTodoEvent({
         eventKey,
         event: {
@@ -540,6 +567,7 @@ export async function waitForOpencodeTerminalState(
       seenStepStartPartIds: new Set(),
       seenSubtaskPartIds: new Set(),
       toolStateByCallId: new Map(),
+      toolCallCounts: new Map(),
     };
 
     for await (const event of eventStream.stream) {

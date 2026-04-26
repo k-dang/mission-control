@@ -44,4 +44,13 @@ export default defineSchema({
   })
     .index("by_todoId", ["todoId"])
     .index("by_todoId_and_eventKey", ["todoId", "eventKey"]),
+
+  todoToolCounts: defineTable({
+    todoId: v.id("todos"),
+    opencodeSessionId: v.string(),
+    tool: v.string(),
+    count: v.number(),
+  })
+    .index("by_todoId", ["todoId"])
+    .index("by_todoId_and_tool", ["todoId", "tool"]),
 });
