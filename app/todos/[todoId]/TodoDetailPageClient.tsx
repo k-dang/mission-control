@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import {
+  memo,
+  useCallback,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
-  useState,
   type CSSProperties,
+  type RefObject,
 } from "react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
@@ -84,18 +85,10 @@ const STATUS_META: Record<
   },
 };
 
-function formatElapsed(ms: number) {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  const days = Math.floor(total / 86400);
-  const hrs = Math.floor((total % 86400) / 3600);
-  const mins = Math.floor((total % 3600) / 60);
-  const secs = total % 60;
-  const hh = String(hrs).padStart(2, "0");
-  const mm = String(mins).padStart(2, "0");
-  const ss = String(secs).padStart(2, "0");
-  if (days > 0) return `T+${days}D ${hh}:${mm}:${ss}`;
-  return `T+${hh}:${mm}:${ss}`;
-}
+const TITLE_DIVIDER_TICKS = Array.from({ length: 48 }, (_, i) => ({
+  height: i % 8 === 0 ? "100%" : i % 4 === 0 ? "60%" : "35%",
+  opacity: i % 8 === 0 ? 0.8 : 0.35,
+}));
 
 function formatAbsoluteTimestamp(ms: number) {
   const d = new Date(ms);
@@ -103,23 +96,12 @@ function formatAbsoluteTimestamp(ms: number) {
   return iso.replace("T", " ").slice(0, 19) + "Z";
 }
 
-function useElapsed(startMs: number | undefined) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (startMs === undefined) return;
-    const id = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, [startMs]);
-  if (startMs === undefined) return null;
-  return now - startMs;
-}
-
 function RadarWidget({ accent }: { accent: string }) {
   return (
     <div className="relative flex h-24 w-24 items-center justify-center">
       <svg
         viewBox="0 0 96 96"
-        className="radar-pulse absolute inset-0 h-full w-full"
+        className="absolute inset-0 h-full w-full"
         aria-hidden
       >
         <circle cx="48" cy="48" fill="none" stroke={accent} strokeWidth="1" />
@@ -404,6 +386,82 @@ function LinkChannel({
   );
 }
 
+const TransmissionLog = memo(function TransmissionLog({
+  events,
+  listRef,
+  onScroll,
+}: {
+  events: TodoEventDoc[];
+  listRef: RefObject<HTMLUListElement | null>;
+  onScroll: () => void;
+}) {
+  return (
+    <ul
+      ref={listRef}
+      onScroll={onScroll}
+      className="mt-5 max-h-80 space-y-2 overflow-y-auto overscroll-contain pr-1 font-mono text-[11px]"
+      aria-label="OpenCode event stream (recent)"
+    >
+      {events.map((row) => {
+        const { title, detail } = describeTodoEventLine(row.event);
+        const isErr = row.event.kind === "error";
+        const isToolErr =
+          row.event.kind === "tool" && row.event.status === "error";
+        const {
+          icon: EventIcon,
+          chipClass,
+          iconClass,
+          kindLabel,
+        } = getTodoEventMeta(row.event);
+        return (
+          <li
+            key={row._id}
+            className="transmission-log-row flex items-start gap-2.5 rounded-md border border-border/25 bg-background/20 px-2.5 py-2"
+          >
+            <div
+              className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border ${chipClass}`}
+              title={kindLabel}
+            >
+              <EventIcon
+                className={`h-3.5 w-3.5 stroke-[1.8] ${iconClass}`}
+                aria-hidden
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                <span
+                  className={
+                    isErr || isToolErr ? "text-col-failed" : "text-foreground/90"
+                  }
+                >
+                  {title}
+                </span>
+                <time
+                  className="shrink-0 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/50"
+                  dateTime={new Date(row._creationTime).toISOString()}
+                >
+                  {formatAbsoluteTimestamp(row._creationTime)}
+                </time>
+              </div>
+              <p
+                className={`mt-0.5 break-words text-[10px] leading-relaxed ${
+                  isErr
+                    ? "text-col-failed/90"
+                    : isToolErr
+                      ? "text-col-failed/80"
+                      : "text-muted-foreground/75"
+                }`}
+              >
+                {detail}
+              </p>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+});
+
 export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const todo = useQuery(api.todos.get, isAuthenticated ? { todoId } : "skip");
@@ -415,7 +473,6 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     api.opencodeToolCallCounts.getForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
-  const elapsed = useElapsed(todo?._creationTime);
 
   const orderedEvents = useMemo(() => {
     if (todoEvents === undefined) return [];
@@ -430,19 +487,19 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     stickToTransmissionEndRef.current = true;
   }, [todoId]);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const el = transmissionListRef.current;
     if (!el || orderedEvents.length === 0) return;
     if (!stickToTransmissionEndRef.current) return;
     el.scrollTop = el.scrollHeight;
   }, [orderedEvents]);
 
-  const onTransmissionListScroll = () => {
+  const onTransmissionListScroll = useCallback(() => {
     const el = transmissionListRef.current;
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     stickToTransmissionEndRef.current = nearBottom;
-  };
+  }, []);
 
   if (isLoading) {
     return (
@@ -484,7 +541,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
             <ArrowLeft className="h-3.5 w-3.5" />
             Return to command
           </Link>
-          <section className="relative overflow-hidden rounded-3xl border border-destructive/30 bg-card/60 p-10 backdrop-blur-xl">
+          <section className="relative overflow-hidden rounded-3xl border border-destructive/30 bg-card p-10">
             <div
               className="absolute inset-0 dossier-grid opacity-40"
               aria-hidden
@@ -529,10 +586,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
         style={dossierStyle}
       >
         {/* Top row: back + dossier tag */}
-        <div
-          className="reveal flex items-center justify-between"
-          style={{ animationDelay: "0ms" }}
-        >
+        <div className="flex items-center justify-between">
           <Link
             href="/"
             className="flex w-fit items-center gap-2 px-2 py-1 font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground transition-colors"
@@ -551,8 +605,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
 
         {/* Main dossier */}
         <section
-          className="dossier-corners reveal relative overflow-hidden rounded-2xl border border-border/40 bg-card/60 backdrop-blur-xl"
-          style={{ animationDelay: "160ms" }}
+          className="dossier-corners relative overflow-hidden rounded-2xl border border-border/40 bg-card"
         >
           <span className="corner-tl" aria-hidden />
           <span className="corner-tr" aria-hidden />
@@ -571,7 +624,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
               <div className="min-w-0 flex-1">
                 {/* Status badge */}
                 <div
-                  className="scan-sweep inline-flex items-center gap-2 rounded-full border px-3 py-1"
+                  className="inline-flex items-center gap-2 rounded-full border px-3 py-1"
                   style={{
                     background: status.accentSoft,
                     borderColor: `${status.accent}55`,
@@ -605,15 +658,11 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
                   className="mt-6 flex h-3 items-center gap-[3px]"
                   aria-hidden
                 >
-                  {Array.from({ length: 48 }).map((_, i) => (
+                  {TITLE_DIVIDER_TICKS.map((tick, i) => (
                     <span
                       key={i}
                       className="block w-px bg-border/60"
-                      style={{
-                        height:
-                          i % 8 === 0 ? "100%" : i % 4 === 0 ? "60%" : "35%",
-                        opacity: i % 8 === 0 ? 0.8 : 0.35,
-                      }}
+                      style={tick}
                     />
                   ))}
                 </div>
@@ -697,17 +746,6 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
                   </dd>
                 </div>
                 <div className="h-px bg-border/30" />
-                <div>
-                  <dt className="text-[9px] uppercase tracking-[0.24em] text-muted-foreground/50">
-                    elapsed
-                  </dt>
-                  <dd
-                    className="tick-cursor mt-1 text-foreground/85"
-                    style={{ fontVariantNumeric: "tabular-nums" }}
-                  >
-                    {elapsed === null ? "T+--:--:--" : formatElapsed(elapsed)}
-                  </dd>
-                </div>
                 <div>
                   <dt className="text-[9px] uppercase tracking-[0.24em] text-muted-foreground/50">
                     status
@@ -805,82 +843,21 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
                 </span>
               </div>
 
-              <ul
-                ref={transmissionListRef}
+              <TransmissionLog
+                events={orderedEvents}
+                listRef={transmissionListRef}
                 onScroll={onTransmissionListScroll}
-                className="mt-5 max-h-80 space-y-2 overflow-y-auto pr-1 font-mono text-[11px]"
-                aria-label="OpenCode event stream (recent)"
-              >
-                {orderedEvents.map((row) => {
-                  const { title, detail } = describeTodoEventLine(row.event);
-                  const isErr = row.event.kind === "error";
-                  const isToolErr =
-                    row.event.kind === "tool" && row.event.status === "error";
-                  const {
-                    icon: EventIcon,
-                    chipClass,
-                    iconClass,
-                    kindLabel,
-                  } = getTodoEventMeta(row.event);
-                  return (
-                    <li
-                      key={row._id}
-                      className="flex items-start gap-2.5 rounded-md border border-border/25 bg-background/20 px-2.5 py-2"
-                    >
-                      <div
-                        className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border ${chipClass}`}
-                        title={kindLabel}
-                      >
-                        <EventIcon
-                          className={`h-3.5 w-3.5 stroke-[1.8] ${iconClass}`}
-                          aria-hidden
-                        />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                          <span
-                            className={
-                              isErr || isToolErr
-                                ? "text-col-failed"
-                                : "text-foreground/90"
-                            }
-                          >
-                            {title}
-                          </span>
-                          <time
-                            className="shrink-0 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/50"
-                            dateTime={new Date(row._creationTime).toISOString()}
-                          >
-                            {formatAbsoluteTimestamp(row._creationTime)}
-                          </time>
-                        </div>
-                        <p
-                          className={`mt-0.5 break-words text-[10px] leading-relaxed ${
-                            isErr
-                              ? "text-col-failed/90"
-                              : isToolErr
-                                ? "text-col-failed/80"
-                                : "text-muted-foreground/75"
-                          }`}
-                        >
-                          {detail}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+              />
             </div>
           ) : null}
         </section>
 
         {/* Footer readout */}
         <footer
-          className="reveal flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/60"
-          style={{ animationDelay: "260ms" }}
+          className="flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/60"
         >
           <div className="flex items-center gap-2">
-            <span className="status-beacon" />
+            <span className="h-2 w-2 rounded-full bg-col-completed" />
             <span>system nominal</span>
             <span className="text-muted-foreground/30">{"//"}</span>
             <span>autosync engaged</span>

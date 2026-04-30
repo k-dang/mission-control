@@ -1,4 +1,4 @@
-import { useRef, type DragEvent } from "react";
+import { memo, useRef, type DragEvent } from "react";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
@@ -11,19 +11,17 @@ const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
   FAILED: "bg-col-failed",
 };
 
-export function TodoCard({
+function TodoCardComponent({
   todo,
   draggable,
   onDragStart,
   onDragEnd,
-  index,
   onClick,
 }: {
   todo: Doc<"todos">;
   draggable: boolean;
   onDragStart: (event: DragEvent<HTMLDivElement>, todoId: Id<"todos">) => void;
   onDragEnd?: () => void;
-  index: number;
   onClick?: (todo: Doc<"todos">) => void;
 }) {
   const isCompleted = todo.status === "COMPLETED";
@@ -46,7 +44,7 @@ export function TodoCard({
         }
       }}
       className={cn(
-        "group glass-card todo-card rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2",
+        "group todo-card rounded-lg p-3",
         draggable
           ? "cursor-grab active:cursor-grabbing"
           : onClick
@@ -54,7 +52,6 @@ export function TodoCard({
             : "cursor-default",
         isCompleted && "opacity-60",
       )}
-      style={{ animationDelay: `${index * 50}ms`, animationFillMode: "both" }}
     >
       <div className="flex items-start gap-2">
         {draggable && (
@@ -93,3 +90,5 @@ export function TodoCard({
     </div>
   );
 }
+
+export const TodoCard = memo(TodoCardComponent);

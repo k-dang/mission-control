@@ -2,14 +2,13 @@
 
 import Link from "next/link";
 import { useState, useRef, useId, type KeyboardEvent } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
 import {
   SheetHeader,
-  SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -95,16 +94,15 @@ const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
 
 export function TaskDetailPanel({
   todo,
+  sandbox,
   onClose,
 }: {
   todo: Doc<"todos">;
+  sandbox: Doc<"todoSandboxes"> | null;
   onClose: () => void;
 }) {
   const updateTodo = useMutation(api.todos.update);
   const deleteTodo = useMutation(api.todos.remove);
-  const sandbox = useQuery(api.todoSandboxes.getSandboxForTodo, {
-    todoId: todo._id,
-  });
 
   const [editTitle, setEditTitle] = useState(todo.title);
   const [editDescription, setEditDescription] = useState(
@@ -192,7 +190,6 @@ export function TaskDetailPanel({
             {currentStatusOption.label}
           </span>
         </div>
-        <SheetTitle className="sr-only">{todo.title}</SheetTitle>
         <SheetDescription className="sr-only">
           Task detail panel for editing
         </SheetDescription>
@@ -244,14 +241,16 @@ export function TaskDetailPanel({
                 (todo.status === "TODO" &&
                   (opt.value === "COMPLETED" || opt.value === "FAILED"));
               return (
-                <button
+                <Button
                   key={opt.value}
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   disabled={pillDisabled}
                   aria-disabled={pillDisabled}
                   onClick={() => handleStatusChange(opt.value)}
                   className={cn(
-                    "flex items-center gap-1.5 rounded-full px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition-all duration-200",
+                    "h-auto rounded-full px-3 py-1.5 font-mono text-[10px] font-bold uppercase tracking-wider transition-all duration-200 hover:bg-transparent",
                     pillDisabled
                       ? "cursor-not-allowed opacity-50"
                       : "cursor-pointer",
@@ -277,7 +276,7 @@ export function TaskDetailPanel({
                 >
                   <Icon className="h-2.5 w-2.5" />
                   {opt.label}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -348,23 +347,13 @@ export function TaskDetailPanel({
                   !isEditable && "cursor-not-allowed opacity-70",
                 )}
               />
-              {editGithubUrl.trim() && (
-                <a
-                  href={editGithubUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 text-muted-foreground/50 transition-colors hover:text-foreground"
-                >
-                  <ExternalLink className="h-3.5 w-3.5" />
-                </a>
-              )}
             </div>
             {todo.prUrl && (
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/60">
                   PR
                 </span>
-                <a
+                <Link
                   href={todo.prUrl}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -372,15 +361,15 @@ export function TaskDetailPanel({
                 >
                   <span className="truncate">{todo.prUrl}</span>
                   <ExternalLink className="h-3 w-3 shrink-0" />
-                </a>
+                </Link>
               </div>
             )}
-            {sandbox?.opencode?.url && (
+            {sandbox?.opencode?.url ? (
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/60">
                   OPENCODE
                 </span>
-                <a
+                <Link
                   href={sandbox.opencode.url}
                   target="_blank"
                   rel="noopener noreferrer"
@@ -388,9 +377,9 @@ export function TaskDetailPanel({
                 >
                   {sandbox.opencode.url}
                   <ExternalLink className="h-3 w-3 shrink-0" />
-                </a>
+                </Link>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
 

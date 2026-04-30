@@ -31,7 +31,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { TaskDetailPanel } from "@/components/kanban/task-detail-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,8 +41,6 @@ import {
   Plus,
   AlertCircle,
   Loader2,
-  ArrowRight,
-  Maximize2,
 } from "lucide-react";
 
 const STAT_COLORS = {
@@ -78,7 +76,6 @@ export default function Home() {
     CREATE_TODO_DEFAULT_DESCRIPTION,
   );
   const [githubUrl, setGithubUrl] = useState(CREATE_TODO_DEFAULT_GITHUB_URL);
-  const [quickTitle, setQuickTitle] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,6 +86,10 @@ export default function Home() {
   );
   const selectedTodo = useQuery(
     api.todos.get,
+    isAuthenticated && selectedTodoId ? { todoId: selectedTodoId } : "skip",
+  );
+  const selectedSandbox = useQuery(
+    api.todoSandboxes.getSandboxForTodo,
     isAuthenticated && selectedTodoId ? { todoId: selectedTodoId } : "skip",
   );
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -131,18 +132,6 @@ export default function Home() {
       setFormError(getErrorMessage(error));
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleQuickAdd = async (event: SubmitEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!quickTitle.trim()) return;
-
-    try {
-      await createTodo({ title: quickTitle });
-      setQuickTitle("");
-    } catch (error: unknown) {
-      setDropError(getErrorMessage(error));
     }
   };
 
@@ -203,6 +192,8 @@ export default function Home() {
 
   // Auto-close sheet if the selected todo was deleted
   const sheetOpen = selectedTodoId !== null && resolvedTodo !== null;
+  const isSelectedSandboxLoading =
+    selectedTodoId !== null && selectedSandbox === undefined;
 
   if (isLoading) {
     return (
@@ -332,7 +323,7 @@ export default function Home() {
                   </Button>
                 </DialogTrigger>
                 <DialogContent
-                  className="glass-card border-border/50 bg-card/80 backdrop-blur-xl"
+                  className="border-border/50 bg-card"
                   onOpenAutoFocus={(e) => {
                     e.preventDefault();
                     titleInputRef.current?.focus();
@@ -432,37 +423,6 @@ export default function Home() {
                 </DialogContent>
               </Dialog>
           </div>
-
-          {/* Quick add bar */}
-          <form onSubmit={handleQuickAdd} className="flex items-center gap-2">
-            <div className="quick-add-bar flex flex-1 items-center gap-2 rounded-xl px-4 py-2.5">
-              <Plus className="h-4 w-4 shrink-0 text-muted-foreground/40" />
-              <Input
-                value={quickTitle}
-                onChange={(e) => setQuickTitle(e.target.value)}
-                placeholder="Quick add a task..."
-                className="h-auto min-h-0 flex-1 border-0 bg-transparent dark:bg-transparent px-0 py-0 text-sm text-foreground shadow-none placeholder:text-muted-foreground/40 focus-visible:border-transparent focus-visible:ring-0"
-              />
-              <Button
-                type="submit"
-                size="sm"
-                variant="ghost"
-                className={`h-auto bg-primary/10 px-2 py-1 text-primary hover:bg-primary/20 transition-opacity ${quickTitle.trim() ? "opacity-100" : "pointer-events-none opacity-0"}`}
-                tabIndex={quickTitle.trim() ? 0 : -1}
-              >
-                <ArrowRight className="h-3 w-3" />
-              </Button>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setDialogOpen(true)}
-              title="Expand to full form"
-            >
-              <Maximize2 className="h-3.5 w-3.5" />
-            </Button>
-          </form>
         </header>
 
         {dropError ? (
@@ -525,14 +485,18 @@ export default function Home() {
       >
         <SheetContent
           side="right"
-          className="glass-card border-l-border/50 bg-card/80 backdrop-blur-xl w-full sm:max-w-lg"
+          className="w-full border-l-border/50 bg-card sm:max-w-lg"
           showCloseButton={true}
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
-          {resolvedTodo && (
+          <SheetTitle className="sr-only">
+            {resolvedTodo?.title ?? "Task details"}
+          </SheetTitle>
+          {resolvedTodo && !isSelectedSandboxLoading && (
             <TaskDetailPanel
               key={resolvedTodo._id}
               todo={resolvedTodo}
+              sandbox={selectedSandbox ?? null}
               onClose={() => setSelectedTodoId(null)}
             />
           )}

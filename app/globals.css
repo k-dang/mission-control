@@ -136,23 +136,26 @@
     radial-gradient(ellipse 60% 40% at 80% 100%, oklch(0.18 0.02 55 / 20%) 0%, transparent 60%);
 }
 
-/* Glassmorphism card */
-.glass-card {
-  background: var(--surface-glass);
-  backdrop-filter: blur(16px);
-  border: 1px solid oklch(1 0 0 / 8%);
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s, transform 0.15s;
-}
-
-/* Todo cards keep a static appearance on hover (no lift/transition). */
+/* Todo cards avoid backdrop blur and per-item animation so column scroll stays cheap. */
 .todo-card {
-  transition: border-color 0.15s;
+  background: oklch(1 0 0 / 4%);
+  border: 1px solid oklch(1 0 0 / 8%);
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 88px;
+  transition: border-color 0.15s, background 0.15s;
 }
 .todo-card:hover {
-  background: var(--surface-glass);
+  background: oklch(1 0 0 / 6%);
   border-color: oklch(1 0 0 / 15%);
   transform: none;
   box-shadow: none;
+}
+
+.transmission-log-row {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 56px;
 }
 
 /* Column accent borders */
@@ -230,7 +233,6 @@
 /* Quick add bar */
 .quick-add-bar {
   background: oklch(1 0 0 / 4%);
-  backdrop-filter: blur(16px);
   border: 1px solid oklch(1 0 0 / 8%);
   transition: border-color 0.2s, box-shadow 0.2s;
 }
@@ -290,64 +292,6 @@
   border-bottom: 1.5px solid;
   border-right: 1.5px solid;
   border-bottom-right-radius: 6px;
-}
-
-/* Scanline sweep inside a badge/pill */
-.scan-sweep {
-  position: relative;
-  overflow: hidden;
-  isolation: isolate;
-}
-.scan-sweep::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    110deg,
-    transparent 40%,
-    oklch(1 0 0 / 14%) 50%,
-    transparent 60%
-  );
-  transform: translateX(-100%);
-  animation: scan-sweep 3.8s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes scan-sweep {
-  0%, 35% { transform: translateX(-100%); }
-  70%, 100% { transform: translateX(100%); }
-}
-
-/* Radar — concentric rings with a slow sweep */
-.radar-pulse circle {
-  transform-origin: center;
-  animation: radar-ring 3.2s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
-}
-.radar-pulse circle:nth-child(2) { animation-delay: 0.8s; }
-.radar-pulse circle:nth-child(3) { animation-delay: 1.6s; }
-@keyframes radar-ring {
-  0% { r: 4; opacity: 0.9; }
-  100% { r: 44; opacity: 0; }
-}
-
-/* Staggered reveal */
-.reveal {
-  opacity: 0;
-  transform: translateY(8px);
-  animation: reveal-up 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) forwards;
-}
-@keyframes reveal-up {
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Blinking cursor for live ticker */
-.tick-cursor::after {
-  content: "▊";
-  margin-left: 2px;
-  opacity: 0.6;
-  animation: tick-blink 1.05s step-end infinite;
-}
-@keyframes tick-blink {
-  50% { opacity: 0; }
 }
 
 /* Dark scrollbar */

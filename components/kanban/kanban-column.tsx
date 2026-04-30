@@ -12,7 +12,6 @@ import {
   Loader2,
 } from "lucide-react";
 import { TodoCard } from "./todo-card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 
 const COLUMN_CONFIG: Record<
@@ -115,7 +114,7 @@ export function KanbanColumn({
             <div
               className={cn(
                 "flex h-7 w-7 items-center justify-center rounded-lg",
-                "bg-surface-glass backdrop-blur-sm",
+                "bg-surface-glass",
               )}
             >
               <Icon className={cn("h-3.5 w-3.5", config.colorClass)} />
@@ -134,7 +133,7 @@ export function KanbanColumn({
           </span>
         </div>
       </div>
-      <ScrollArea className="max-h-[calc(100vh-320px)] md:flex-1 md:min-h-0 md:max-h-none">
+      <div className="max-h-[calc(100vh-320px)] overflow-y-auto overscroll-contain md:min-h-0 md:flex-1 md:max-h-none">
         <div className="space-y-3 pr-3">
           {todos.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/40 p-6 text-center">
@@ -147,14 +146,13 @@ export function KanbanColumn({
               </p>
             </div>
           ) : (
-            todos.map((todo, i) => (
+            todos.map((todo) => (
               <TodoCard
                 key={todo._id}
                 todo={todo}
                 draggable={draggable}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
-                index={i}
                 onClick={onCardClick}
               />
             ))
@@ -175,7 +173,7 @@ export function KanbanColumn({
             </Button>
           ) : null}
         </div>
-      </ScrollArea>
+      </div>
     </section>
   );
 }

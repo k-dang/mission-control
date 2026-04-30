@@ -31,6 +31,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
+      <head>
+        {process.env.NODE_ENV === "development" ? (
+          // eslint-disable-next-line @next/next/no-sync-scripts
+          <script
+            crossOrigin="anonymous"
+            src="https://cdn.jsdelivr.net/npm/react-scan/dist/auto.global.js"
+          />
+        ) : null}
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
