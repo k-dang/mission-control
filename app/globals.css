@@ -188,12 +188,6 @@
     0 0 40px oklch(0.65 0.17 250 / 8%);
 }
 
-/* Navbar glow — subtle bottom edge light */
-.navbar-glow {
-  box-shadow: 0 1px 0 0 oklch(0.75 0.15 55 / 10%),
-    0 4px 24px -4px oklch(0 0 0 / 40%);
-}
-
 /* Navbar icon ring — amber-tinted container for the Zap icon */
 .navbar-icon-ring {
   background: oklch(0.75 0.15 55 / 8%);

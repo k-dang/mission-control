@@ -45,7 +45,7 @@ export default function RootLayout({
       >
         <ClerkProvider appearance={{ theme: shadcn }}>
           <ConvexClientProvider>
-            <nav className="navbar-glow sticky top-0 z-50 border-b border-border/40 bg-background/60 backdrop-blur-2xl">
+            <nav className="sticky top-0 z-50 border-b border-border/40 bg-background/60 backdrop-blur-2xl">
               <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-6 py-3 md:px-10">
                 <div className="flex items-center gap-3">
                   <div className="navbar-icon-ring flex h-8 w-8 items-center justify-center rounded-lg">

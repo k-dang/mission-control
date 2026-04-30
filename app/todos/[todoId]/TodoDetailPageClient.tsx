@@ -1,466 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import {
-  memo,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  type CSSProperties,
-  type RefObject,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
-import type { Doc, Id } from "@/convex/_generated/dataModel";
+import type { Id } from "@/convex/_generated/dataModel";
 import { formatRelativeTime } from "@/lib/utils";
 import {
-  Archive,
   ArrowLeft,
-  CheckCircle2,
-  Circle,
-  ExternalLink,
-  FileDiff,
   GitBranch,
   GitPullRequest,
-  ListChecks,
-  Minimize2,
-  PlayCircle,
-  RotateCw,
   Signal,
   Wrench,
-  XCircle,
 } from "lucide-react";
-
-type Status = Doc<"todos">["status"];
-type DossierStyle = CSSProperties & { "--dossier-accent": string };
-
-const STATUS_META: Record<
-  Status,
-  {
-    label: string;
-    codename: string;
-    textClass: string;
-    accent: string;
-    accentSoft: string;
-    accentGlow: string;
-    icon: typeof Circle;
-  }
-> = {
-  TODO: {
-    label: "STANDBY",
-    codename: "CODE-01 / STANDBY",
-    textClass: "text-col-todo",
-    accent: "oklch(0.75 0.15 55)",
-    accentSoft: "oklch(0.75 0.15 55 / 14%)",
-    accentGlow: "oklch(0.75 0.15 55 / 22%)",
-    icon: Circle,
-  },
-  INPROGRESS: {
-    label: "IN FLIGHT",
-    codename: "CODE-02 / IN-FLIGHT",
-    textClass: "text-col-inprogress",
-    accent: "oklch(0.65 0.17 250)",
-    accentSoft: "oklch(0.65 0.17 250 / 14%)",
-    accentGlow: "oklch(0.65 0.17 250 / 22%)",
-    icon: RotateCw,
-  },
-  COMPLETED: {
-    label: "RECOVERED",
-    codename: "CODE-03 / RECOVERED",
-    textClass: "text-col-completed",
-    accent: "oklch(0.68 0.14 155)",
-    accentSoft: "oklch(0.68 0.14 155 / 14%)",
-    accentGlow: "oklch(0.68 0.14 155 / 22%)",
-    icon: CheckCircle2,
-  },
-  FAILED: {
-    label: "LOST",
-    codename: "CODE-04 / SIGNAL-LOST",
-    textClass: "text-col-failed",
-    accent: "oklch(0.62 0.2 25)",
-    accentSoft: "oklch(0.62 0.2 25 / 14%)",
-    accentGlow: "oklch(0.62 0.2 25 / 22%)",
-    icon: XCircle,
-  },
-};
-
-const TITLE_DIVIDER_TICKS = Array.from({ length: 48 }, (_, i) => ({
-  height: i % 8 === 0 ? "100%" : i % 4 === 0 ? "60%" : "35%",
-  opacity: i % 8 === 0 ? 0.8 : 0.35,
-}));
-
-function formatAbsoluteTimestamp(ms: number) {
-  const d = new Date(ms);
-  const iso = d.toISOString();
-  return iso.replace("T", " ").slice(0, 19) + "Z";
-}
-
-function RadarWidget({ accent }: { accent: string }) {
-  return (
-    <div className="relative flex h-24 w-24 items-center justify-center">
-      <svg
-        viewBox="0 0 96 96"
-        className="absolute inset-0 h-full w-full"
-        aria-hidden
-      >
-        <circle cx="48" cy="48" fill="none" stroke={accent} strokeWidth="1" />
-        <circle cx="48" cy="48" fill="none" stroke={accent} strokeWidth="1" />
-        <circle cx="48" cy="48" fill="none" stroke={accent} strokeWidth="1" />
-      </svg>
-      <svg
-        viewBox="0 0 96 96"
-        className="absolute inset-0 h-full w-full opacity-40"
-        aria-hidden
-      >
-        <circle
-          cx="48"
-          cy="48"
-          r="46"
-          fill="none"
-          stroke={accent}
-          strokeWidth="0.6"
-          strokeDasharray="2 4"
-        />
-        <circle
-          cx="48"
-          cy="48"
-          r="30"
-          fill="none"
-          stroke={accent}
-          strokeWidth="0.6"
-          strokeDasharray="2 4"
-        />
-        <line
-          x1="0"
-          y1="48"
-          x2="96"
-          y2="48"
-          stroke={accent}
-          strokeWidth="0.4"
-          strokeDasharray="1 3"
-        />
-        <line
-          x1="48"
-          y1="0"
-          x2="48"
-          y2="96"
-          stroke={accent}
-          strokeWidth="0.4"
-          strokeDasharray="1 3"
-        />
-      </svg>
-      <div
-        className="h-2 w-2 rounded-full"
-        style={{
-          background: accent,
-          boxShadow: `0 0 14px ${accent}`,
-        }}
-        aria-hidden
-      />
-    </div>
-  );
-}
-
-type TodoEventDoc = Doc<"todoEvents">;
-
-function describeTodoEventLine(event: TodoEventDoc["event"]) {
-  switch (event.kind) {
-    case "session_status": {
-      if (event.statusType === "busy") {
-        return { title: "Session", detail: "Work started" };
-      }
-      if (event.statusType === "retry") {
-        const parts = [
-          event.message,
-          event.attempt !== undefined ? `attempt ${event.attempt}` : null,
-          event.next !== undefined ? `next ${event.next}ms` : null,
-        ].filter(Boolean);
-        return { title: "Session retry", detail: parts.join(" · ") };
-      }
-      return { title: "Session", detail: event.statusType };
-    }
-    case "session_compacted":
-      return { title: "Session", detail: "Compacted" };
-    case "step_start":
-      return { title: "Step", detail: "Started" };
-    case "step_finish":
-      return {
-        title: "Step",
-        detail: event.reason ? `Finished — ${event.reason}` : "Finished",
-      };
-    case "tool": {
-      const state =
-        event.status === "running"
-          ? "Running"
-          : event.status === "completed"
-            ? "Completed"
-            : "Error";
-      const name = [event.tool, event.title].filter(Boolean).join(" · ");
-      return {
-        title: `Tool ${state}`,
-        detail: event.error ? `${name} — ${event.error}` : name,
-      };
-    }
-    case "patch": {
-      const preview = event.files.slice(0, 3).join(", ");
-      const more = event.fileCount > 3 ? ` · +${event.fileCount - 3} more` : "";
-      return {
-        title: "Patch",
-        detail: `${event.fileCount} file(s)${preview ? `: ${preview}` : ""}${more}`,
-      };
-    }
-    case "compaction":
-      return {
-        title: "Compaction",
-        detail: event.auto ? "auto" : "manual",
-      };
-    case "subtask":
-      return {
-        title: "Subtask",
-        detail: `${event.agent} — ${event.description}`,
-      };
-    case "todo_updated":
-      return {
-        title: "Agent todo list",
-        detail: `${event.todoCount} item(s) · ${event.summary}`,
-      };
-    case "error":
-      return { title: "Error", detail: event.message };
-    default: {
-      const _exhaustive: never = event;
-      return { title: "Event", detail: String(_exhaustive) };
-    }
-  }
-}
-
-type TodoEventIcon = typeof Circle;
-
-function getTodoEventMeta(event: TodoEventDoc["event"]): {
-  icon: TodoEventIcon;
-  chipClass: string;
-  iconClass: string;
-  kindLabel: string;
-} {
-  switch (event.kind) {
-    case "session_status": {
-      if (event.statusType === "busy") {
-        return {
-          icon: Signal,
-          chipClass: "border-col-inprogress/25 bg-col-inprogress/5",
-          iconClass: "text-col-inprogress",
-          kindLabel: "Session",
-        };
-      }
-      if (event.statusType === "retry") {
-        return {
-          icon: Signal,
-          chipClass: "border-col-todo/30 bg-col-todo/5",
-          iconClass: "text-col-todo",
-          kindLabel: "Session retry",
-        };
-      }
-      return {
-        icon: Signal,
-        chipClass: "border-border/30 bg-muted/20",
-        iconClass: "text-muted-foreground/80",
-        kindLabel: "Session",
-      };
-    }
-    case "session_compacted":
-      return {
-        icon: Archive,
-        chipClass: "border-border/30 bg-muted/20",
-        iconClass: "text-muted-foreground/85",
-        kindLabel: "Session compacted",
-      };
-    case "step_start":
-      return {
-        icon: PlayCircle,
-        chipClass: "border-col-inprogress/25 bg-col-inprogress/5",
-        iconClass: "text-col-inprogress",
-        kindLabel: "Step",
-      };
-    case "step_finish":
-      return {
-        icon: CheckCircle2,
-        chipClass: "border-col-completed/25 bg-col-completed/5",
-        iconClass: "text-col-completed",
-        kindLabel: "Step",
-      };
-    case "tool": {
-      if (event.status === "error") {
-        return {
-          icon: Wrench,
-          chipClass: "border-col-failed/30 bg-col-failed/8",
-          iconClass: "text-col-failed",
-          kindLabel: "Tool",
-        };
-      }
-      if (event.status === "running") {
-        return {
-          icon: Wrench,
-          chipClass: "border-col-inprogress/25 bg-col-inprogress/5",
-          iconClass: "text-col-inprogress",
-          kindLabel: "Tool",
-        };
-      }
-      return {
-        icon: Wrench,
-        chipClass: "border-col-completed/25 bg-col-completed/5",
-        iconClass: "text-col-completed",
-        kindLabel: "Tool",
-      };
-    }
-    case "patch":
-      return {
-        icon: FileDiff,
-        chipClass: "border-col-completed/20 bg-col-completed/5",
-        iconClass: "text-col-completed",
-        kindLabel: "Patch",
-      };
-    case "compaction":
-      return {
-        icon: Minimize2,
-        chipClass: "border-border/30 bg-muted/20",
-        iconClass: "text-muted-foreground/85",
-        kindLabel: "Compaction",
-      };
-    case "subtask":
-      return {
-        icon: GitBranch,
-        chipClass: "border-col-agent/25 bg-col-agent/6",
-        iconClass: "text-col-agent",
-        kindLabel: "Subtask",
-      };
-    case "todo_updated":
-      return {
-        icon: ListChecks,
-        chipClass: "border-col-agent/25 bg-col-agent/6",
-        iconClass: "text-col-agent",
-        kindLabel: "Agent todo list",
-      };
-    case "error":
-      return {
-        icon: XCircle,
-        chipClass: "border-col-failed/30 bg-col-failed/8",
-        iconClass: "text-col-failed",
-        kindLabel: "Error",
-      };
-  }
-}
-
-function LinkChannel({
-  codename,
-  channel,
-  url,
-  icon: Icon,
-}: {
-  codename: string;
-  channel: string;
-  url: string;
-  icon: typeof GitBranch;
-}) {
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="group relative flex items-center gap-4 border-l-2 border-border/30 bg-background/30 px-4 py-3 transition-all hover:border-primary/60 hover:bg-background/60"
-    >
-      <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border/30 bg-muted/30 text-muted-foreground transition-colors group-hover:border-primary/40 group-hover:text-primary">
-        <Icon className="h-4 w-4" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 font-mono text-[9px] uppercase tracking-[0.24em] text-muted-foreground/60">
-          <span>{codename}</span>
-          <span className="text-muted-foreground/30">{"//"}</span>
-          <span className="text-muted-foreground/80">{channel}</span>
-        </div>
-        <p className="mt-0.5 truncate font-mono text-[11px] text-foreground/85">
-          {url.replace(/^https?:\/\//, "")}
-        </p>
-      </div>
-      <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
-    </a>
-  );
-}
-
-const TransmissionLog = memo(function TransmissionLog({
-  events,
-  listRef,
-  onScroll,
-}: {
-  events: TodoEventDoc[];
-  listRef: RefObject<HTMLUListElement | null>;
-  onScroll: () => void;
-}) {
-  return (
-    <ul
-      ref={listRef}
-      onScroll={onScroll}
-      className="mt-5 max-h-80 space-y-2 overflow-y-auto overscroll-contain pr-1 font-mono text-[11px]"
-      aria-label="OpenCode event stream (recent)"
-    >
-      {events.map((row) => {
-        const { title, detail } = describeTodoEventLine(row.event);
-        const isErr = row.event.kind === "error";
-        const isToolErr =
-          row.event.kind === "tool" && row.event.status === "error";
-        const {
-          icon: EventIcon,
-          chipClass,
-          iconClass,
-          kindLabel,
-        } = getTodoEventMeta(row.event);
-        return (
-          <li
-            key={row._id}
-            className="transmission-log-row flex items-start gap-2.5 rounded-md border border-border/25 bg-background/20 px-2.5 py-2"
-          >
-            <div
-              className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border ${chipClass}`}
-              title={kindLabel}
-            >
-              <EventIcon
-                className={`h-3.5 w-3.5 stroke-[1.8] ${iconClass}`}
-                aria-hidden
-              />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                <span
-                  className={
-                    isErr || isToolErr ? "text-col-failed" : "text-foreground/90"
-                  }
-                >
-                  {title}
-                </span>
-                <time
-                  className="shrink-0 text-[9px] uppercase tracking-[0.2em] text-muted-foreground/50"
-                  dateTime={new Date(row._creationTime).toISOString()}
-                >
-                  {formatAbsoluteTimestamp(row._creationTime)}
-                </time>
-              </div>
-              <p
-                className={`mt-0.5 break-words text-[10px] leading-relaxed ${
-                  isErr
-                    ? "text-col-failed/90"
-                    : isToolErr
-                      ? "text-col-failed/80"
-                      : "text-muted-foreground/75"
-                }`}
-              >
-                {detail}
-              </p>
-            </div>
-          </li>
-        );
-      })}
-    </ul>
-  );
-});
+import { LinkChannel } from "@/components/todo-detail/link-channel";
+import { RadarWidget } from "@/components/todo-detail/radar-widget";
+import {
+  formatAbsoluteTimestamp,
+  STATUS_META,
+  TITLE_DIVIDER_TICKS,
+  type DossierStyle,
+} from "@/components/todo-detail/todo-detail-constants";
+import { TransmissionLog } from "@/components/todo-detail/transmission-log";
 
 export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -574,7 +135,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
       <div className="ambient-bg" />
       {/* Status-tinted glow behind the dossier */}
       <div
-        className="pointer-events-none fixed inset-x-0 top-16 z-0 h-[420px]"
+        className="pointer-events-none fixed inset-x-0 z-0 h-[420px]"
         style={{
           background: `radial-gradient(ellipse 60% 70% at 50% 0%, ${status.accentGlow} 0%, transparent 70%)`,
         }}
@@ -604,9 +165,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
         </div>
 
         {/* Main dossier */}
-        <section
-          className="dossier-corners relative overflow-hidden rounded-2xl border border-border/40 bg-card"
-        >
+        <section className="dossier-corners relative overflow-hidden rounded-2xl border border-border/40 bg-card">
           <span className="corner-tl" aria-hidden />
           <span className="corner-tr" aria-hidden />
 
@@ -853,9 +412,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
         </section>
 
         {/* Footer readout */}
-        <footer
-          className="flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/60"
-        >
+        <footer className="flex flex-wrap items-center justify-between gap-3 font-mono text-[10px] uppercase tracking-[0.22em] text-muted-foreground/60">
           <div className="flex items-center gap-2">
             <span className="h-2 w-2 rounded-full bg-col-completed" />
             <span>system nominal</span>
