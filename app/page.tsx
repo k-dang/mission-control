@@ -31,7 +31,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { TaskDetailPanel } from "@/components/kanban/task-detail-panel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -492,6 +497,9 @@ export default function Home() {
           <SheetTitle className="sr-only">
             {resolvedTodo?.title ?? "Task details"}
           </SheetTitle>
+          <SheetDescription className="sr-only">
+            View and edit task details, status, and activity.
+          </SheetDescription>
           {resolvedTodo && !isSelectedSandboxLoading && (
             <TaskDetailPanel
               key={resolvedTodo._id}
