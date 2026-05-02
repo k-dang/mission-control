@@ -65,6 +65,7 @@ const COLUMN_CONFIG: Record<
 };
 
 export function KanbanColumn({
+  id,
   status,
   todos,
   draggable,
@@ -79,6 +80,7 @@ export function KanbanColumn({
   isLoadingMore,
   onLoadMore,
 }: {
+  id?: string;
   status: Doc<"todos">["status"];
   todos: Doc<"todos">[];
   draggable: boolean;
@@ -99,6 +101,7 @@ export function KanbanColumn({
 
   return (
     <section
+      id={id}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}

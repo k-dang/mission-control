@@ -66,7 +66,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     return (
       <main className="grain-overlay relative min-h-screen">
         <div className="ambient-bg" />
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-6 md:p-10">
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-6 pt-16 md:p-10">
           <div className="h-9 w-40 animate-pulse rounded-md bg-muted/30" />
           <div className="h-10 w-full animate-pulse rounded bg-muted/20" />
           <div className="rounded-3xl border border-border/30 bg-card/30 p-10">
@@ -94,7 +94,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     return (
       <main className="grain-overlay relative min-h-screen">
         <div className="ambient-bg" />
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 p-6 md:p-10">
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-8 p-6 pt-16 md:p-10">
           <Link
             href="/"
             className="flex w-fit items-center gap-2 font-mono text-[11px] uppercase tracking-[0.22em] text-muted-foreground hover:text-foreground transition-colors"
@@ -143,7 +143,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
       />
 
       <div
-        className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-6 md:p-10"
+        className="relative z-10 mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-6 p-6 pt-16 md:p-10"
         style={dossierStyle}
       >
         {/* Top row: back + dossier tag */}

@@ -204,7 +204,7 @@ export default function Home() {
     return (
       <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
         <div className="ambient-bg" />
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 pt-16 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 animate-pulse rounded-lg bg-muted/40" />
@@ -247,7 +247,7 @@ export default function Home() {
     return (
       <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
         <div className="ambient-bg" />
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 pt-16 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
           {/* Skeleton header */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -287,7 +287,7 @@ export default function Home() {
   return (
     <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
       <div className="ambient-bg" />
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 pt-16 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
         <header className="space-y-3">
           <div className="flex items-center justify-between">
             {/* Stat pills */}
@@ -442,6 +442,7 @@ export default function Home() {
 
         <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-3 md:overflow-hidden">
           <KanbanColumn
+            id="todo"
             status="TODO"
             todos={todos.todo}
             draggable
@@ -453,6 +454,7 @@ export default function Home() {
             onLoadMore={() => todoPage.loadMore(KANBAN_PAGE_SIZE)}
           />
           <KanbanColumn
+            id="inprogress"
             status="INPROGRESS"
             todos={todos.inprogress}
             draggable={false}
@@ -470,6 +472,7 @@ export default function Home() {
             onLoadMore={() => inprogressPage.loadMore(KANBAN_PAGE_SIZE)}
           />
           <KanbanColumn
+            id="completed"
             status="COMPLETED"
             todos={todos.completed}
             draggable={false}
