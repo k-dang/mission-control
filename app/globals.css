@@ -136,26 +136,21 @@
     radial-gradient(ellipse 60% 40% at 80% 100%, oklch(0.18 0.02 55 / 20%) 0%, transparent 60%);
 }
 
-/* Todo cards avoid backdrop blur and per-item animation so column scroll stays cheap. */
+/* Todo cards: paint isolation only — no content-visibility (variable card heights
+   cause layout shifts on scroll). No hover transition (paint change still happens
+   on hover; the transition just adds work as cards move under the cursor). */
 .todo-card {
   background: oklch(1 0 0 / 4%);
   border: 1px solid oklch(1 0 0 / 8%);
   contain: layout paint style;
-  content-visibility: auto;
-  contain-intrinsic-size: 88px;
-  transition: border-color 0.15s, background 0.15s;
 }
 .todo-card:hover {
   background: oklch(1 0 0 / 6%);
   border-color: oklch(1 0 0 / 15%);
-  transform: none;
-  box-shadow: none;
 }
 
 .transmission-log-row {
   contain: layout paint style;
-  content-visibility: auto;
-  contain-intrinsic-size: 56px;
 }
 
 /* Column accent borders */

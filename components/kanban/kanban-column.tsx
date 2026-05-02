@@ -103,7 +103,7 @@ export function KanbanColumn({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={cn(
-        "rounded-xl border border-border/50 bg-card/40 p-4 transition-all duration-200 md:flex md:min-h-0 md:flex-col md:overflow-hidden",
+        "rounded-xl border border-border/50 bg-card/40 p-4 transition-[border-color,box-shadow] duration-200 md:flex md:min-h-0 md:flex-col md:overflow-hidden",
         config.accentClass,
         isDropTarget && (status === "INPROGRESS" ? "drop-glow-inprogress border-col-inprogress/30" : "drop-glow border-primary/30"),
       )}
