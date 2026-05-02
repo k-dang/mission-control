@@ -118,7 +118,7 @@ function SidebarContent() {
 export function AppSidebar() {
   return (
     <>
-      <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-border/40 bg-background/80 backdrop-blur-2xl md:block">
+      <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-border/40 bg-background/95 md:block">
         <SidebarContent />
       </aside>
 
@@ -128,7 +128,7 @@ export function AppSidebar() {
             <Button
               variant="outline"
               size="icon"
-              className="h-9 w-9 border-border/50 bg-background/80 backdrop-blur-xl"
+              className="h-9 w-9 border-border/50 bg-background/95"
               aria-label="Open navigation"
             >
               <Menu className="h-4 w-4" />

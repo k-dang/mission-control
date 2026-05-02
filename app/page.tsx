@@ -287,7 +287,7 @@ export default function Home() {
   return (
     <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
       <div className="ambient-bg" />
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 pt-16 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full flex-col gap-8 p-6 pt-16 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
         <header className="space-y-3">
           <div className="flex items-center justify-between">
             {/* Stat pills */}

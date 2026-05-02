@@ -114,7 +114,7 @@
 
 /* Film grain texture overlay */
 .grain-overlay::before {
-  content: "";
+  content: none;
   position: fixed;
   inset: 0;
   z-index: 1;
@@ -195,16 +195,7 @@
   height: 8px;
   border-radius: 50%;
   background: oklch(0.72 0.19 155);
-  animation: beacon-pulse 3s ease-in-out infinite;
-}
-
-@keyframes beacon-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 oklch(0.72 0.19 155 / 50%);
-  }
-  50% {
-    box-shadow: 0 0 0 6px oklch(0.72 0.19 155 / 0%);
-  }
+  box-shadow: 0 0 8px oklch(0.72 0.19 155 / 35%);
 }
 
 /* Future agent working state */
