@@ -4,7 +4,7 @@ import { shadcn } from "@clerk/ui/themes";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import ConvexClientProvider from "@/components/ConvexClientProvider";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppShell } from "@/components/app-shell";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,10 +45,7 @@ export default function RootLayout({
       >
         <ClerkProvider appearance={{ theme: shadcn }}>
           <ConvexClientProvider>
-            <div className="flex min-h-screen">
-              <AppSidebar />
-              <div className="min-w-0 flex-1">{children}</div>
-            </div>
+            <AppShell>{children}</AppShell>
           </ConvexClientProvider>
         </ClerkProvider>
       </body>
