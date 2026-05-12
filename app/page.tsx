@@ -52,6 +52,7 @@ const STAT_COLORS = {
   todo: "oklch(0.75 0.15 55)",
   inprogress: "oklch(0.65 0.17 250)",
   completed: "oklch(0.68 0.14 155)",
+  failed: "oklch(0.62 0.2 25)",
 };
 
 const KANBAN_PAGE_SIZE = 25;
@@ -71,6 +72,11 @@ export default function Home() {
   const completedPage = usePaginatedQuery(
     api.todos.listByStatusPage,
     isAuthenticated ? { status: "COMPLETED" } : "skip",
+    { initialNumItems: KANBAN_PAGE_SIZE },
+  );
+  const failedPage = usePaginatedQuery(
+    api.todos.listByStatusPage,
+    isAuthenticated ? { status: "FAILED" } : "skip",
     { initialNumItems: KANBAN_PAGE_SIZE },
   );
   const createTodo = useMutation(api.todos.create);
@@ -183,17 +189,19 @@ export default function Home() {
     todo: todoPage.results,
     inprogress: inprogressPage.results,
     completed: completedPage.results,
+    failed: failedPage.results,
   };
 
   const selectedLoadedTodo =
-    [...todos.todo, ...todos.inprogress, ...todos.completed].find(
+    [...todos.todo, ...todos.inprogress, ...todos.completed, ...todos.failed].find(
       (t) => t._id === selectedTodoId,
     ) ?? null;
   const resolvedTodo = selectedTodo ?? selectedLoadedTodo;
   const isBoardLoading =
     todoPage.status === "LoadingFirstPage" ||
     inprogressPage.status === "LoadingFirstPage" ||
-    completedPage.status === "LoadingFirstPage";
+    completedPage.status === "LoadingFirstPage" ||
+    failedPage.status === "LoadingFirstPage";
 
   // Auto-close sheet if the selected todo was deleted
   const sheetOpen = selectedTodoId !== null && resolvedTodo !== null;
@@ -212,8 +220,8 @@ export default function Home() {
             </div>
             <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
           </div>
-          <div className="grid gap-5 md:grid-cols-3">
-            {[0, 1, 2].map((col) => (
+          <div className="grid gap-5 md:grid-cols-4">
+            {[0, 1, 2, 3].map((col) => (
               <div
                 key={col}
                 className="rounded-xl border border-border/30 bg-card/20 p-4"
@@ -257,8 +265,8 @@ export default function Home() {
             <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
           </div>
           {/* Skeleton columns */}
-          <div className="grid gap-5 md:grid-cols-3">
-            {[0, 1, 2].map((col) => (
+          <div className="grid gap-5 md:grid-cols-4">
+            {[0, 1, 2, 3].map((col) => (
               <div
                 key={col}
                 className="rounded-xl border border-border/30 bg-card/20 p-4"
@@ -317,6 +325,15 @@ export default function Home() {
                 />
                 <span className="font-mono text-[10px] font-semibold text-muted-foreground">
                   {todos.completed.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ background: STAT_COLORS.failed }}
+                />
+                <span className="font-mono text-[10px] font-semibold text-muted-foreground">
+                  {todos.failed.length}
                 </span>
               </div>
             </div>
@@ -440,7 +457,7 @@ export default function Home() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-3 md:overflow-hidden">
+        <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-4 md:overflow-hidden">
           <KanbanColumn
             id="todo"
             status="TODO"
@@ -481,6 +498,17 @@ export default function Home() {
             canLoadMore={completedPage.status === "CanLoadMore"}
             isLoadingMore={completedPage.status === "LoadingMore"}
             onLoadMore={() => completedPage.loadMore(KANBAN_PAGE_SIZE)}
+          />
+          <KanbanColumn
+            id="failed"
+            status="FAILED"
+            todos={todos.failed}
+            draggable={false}
+            onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
+            canLoadMore={failedPage.status === "CanLoadMore"}
+            isLoadingMore={failedPage.status === "LoadingMore"}
+            onLoadMore={() => failedPage.loadMore(KANBAN_PAGE_SIZE)}
           />
         </section>
       </div>
