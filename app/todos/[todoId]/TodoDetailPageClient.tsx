@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef } from "react";
-import { useConvexAuth, useQuery } from "convex/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { Button } from "@/components/ui/button";
 import { formatRelativeTime } from "@/lib/utils";
 import {
   ArrowLeft,
   GitBranch,
   GitPullRequest,
+  LoaderCircle,
+  Play,
   Signal,
   Wrench,
 } from "lucide-react";
@@ -30,10 +33,13 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     api.todoEvents.listRecentForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
+  const updateTodo = useMutation(api.todos.update);
   const toolCallCount = useQuery(
     api.opencodeToolCallCounts.getForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
+  const [isStarting, setIsStarting] = useState(false);
+  const [startError, setStartError] = useState<string | null>(null);
 
   const orderedEvents = useMemo(() => {
     if (todoEvents === undefined) return [];
@@ -61,6 +67,34 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
     stickToTransmissionEndRef.current = nearBottom;
   }, []);
+
+  const handleStartTodo = async () => {
+    if (isStarting) return;
+
+    setIsStarting(true);
+    setStartError(null);
+
+    try {
+      await updateTodo({ todoId, status: "INPROGRESS" });
+    } catch (error) {
+      setStartError(
+        error instanceof Error ? error.message : "Could not start todo.",
+      );
+    } finally {
+      setIsStarting(false);
+    }
+  };
+
+  const startButtonContent = (
+    <>
+      {isStarting ? (
+        <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+      ) : (
+        <Play className="h-3.5 w-3.5" />
+      )}
+      Start
+    </>
+  );
 
   if (isLoading) {
     return (
@@ -135,7 +169,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
       <div className="ambient-bg" />
       {/* Status-tinted glow behind the dossier */}
       <div
-        className="pointer-events-none fixed inset-x-0 z-0 h-[420px]"
+        className="pointer-events-none fixed inset-x-0 z-0 h-105"
         style={{
           background: `radial-gradient(ellipse 60% 70% at 50% 0%, ${status.accentGlow} 0%, transparent 70%)`,
         }}
@@ -205,16 +239,18 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
                   </span>
                 </div>
 
-                <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground/60">
-                  <span style={{ color: status.accent }}>{"//"}</span> title
-                </p>
-                <h1 className="mt-2 max-w-3xl text-balance text-[32px] font-semibold leading-[1.08] tracking-tight text-foreground md:text-[44px]">
-                  {todo.title}
-                </h1>
+                <div className="mt-6">
+                  <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-muted-foreground/60">
+                    <span style={{ color: status.accent }}>{"//"}</span> title
+                  </p>
+                  <h1 className="mt-2 max-w-3xl text-balance text-[32px] font-semibold leading-[1.08] tracking-tight text-foreground md:text-[44px]">
+                    {todo.title}
+                  </h1>
+                </div>
 
                 {/* Tick-mark divider */}
                 <div
-                  className="mt-6 flex h-3 items-center gap-[3px]"
+                  className="mt-6 flex h-3 items-center gap-0.75"
                   aria-hidden
                 >
                   {TITLE_DIVIDER_TICKS.map((tick, i) => (
@@ -323,6 +359,32 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
                     {todo.status}
                   </dd>
                 </div>
+                {todo.status === "TODO" ? (
+                  <>
+                    <div className="h-px bg-border/30" />
+                    <div>
+                      <dt className="text-[9px] uppercase tracking-[0.24em] text-muted-foreground/50">
+                        action
+                      </dt>
+                      <dd className="mt-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleStartTodo}
+                          disabled={isStarting}
+                          className="w-full border border-col-inprogress/30 bg-col-inprogress/15 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-col-inprogress hover:bg-col-inprogress/20"
+                        >
+                          {startButtonContent}
+                        </Button>
+                        {startError ? (
+                          <p className="mt-2 font-mono text-[10px] leading-4 text-destructive">
+                            {startError}
+                          </p>
+                        ) : null}
+                      </dd>
+                    </div>
+                  </>
+                ) : null}
               </dl>
             </aside>
           </div>

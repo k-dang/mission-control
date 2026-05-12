@@ -19,9 +19,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mission Control",
   description: "AI-powered task orchestration system",
-  icons: {
-    icon: "/convex.svg",
-  },
 };
 
 export default function RootLayout({
