@@ -36,7 +36,10 @@ function describeTodoEventLine(event: TodoEventDoc["event"]) {
     case "session_compacted":
       return { title: "Session", detail: "Compacted" };
     case "step_start":
-      return { title: "Step", detail: "Started" };
+      return {
+        title: "Step",
+        detail: ["Started", event.agent, event.model].filter(Boolean).join(" · "),
+      };
     case "step_finish":
       return {
         title: "Step",
@@ -66,7 +69,9 @@ function describeTodoEventLine(event: TodoEventDoc["event"]) {
     case "compaction":
       return {
         title: "Compaction",
-        detail: event.auto ? "auto" : "manual",
+        detail: [event.auto ? "auto" : "manual", event.summary]
+          .filter(Boolean)
+          .join(" · "),
       };
     case "subtask":
       return {

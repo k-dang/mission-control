@@ -4,16 +4,15 @@ import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import type { Sandbox } from "@vercel/sandbox";
 import type { Id } from "../_generated/dataModel";
 import {
-  buildTodoPrompt,
   DEFAULT_VERCEL_MODEL,
   DEFAULT_VERCEL_SMALL_MODEL,
-  getOpencodeErrorMessage,
   OPENCODE_BIN,
   OPENCODE_CONFIG_PATH,
   OPENCODE_PORT,
   OPENCODE_PROVIDER_ID,
-  waitForOpencodeHealth,
-} from "./opencodeHelpers";
+  OPENCODE_VERSION,
+} from "./opencodeConfig";
+import { waitForOpencodeHealth } from "./opencodeHealth";
 
 function readAiGatewayApiKey(): string {
   const key = process.env.AI_GATEWAY_API_KEY?.trim();
@@ -28,7 +27,10 @@ function readAiGatewayApiKey(): string {
 export async function installOpencode(sandbox: Sandbox) {
   const install = await sandbox.runCommand({
     cmd: "bash",
-    args: ["-c", "curl -fsSL https://opencode.ai/install | bash"],
+    args: [
+      "-c",
+      `curl -fsSL https://opencode.ai/install | bash -s -- --version ${OPENCODE_VERSION}`,
+    ],
   });
   if (install.exitCode !== 0) {
     const installOut = (await install.output()).toString().trim();
@@ -41,6 +43,33 @@ export async function installOpencode(sandbox: Sandbox) {
   const versionText = (await version.output()).toString().trim();
   console.log("OpenCode version:", versionText);
   return versionText;
+}
+
+function buildTodoPrompt(
+  title: string,
+  description?: string,
+  githubUrl?: string,
+) {
+  const lines = ["Task:", title.trim()];
+
+  const trimmedDescription = description?.trim();
+  if (trimmedDescription) {
+    lines.push("", "Additional context:", trimmedDescription);
+  }
+
+  if (githubUrl?.trim()) {
+    lines.push("", "Repository:", githubUrl.trim());
+  }
+
+  lines.push(
+    "",
+    "Expected workflow:",
+    "1. Understand the codebase before editing.",
+    "2. Make the code changes needed to complete the task.",
+    "3. Run the most relevant validation for the files you change.",
+  );
+
+  return lines.join("\n");
 }
 
 async function writeOpencodeConfig(sandbox: Sandbox) {
@@ -72,7 +101,7 @@ async function writeOpencodeConfig(sandbox: Sandbox) {
   ]);
 }
 
-export async function startOpencodeServer(sandbox: Sandbox) {
+async function startOpencodeServer(sandbox: Sandbox) {
   await sandbox.runCommand({
     cmd: OPENCODE_BIN,
     args: ["serve", "--hostname", "0.0.0.0", "--port", `${OPENCODE_PORT}`],
@@ -109,7 +138,7 @@ export async function setupOpencodeForTodo(
   });
   if (session.error || !session.data) {
     throw new Error(
-      `Failed to create OpenCode session: ${getOpencodeErrorMessage(session.error)}`,
+      `Failed to create OpenCode session: ${session.error?.data.message ?? "missing session data"}`,
     );
   }
 
@@ -139,7 +168,7 @@ export async function setupOpencodeForTodo(
   });
   if (prompt.error) {
     throw new Error(
-      `Failed to submit OpenCode prompt: ${getOpencodeErrorMessage(prompt.error)}`,
+      `Failed to submit OpenCode prompt: ${prompt.error.data.message}`,
     );
   }
 

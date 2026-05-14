@@ -1,10 +1,6 @@
 import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  buildPullRequestMetadataPrompt,
-  generatePullRequestMetadataFromDiff,
-  normalizePullRequestMetadata,
-} from "./pullRequest";
+import { generatePullRequestMetadataFromDiff } from "./pullRequest";
 
 const opencodeMocks = vi.hoisted(() => {
   const prompt = vi.fn();
@@ -18,7 +14,9 @@ vi.mock("@opencode-ai/sdk/v2", () => ({
   createOpencodeClient: opencodeMocks.createOpencodeClient,
 }));
 
-type PullRequestContext = Parameters<typeof buildPullRequestMetadataPrompt>[0];
+type PullRequestContext = Parameters<
+  typeof generatePullRequestMetadataFromDiff
+>[0];
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -43,68 +41,22 @@ function createContext(
   };
 }
 
-describe("normalizePullRequestMetadata", () => {
-  it("trims valid title and body strings", () => {
-    expect(
-      normalizePullRequestMetadata({
-        body: "  ## Summary\n- Adds tests  ",
-        title: "  Add tests  ",
-      }),
-    ).toEqual({
-      body: "## Summary\n- Adds tests",
-      title: "Add tests",
-    });
-  });
-
-  it("returns null for missing or empty fields", () => {
-    expect(normalizePullRequestMetadata(null)).toBeNull();
-    expect(normalizePullRequestMetadata({ title: "Add tests" })).toBeNull();
-    expect(
-      normalizePullRequestMetadata({ body: "## Summary\n- Adds tests", title: " " }),
-    ).toBeNull();
-  });
-});
-
-describe("buildPullRequestMetadataPrompt", () => {
-  it("includes task context and staged diff details", () => {
-    expect(buildPullRequestMetadataPrompt(createContext())).toContain(
-      "Original task title: Add pull request tests\nOriginal task description: Add tests for PR metadata",
-    );
-    expect(buildPullRequestMetadataPrompt(createContext())).toContain(
-      "Staged diff stat:\nfoo.ts | 1 +",
-    );
-    expect(buildPullRequestMetadataPrompt(createContext())).toContain(
-      "Staged diff patch:\ndiff --git a/foo.ts b/foo.ts",
-    );
-  });
-
-  it("truncates large staged diff patches", () => {
-    const prompt = buildPullRequestMetadataPrompt(
-      createContext({
-        staged: {
-          diffPatch: "x".repeat(12_005),
-          diffStat: "large.ts | 12005 +",
+function mockStructuredMetadata() {
+  opencodeMocks.prompt.mockResolvedValue({
+    data: {
+      info: {
+        structured: {
+          body: "  ## Summary\n- Adds PR metadata tests  ",
+          title: "  Add PR metadata tests  ",
         },
-      }),
-    );
-
-    expect(prompt).toContain("x".repeat(12_000));
-    expect(prompt).toContain("[truncated 5 characters]");
+      },
+    },
   });
-});
+}
 
 describe("generatePullRequestMetadataFromDiff", () => {
   it("returns normalized structured metadata from OpenCode", async () => {
-    opencodeMocks.prompt.mockResolvedValue({
-      data: {
-        info: {
-          structured: {
-            body: "  ## Summary\n- Adds PR metadata tests  ",
-            title: "  Add PR metadata tests  ",
-          },
-        },
-      },
-    });
+    mockStructuredMetadata();
 
     await expect(
       generatePullRequestMetadataFromDiff(createContext(), {
@@ -126,6 +78,47 @@ describe("generatePullRequestMetadataFromDiff", () => {
         sessionID: "session_123",
       }),
     );
+  });
+
+  it("sends task context and staged diff details to OpenCode", async () => {
+    mockStructuredMetadata();
+
+    await generatePullRequestMetadataFromDiff(createContext(), {
+      model: { modelID: "gpt-5.5", providerID: "openai" },
+      opencodeSessionId: "session_123",
+      opencodeUrl: "http://localhost:4096",
+    });
+
+    const promptText = opencodeMocks.prompt.mock.calls[0][0].parts[0].text;
+    expect(promptText).toContain(
+      "Original task title: Add pull request tests\nOriginal task description: Add tests for PR metadata",
+    );
+    expect(promptText).toContain("Staged diff stat:\nfoo.ts | 1 +");
+    expect(promptText).toContain(
+      "Staged diff patch:\ndiff --git a/foo.ts b/foo.ts",
+    );
+  });
+
+  it("truncates large staged diff patches in the OpenCode prompt", async () => {
+    mockStructuredMetadata();
+
+    await generatePullRequestMetadataFromDiff(
+      createContext({
+        staged: {
+          diffPatch: "x".repeat(12_005),
+          diffStat: "large.ts | 12005 +",
+        },
+      }),
+      {
+        model: { modelID: "gpt-5.5", providerID: "openai" },
+        opencodeSessionId: "session_123",
+        opencodeUrl: "http://localhost:4096",
+      },
+    );
+
+    const promptText = opencodeMocks.prompt.mock.calls[0][0].parts[0].text;
+    expect(promptText).toContain("x".repeat(12_000));
+    expect(promptText).toContain("[truncated 5 characters]");
   });
 
   it("throws when OpenCode returns invalid structured metadata", async () => {

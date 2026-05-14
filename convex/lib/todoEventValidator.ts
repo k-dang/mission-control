@@ -5,7 +5,7 @@ import { type Infer, v } from "convex/values";
  * that we persist per-todo so the UI can stream them reactively.
  *
  * Shared between `schema.ts` (stored shape), `todoEvents.ts` (function args),
- * and `lib/opencodeHelpers.ts` (producer) so the shapes stay in lockstep.
+ * and `lib/opencodeEventProjector.ts` (producer) so the shapes stay in lockstep.
  */
 export const todoEventPayloadValidator = v.union(
   v.object({
@@ -21,6 +21,8 @@ export const todoEventPayloadValidator = v.union(
   v.object({
     kind: v.literal("step_start"),
     messageId: v.string(),
+    agent: v.optional(v.string()),
+    model: v.optional(v.string()),
   }),
   v.object({
     kind: v.literal("step_finish"),
@@ -46,6 +48,7 @@ export const todoEventPayloadValidator = v.union(
   v.object({
     kind: v.literal("compaction"),
     auto: v.boolean(),
+    summary: v.optional(v.string()),
   }),
   v.object({
     kind: v.literal("subtask"),

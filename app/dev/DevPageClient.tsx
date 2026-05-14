@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { useAction } from "convex/react";
 import Link from "next/link";
-import { CheckCircle, XCircle, Loader2, ArrowLeft, GitPullRequest } from "lucide-react";
+import {
+  CheckCircle,
+  XCircle,
+  Loader2,
+  ArrowLeft,
+  GitPullRequest,
+  Terminal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { api } from "../../convex/_generated/api";
 
@@ -22,13 +29,27 @@ type PrResult = {
   error: string | null;
 };
 
+type OpencodeInstallResult = {
+  ok: boolean;
+  expectedVersion: string;
+  installedVersion: string | null;
+  sandboxId: string | null;
+  error: string | null;
+};
+
 export default function DevPageClient() {
   const checkGithubToken = useAction(api.devTools.checkGithubToken);
   const createTestPr = useAction(api.devTools.createMissionControlTestPullRequest);
+  const checkOpencodeInstall = useAction(
+    api.devTools.checkOpencodeInstall,
+  );
   const [result, setResult] = useState<CheckResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [prResult, setPrResult] = useState<PrResult | null>(null);
   const [prLoading, setPrLoading] = useState(false);
+  const [opencodeResult, setOpencodeResult] =
+    useState<OpencodeInstallResult | null>(null);
+  const [opencodeLoading, setOpencodeLoading] = useState(false);
 
   const handleCheck = async () => {
     setLoading(true);
@@ -49,6 +70,17 @@ export default function DevPageClient() {
       setPrResult(res);
     } finally {
       setPrLoading(false);
+    }
+  };
+
+  const handleCheckOpencodeInstall = async () => {
+    setOpencodeLoading(true);
+    setOpencodeResult(null);
+    try {
+      const res = await checkOpencodeInstall({});
+      setOpencodeResult(res);
+    } finally {
+      setOpencodeLoading(false);
     }
   };
 
@@ -152,6 +184,58 @@ export default function DevPageClient() {
               </a>
             )}
             {prResult.error && <p className="pt-1 text-destructive">{prResult.error}</p>}
+          </div>
+        )}
+
+        <p className="pt-2 text-sm text-muted-foreground">
+          Starts a temporary Vercel sandbox, installs OpenCode, confirms the
+          binary runs, logs the installed version, then stops the sandbox.
+        </p>
+        <Button
+          onClick={handleCheckOpencodeInstall}
+          disabled={opencodeLoading}
+          variant="secondary"
+        >
+          {opencodeLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Terminal className="h-4 w-4" />
+          )}
+          {opencodeLoading ? "Checking OpenCode..." : "Check OpenCode install"}
+        </Button>
+
+        {opencodeResult !== null && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <Row
+              label="Install check"
+              ok={opencodeResult.ok}
+              value={opencodeResult.ok ? "Passed" : "Failed"}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Expected</span>
+              <span className="font-mono font-medium">
+                {opencodeResult.expectedVersion}
+              </span>
+            </div>
+            {opencodeResult.installedVersion && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Installed</span>
+                <span className="font-mono font-medium">
+                  {opencodeResult.installedVersion}
+                </span>
+              </div>
+            )}
+            {opencodeResult.sandboxId && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Sandbox</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {opencodeResult.sandboxId}
+                </span>
+              </div>
+            )}
+            {opencodeResult.error && (
+              <p className="pt-1 text-destructive">{opencodeResult.error}</p>
+            )}
           </div>
         )}
       </section>

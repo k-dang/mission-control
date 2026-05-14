@@ -4,7 +4,6 @@ import { createOpencodeClient, type OutputFormat } from "@opencode-ai/sdk/v2";
 import type { Sandbox } from "@vercel/sandbox";
 import { z } from "zod";
 import { createGitHubPullRequest, parseGithubRepoUrl } from "./github";
-import { getOpencodeErrorMessage } from "./opencodeHelpers";
 import { SANDBOX_REPO_PATH } from "./sandboxHelpers";
 
 const DEFAULT_PR_BASE_BRANCH = "main";
@@ -51,7 +50,7 @@ function buildFallbackPullRequestMetadata(
 }
 
 // This should be handled by the SDK as structured-output, but its not yet supported.
-export function normalizePullRequestMetadata(
+function normalizePullRequestMetadata(
   structured: unknown,
 ) {
   const metadata = pullRequestMetadataSchema.safeParse(structured);
@@ -203,7 +202,11 @@ export async function generatePullRequestMetadataFromDiff(
 
   const promptError = result.error ?? result.data?.info.error;
   if (promptError) {
-    throw new Error(getOpencodeErrorMessage(promptError));
+    throw new Error(
+      typeof promptError.data.message === "string"
+        ? promptError.data.message
+        : JSON.stringify(promptError.data),
+    );
   }
 
   const metadata = normalizePullRequestMetadata(result.data?.info.structured);
@@ -280,7 +283,7 @@ async function publishPullRequest(
   };
 }
 
-export function buildPullRequestMetadataPrompt(context: StagedPullRequestContext) {
+function buildPullRequestMetadataPrompt(context: StagedPullRequestContext) {
   const lines = [
     "Generate pull request metadata for the actual staged git changes below.",
     "Base the result on the staged diff, not just the original task text.",

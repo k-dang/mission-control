@@ -11,8 +11,11 @@
 import type * as authHelpers from "../authHelpers.js";
 import type * as devTools from "../devTools.js";
 import type * as lib_github from "../lib/github.js";
-import type * as lib_opencodeHelpers from "../lib/opencodeHelpers.js";
+import type * as lib_opencodeConfig from "../lib/opencodeConfig.js";
+import type * as lib_opencodeEventProjector from "../lib/opencodeEventProjector.js";
+import type * as lib_opencodeHealth from "../lib/opencodeHealth.js";
 import type * as lib_opencodeSandbox from "../lib/opencodeSandbox.js";
+import type * as lib_opencodeStreamMonitor from "../lib/opencodeStreamMonitor.js";
 import type * as lib_pullRequest from "../lib/pullRequest.js";
 import type * as lib_sandboxHelpers from "../lib/sandboxHelpers.js";
 import type * as lib_todoEventValidator from "../lib/todoEventValidator.js";
@@ -35,8 +38,11 @@ declare const fullApi: ApiFromModules<{
   authHelpers: typeof authHelpers;
   devTools: typeof devTools;
   "lib/github": typeof lib_github;
-  "lib/opencodeHelpers": typeof lib_opencodeHelpers;
+  "lib/opencodeConfig": typeof lib_opencodeConfig;
+  "lib/opencodeEventProjector": typeof lib_opencodeEventProjector;
+  "lib/opencodeHealth": typeof lib_opencodeHealth;
   "lib/opencodeSandbox": typeof lib_opencodeSandbox;
+  "lib/opencodeStreamMonitor": typeof lib_opencodeStreamMonitor;
   "lib/pullRequest": typeof lib_pullRequest;
   "lib/sandboxHelpers": typeof lib_sandboxHelpers;
   "lib/todoEventValidator": typeof lib_todoEventValidator;

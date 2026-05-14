@@ -1,12 +1,17 @@
 "use node";
 
 import { Buffer } from "node:buffer";
+import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { z } from "zod";
 import { action } from "./_generated/server";
+import { OPENCODE_VERSION } from "./lib/opencodeConfig";
+import { installOpencode } from "./lib/opencodeSandbox";
+import { requireSandboxAccessConfig } from "./lib/sandboxHelpers";
 
 const MISSION_CONTROL = { owner: "k-dang", repo: "mission-control" } as const;
-const DEV_TOOLS_DISABLED_ERROR = "Not found.";
+const DEV_TOOLS_DISABLED_ERROR =
+  "Dev tools are disabled. Set CONVEX_DEV_TOOLS=true in Convex env to enable them.";
 
 const githubBranchRefSchema = z.object({
   object: z.object({
@@ -39,7 +44,7 @@ const githubUserSchema = z.object({
 });
 
 function areDevToolsEnabled() {
-  return process.env.NODE_ENV !== "production";
+  return process.env.CONVEX_DEV_TOOLS === "true";
 }
 
 function githubHeaders(token: string) {
@@ -154,6 +159,92 @@ export const checkGithubToken = action({
         login: null,
         error: err instanceof Error ? err.message : String(err),
       };
+    }
+  },
+});
+
+export const checkOpencodeInstall = action({
+  args: {},
+  returns: v.object({
+    ok: v.boolean(),
+    expectedVersion: v.string(),
+    installedVersion: v.union(v.string(), v.null()),
+    sandboxId: v.union(v.string(), v.null()),
+    error: v.union(v.string(), v.null()),
+  }),
+  handler: async () => {
+    if (!areDevToolsEnabled()) {
+      console.warn("OpenCode install check skipped", {
+        error: DEV_TOOLS_DISABLED_ERROR,
+      });
+      return {
+        ok: false,
+        expectedVersion: OPENCODE_VERSION,
+        installedVersion: null,
+        sandboxId: null,
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
+    let sandbox: Sandbox | undefined;
+    try {
+      sandbox = await Sandbox.create({
+        ...requireSandboxAccessConfig(),
+        runtime: "node24",
+        timeout: 10 * 60 * 1000,
+      });
+
+      const installedVersion = await installOpencode(sandbox);
+
+      console.info("OpenCode install check succeeded", {
+        expectedVersion: OPENCODE_VERSION,
+        installedVersion,
+        sandboxId: sandbox.sandboxId,
+      });
+
+      if (installedVersion !== OPENCODE_VERSION) {
+        console.warn("Pinned OpenCode version mismatch", {
+          expectedVersion: OPENCODE_VERSION,
+          installedVersion,
+          sandboxId: sandbox.sandboxId,
+        });
+      }
+
+      return {
+        ok: true,
+        expectedVersion: OPENCODE_VERSION,
+        installedVersion,
+        sandboxId: sandbox.sandboxId,
+        error:
+          installedVersion === OPENCODE_VERSION
+            ? null
+            : `Installed OpenCode ${installedVersion}, expected ${OPENCODE_VERSION}`,
+      };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      console.error("OpenCode install check failed", {
+        expectedVersion: OPENCODE_VERSION,
+        sandboxId: sandbox?.sandboxId,
+        error,
+      });
+      return {
+        ok: false,
+        expectedVersion: OPENCODE_VERSION,
+        installedVersion: null,
+        sandboxId: sandbox?.sandboxId ?? null,
+        error,
+      };
+    } finally {
+      if (sandbox) {
+        try {
+          await sandbox.stop();
+        } catch (err) {
+          console.warn("Failed to stop OpenCode install-check sandbox", {
+            sandboxId: sandbox.sandboxId,
+            error: err,
+          });
+        }
+      }
     }
   },
 });

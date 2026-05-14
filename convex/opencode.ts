@@ -10,9 +10,11 @@ import { createPullRequest } from "./lib/pullRequest";
 import {
   DEFAULT_VERCEL_SMALL_MODEL,
   OPENCODE_PROVIDER_ID,
+} from "./lib/opencodeConfig";
+import {
   type TerminalResult,
   waitForOpencodeTerminalState,
-} from "./lib/opencodeHelpers";
+} from "./lib/opencodeStreamMonitor";
 import { setupOpencodeForTodo } from "./lib/opencodeSandbox";
 import { getSandbox, stopSandboxSafely } from "./lib/sandboxHelpers";
 
