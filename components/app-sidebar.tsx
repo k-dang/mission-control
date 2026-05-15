@@ -23,7 +23,9 @@ import { cn } from "@/lib/utils";
 
 const mainNav = [
   { href: "/", label: "Command Board", icon: Columns3 },
-  { href: "/dev", label: "Dev Console", icon: RadioTower },
+  ...(process.env.NODE_ENV === "development"
+    ? [{ href: "/dev", label: "Dev Console", icon: RadioTower }]
+    : []),
 ];
 
 const statusNav = [
