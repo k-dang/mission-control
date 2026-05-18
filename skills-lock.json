@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "ai-sdk": {
+      "source": "vercel/ai",
+      "sourceType": "github",
+      "skillPath": "skills/use-ai-sdk/SKILL.md",
+      "computedHash": "2249889eb47ef0f61c4dba4cf2afe01c1c8dd793bb4c24230347c1ab909bb7dd"
+    },
     "convex": {
       "source": "get-convex/agent-skills",
       "sourceType": "github",
@@ -40,7 +46,8 @@
     "sandbox": {
       "source": "vercel/sandbox",
       "sourceType": "github",
-      "computedHash": "fd5de99df5f4abd16839c3c99d60fc7b6b541a82b82647352a7ba77280e8beed"
+      "skillPath": "skills/sandbox/SKILL.md",
+      "computedHash": "2ad9d47902e26dc238e78ce7e731a69581312ed99837635fa06b04e6fe1f68dd"
     }
   }
 }
