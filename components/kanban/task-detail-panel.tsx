@@ -101,8 +101,9 @@ export function TaskDetailPanel({
   sandbox: Doc<"todoSandboxes"> | null;
   onClose: () => void;
 }) {
-  const updateTodo = useMutation(api.todos.update);
-  const deleteTodo = useMutation(api.todos.remove);
+  const updateDraft = useMutation(api.todoLifecycle.updateDraft);
+  const startTodo = useMutation(api.todoLifecycle.start);
+  const deleteTodo = useMutation(api.todoLifecycle.remove);
 
   const [editTitle, setEditTitle] = useState(todo.title);
   const [editDescription, setEditDescription] = useState(
@@ -122,7 +123,7 @@ export function TaskDetailPanel({
     if (!isEditable) return;
     const trimmed = editTitle.trim();
     if (trimmed && trimmed !== todo.title) {
-      updateTodo({ todoId: todo._id, title: trimmed });
+      updateDraft({ todoId: todo._id, title: trimmed });
     } else {
       setEditTitle(todo.title);
     }
@@ -132,7 +133,7 @@ export function TaskDetailPanel({
     if (!isEditable) return;
     const trimmed = editDescription.trim();
     if (trimmed !== (todo.description ?? "")) {
-      updateTodo({
+      updateDraft({
         todoId: todo._id,
         description: trimmed || "",
       });
@@ -143,7 +144,7 @@ export function TaskDetailPanel({
     if (!isEditable) return;
     const trimmed = editGithubUrl.trim();
     if (trimmed !== (todo.githubUrl ?? "")) {
-      updateTodo({ todoId: todo._id, githubUrl: trimmed || "" });
+      updateDraft({ todoId: todo._id, githubUrl: trimmed || "" });
     }
   };
 
@@ -151,7 +152,9 @@ export function TaskDetailPanel({
     if (todo.status !== "TODO") return;
     if (status === todo.status) return;
     if (status !== "INPROGRESS") return;
-    updateTodo({ todoId: todo._id, status });
+    if (status === "INPROGRESS") {
+      startTodo({ todoId: todo._id });
+    }
   };
 
   const handleDelete = async () => {

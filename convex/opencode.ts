@@ -51,7 +51,7 @@ export const runTodo = internalAction({
         todoId: args.todoId,
       });
 
-      await ctx.runMutation(internal.todoSandboxes.markOpencodeStarted, {
+      await ctx.runMutation(internal.todoLifecycle.recordOpencodeStarted, {
         todoId: args.todoId,
         opencodeUrl: publicUrl,
         sessionId,
@@ -85,10 +85,9 @@ export const runTodo = internalAction({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error("OpenCode failed", { todoId: args.todoId, error: message });
-      await ctx.runMutation(internal.todos.updateInternal, {
+      await ctx.runMutation(internal.todoLifecycle.failOrchestration, {
         todoId: args.todoId,
-        prUrl: null,
-        status: "FAILED",
+        reason: message,
       });
       await stopSandboxSafely({
         todoId: args.todoId,
@@ -157,7 +156,7 @@ export const monitorOpencodeStream = internalAction({
       }
 
       const resolved = await resolveOpencodeOutcome(sandbox, args, outcome);
-      await ctx.runMutation(internal.todoSessionState.setTerminalState, {
+      await ctx.runMutation(internal.todoLifecycle.finish, {
         todoId: args.todoId,
         streamState: outcome.terminalState,
         terminalAt: outcome.terminalAt,
@@ -192,10 +191,9 @@ export const monitorOpencodeStream = internalAction({
         todoId: args.todoId,
         error: message,
       });
-      await ctx.runMutation(internal.todos.updateInternal, {
+      await ctx.runMutation(internal.todoLifecycle.failOrchestration, {
         todoId: args.todoId,
-        prUrl: null,
-        status: "FAILED",
+        reason: message,
       });
       await stopSandboxSafely({
         todoId: args.todoId,

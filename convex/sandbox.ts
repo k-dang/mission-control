@@ -65,7 +65,7 @@ export const spawnSandboxForTodo = internalAction({
       throw error;
     }
 
-    await ctx.runMutation(internal.todoSandboxes.saveSandboxResult, {
+    await ctx.runMutation(internal.todoLifecycle.recordSandboxReady, {
       todoId: args.todoId,
       sandboxId: sandbox.sandboxId,
     });

@@ -3,7 +3,6 @@ import {
   paginationResultValidator,
 } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import { internal } from "./_generated/api";
 import {
   internalMutation,
   internalQuery,
@@ -222,7 +221,6 @@ export const update = mutation({
     todoId: v.id("todos"),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
-    status: v.optional(statusValidator),
     githubUrl: v.optional(v.string()),
   },
   returns: v.null(),
@@ -234,6 +232,13 @@ export const update = mutation({
       throw new ConvexError({
         code: "NOT_FOUND",
         message: "Todo not found",
+      });
+    }
+
+    if (todo.status !== "TODO") {
+      throw new ConvexError({
+        code: "TODO_NOT_EDITABLE",
+        message: "Todo draft fields can only be edited before the todo starts.",
       });
     }
 
@@ -256,46 +261,6 @@ export const update = mutation({
 
     if (args.githubUrl !== undefined) {
       patch.githubUrl = args.githubUrl.trim() || undefined;
-    }
-
-    if (args.status !== undefined && args.status !== todo.status) {
-      if (todo.status !== "TODO" || args.status !== "INPROGRESS") {
-        throw new ConvexError({
-          code: "INVALID_STATUS_TRANSITION",
-          message: `Cannot change status from ${todo.status} to ${args.status}. Only TODO -> INPROGRESS is allowed from the UI.`,
-        });
-      }
-
-      const fromStatus = todo.status;
-      patch.status = args.status;
-
-      await ctx.scheduler.runAfter(
-        0,
-        internal.notifications.sendDiscordWebhook,
-        {
-          content: `Todo ${args.todoId} moved ${fromStatus} -> ${args.status}`,
-          context: {
-            todoId: args.todoId,
-            fromStatus,
-            toStatus: args.status,
-          },
-        },
-      );
-
-      const sandboxRow = await ctx.db
-        .query("todoSandboxes")
-        .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-        .unique();
-
-      if (
-        (args.githubUrl?.trim() || todo.githubUrl) &&
-        !sandboxRow
-      ) {
-        await ctx.scheduler.runAfter(0, internal.sandbox.spawnSandboxForTodo, {
-          todoId: args.todoId,
-          githubUrl: args.githubUrl?.trim() || todo.githubUrl!,
-        });
-      }
     }
 
     if (Object.keys(patch).length > 0) {

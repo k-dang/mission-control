@@ -24,8 +24,8 @@ import type * as opencode from "../opencode.js";
 import type * as opencodeToolCallCounts from "../opencodeToolCallCounts.js";
 import type * as sandbox from "../sandbox.js";
 import type * as todoEvents from "../todoEvents.js";
+import type * as todoLifecycle from "../todoLifecycle.js";
 import type * as todoSandboxes from "../todoSandboxes.js";
-import type * as todoSessionState from "../todoSessionState.js";
 import type * as todos from "../todos.js";
 
 import type {
@@ -51,8 +51,8 @@ declare const fullApi: ApiFromModules<{
   opencodeToolCallCounts: typeof opencodeToolCallCounts;
   sandbox: typeof sandbox;
   todoEvents: typeof todoEvents;
+  todoLifecycle: typeof todoLifecycle;
   todoSandboxes: typeof todoSandboxes;
-  todoSessionState: typeof todoSessionState;
   todos: typeof todos;
 }>;
 

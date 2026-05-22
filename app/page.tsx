@@ -80,7 +80,7 @@ export default function Home() {
     { initialNumItems: KANBAN_PAGE_SIZE },
   );
   const createTodo = useMutation(api.todos.create);
-  const updateTodo = useMutation(api.todos.update);
+  const startTodo = useMutation(api.todoLifecycle.start);
 
   const [title, setTitle] = useState(CREATE_TODO_DEFAULT_TITLE);
   const [description, setDescription] = useState(
@@ -172,10 +172,7 @@ export default function Home() {
     }
 
     try {
-      await updateTodo({
-        todoId,
-        status: "INPROGRESS",
-      });
+      await startTodo({ todoId });
     } catch (error: unknown) {
       setDropError(getErrorMessage(error));
     }

@@ -1,6 +1,5 @@
 import { v } from "convex/values";
 import {
-  internalMutation,
   internalQuery,
   query,
 } from "./_generated/server";
@@ -9,12 +8,6 @@ import { requireAuthenticated } from "./authHelpers";
 const opencodeStreamStateValidator = v.union(
   v.literal("IDLE"),
   v.literal("STARTED"),
-  v.literal("COMPLETED"),
-  v.literal("FAILED"),
-  v.literal("CANCELLED"),
-);
-
-const opencodeTerminalStateValidator = v.union(
   v.literal("COMPLETED"),
   v.literal("FAILED"),
   v.literal("CANCELLED"),
@@ -81,99 +74,3 @@ export const getSandboxForTodo = query({
   },
 });
 
-export const saveSandboxResult = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-    sandboxId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("todoSandboxes")
-      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-      .unique();
-    if (existing) {
-      await ctx.db.patch("todoSandboxes", existing._id, {
-        sandboxId: args.sandboxId,
-        opencode: {
-          streamState: "IDLE",
-          shutdownSafe: false,
-        },
-      });
-    } else {
-      await ctx.db.insert("todoSandboxes", {
-        todoId: args.todoId,
-        sandboxId: args.sandboxId,
-        opencode: {
-          streamState: "IDLE",
-          shutdownSafe: false,
-        },
-      });
-    }
-    return null;
-  },
-});
-
-export const markOpencodeStarted = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-    opencodeUrl: v.string(),
-    sessionId: v.optional(v.string()),
-    startedAt: v.number(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("todoSandboxes")
-      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-      .unique();
-    if (!existing) {
-      throw new Error(
-        `No sandbox row for todo ${args.todoId}; cannot mark OpenCode as started`,
-      );
-    }
-
-    await ctx.db.patch("todoSandboxes", existing._id, {
-      opencode: {
-        url: args.opencodeUrl,
-        sessionId: args.sessionId,
-        streamState: "STARTED",
-        startedAt: args.startedAt,
-        shutdownSafe: false,
-      },
-    });
-    return null;
-  },
-});
-
-export const setOpencodeTerminalState = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-    streamState: opencodeTerminalStateValidator,
-    terminalAt: v.number(),
-    terminalReason: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const existing = await ctx.db
-      .query("todoSandboxes")
-      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-      .unique();
-    if (!existing) {
-      throw new Error(
-        `No sandbox row for todo ${args.todoId}; cannot set OpenCode terminal state`,
-      );
-    }
-
-    await ctx.db.patch("todoSandboxes", existing._id, {
-      opencode: {
-        ...existing.opencode,
-        streamState: args.streamState,
-        terminalAt: args.terminalAt,
-        terminalReason: args.terminalReason,
-        shutdownSafe: true,
-      },
-    });
-    return null;
-  },
-});

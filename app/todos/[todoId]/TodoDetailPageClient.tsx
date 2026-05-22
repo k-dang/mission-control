@@ -33,7 +33,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     api.todoEvents.listRecentForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
-  const updateTodo = useMutation(api.todos.update);
+  const startTodo = useMutation(api.todoLifecycle.start);
   const toolCallCount = useQuery(
     api.opencodeToolCallCounts.getForTodo,
     isAuthenticated ? { todoId } : "skip",
@@ -75,7 +75,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     setStartError(null);
 
     try {
-      await updateTodo({ todoId, status: "INPROGRESS" });
+      await startTodo({ todoId });
     } catch (error) {
       setStartError(
         error instanceof Error ? error.message : "Could not start todo.",
