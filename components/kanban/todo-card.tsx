@@ -2,7 +2,7 @@ import { memo, useRef, type DragEvent } from "react";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
-import { GripVertical, Clock } from "lucide-react";
+import { GripVertical, Clock, GitPullRequest, ExternalLink } from "lucide-react";
 
 const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
   TODO: "bg-col-todo",
@@ -87,6 +87,21 @@ function TodoCardComponent({
           {formatRelativeTime(todo._creationTime)}
         </span>
       </div>
+      {isCompleted && todo.prUrl ? (
+        <div className="mt-2 flex items-center gap-1.5">
+          <a
+            href={todo.prUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-green-600 transition-colors hover:bg-green-500/10 hover:underline"
+          >
+            <GitPullRequest className="h-3 w-3" />
+            <span>PR</span>
+            <ExternalLink className="h-2.5 w-2.5 opacity-70" />
+          </a>
+        </div>
+      ) : null}
     </div>
   );
 }
