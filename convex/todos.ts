@@ -3,12 +3,7 @@ import {
   paginationResultValidator,
 } from "convex/server";
 import { ConvexError, v } from "convex/values";
-import {
-  internalMutation,
-  internalQuery,
-  mutation,
-  query,
-} from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
 
 const statusValidator = v.union(
@@ -27,8 +22,6 @@ const todoValidator = v.object({
   githubUrl: v.optional(v.string()),
   prUrl: v.optional(v.string()),
 });
-
-const LIST_BY_STATUS_TAKE = 100;
 
 export const getById = internalQuery({
   args: { todoId: v.id("todos") },
@@ -80,95 +73,6 @@ export const get = query({
   },
 });
 
-export const updateInternal = internalMutation({
-  args: {
-    todoId: v.id("todos"),
-    prUrl: v.optional(v.union(v.string(), v.null())),
-    status: v.optional(statusValidator),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const patch: {
-      prUrl?: string | undefined;
-      status?: "TODO" | "INPROGRESS" | "COMPLETED" | "FAILED";
-    } = {};
-
-    if (args.status !== undefined) {
-      patch.status = args.status;
-    }
-
-    if (args.prUrl !== undefined) {
-      patch.prUrl = args.prUrl?.trim() || undefined;
-    }
-
-    if (Object.keys(patch).length > 0) {
-      await ctx.db.patch("todos", args.todoId, patch);
-    }
-
-    return null;
-  },
-});
-
-export const listByStatus = query({
-  args: {},
-  returns: v.object({
-    todo: v.array(todoValidator),
-    inprogress: v.array(todoValidator),
-    completed: v.array(todoValidator),
-  }),
-  handler: async (ctx) => {
-    await requireAuthenticated(ctx);
-
-    const [todo, inprogress, completed] = await Promise.all([
-      ctx.db
-        .query("todos")
-        .withIndex("by_status", (q) => q.eq("status", "TODO"))
-        .order("desc")
-        .take(LIST_BY_STATUS_TAKE),
-      ctx.db
-        .query("todos")
-        .withIndex("by_status", (q) => q.eq("status", "INPROGRESS"))
-        .order("desc")
-        .take(LIST_BY_STATUS_TAKE),
-      ctx.db
-        .query("todos")
-        .withIndex("by_status", (q) => q.eq("status", "COMPLETED"))
-        .order("desc")
-        .take(LIST_BY_STATUS_TAKE),
-    ]);
-
-    return {
-      todo: todo.map((item) => ({
-        _id: item._id,
-        _creationTime: item._creationTime,
-        title: item.title,
-        description: item.description,
-        status: item.status,
-        githubUrl: item.githubUrl,
-        prUrl: item.prUrl,
-      })),
-      inprogress: inprogress.map((item) => ({
-        _id: item._id,
-        _creationTime: item._creationTime,
-        title: item.title,
-        description: item.description,
-        status: item.status,
-        githubUrl: item.githubUrl,
-        prUrl: item.prUrl,
-      })),
-      completed: completed.map((item) => ({
-        _id: item._id,
-        _creationTime: item._creationTime,
-        title: item.title,
-        description: item.description,
-        status: item.status,
-        githubUrl: item.githubUrl,
-        prUrl: item.prUrl,
-      })),
-    };
-  },
-});
-
 export const listByStatusPage = query({
   args: {
     status: statusValidator,
@@ -213,87 +117,5 @@ export const create = mutation({
       githubUrl: githubUrl ? githubUrl : undefined,
       status: "TODO",
     });
-  },
-});
-
-export const update = mutation({
-  args: {
-    todoId: v.id("todos"),
-    title: v.optional(v.string()),
-    description: v.optional(v.string()),
-    githubUrl: v.optional(v.string()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await requireAuthenticated(ctx);
-
-    const todo = await ctx.db.get("todos", args.todoId);
-    if (!todo) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Todo not found",
-      });
-    }
-
-    if (todo.status !== "TODO") {
-      throw new ConvexError({
-        code: "TODO_NOT_EDITABLE",
-        message: "Todo draft fields can only be edited before the todo starts.",
-      });
-    }
-
-    const patch: Record<string, unknown> = {};
-
-    if (args.title !== undefined) {
-      const trimmed = args.title.trim();
-      if (!trimmed) {
-        throw new ConvexError({
-          code: "INVALID_TITLE",
-          message: "Title cannot be empty",
-        });
-      }
-      patch.title = trimmed;
-    }
-
-    if (args.description !== undefined) {
-      patch.description = args.description.trim() || undefined;
-    }
-
-    if (args.githubUrl !== undefined) {
-      patch.githubUrl = args.githubUrl.trim() || undefined;
-    }
-
-    if (Object.keys(patch).length > 0) {
-      await ctx.db.patch("todos", args.todoId, patch);
-    }
-
-    return null;
-  },
-});
-
-export const remove = mutation({
-  args: {
-    todoId: v.id("todos"),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    await requireAuthenticated(ctx);
-
-    const todo = await ctx.db.get("todos", args.todoId);
-    if (!todo) {
-      throw new ConvexError({
-        code: "NOT_FOUND",
-        message: "Todo not found",
-      });
-    }
-    const sandboxRow = await ctx.db
-      .query("todoSandboxes")
-      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-      .unique();
-    if (sandboxRow) {
-      await ctx.db.delete("todoSandboxes", sandboxRow._id);
-    }
-    await ctx.db.delete("todos", args.todoId);
-    return null;
   },
 });
