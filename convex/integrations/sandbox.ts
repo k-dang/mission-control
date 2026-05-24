@@ -2,15 +2,15 @@
 
 import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
-import { internalAction } from "./_generated/server";
-import { OPENCODE_PORT } from "./lib/opencodeConfig";
+import { internal } from "../_generated/api";
+import { internalAction } from "../_generated/server";
+import { OPENCODE_PORT } from "../lib/opencodeConfig";
 import {
   configureGitIdentity,
   requireSandboxAccessConfig,
   SANDBOX_GIT_USER_EMAIL,
   SANDBOX_GIT_USER_NAME,
-} from "./lib/sandboxHelpers";
+} from "../lib/sandboxHelpers";
 
 export const spawnSandboxForTodo = internalAction({
   args: {
@@ -65,12 +65,12 @@ export const spawnSandboxForTodo = internalAction({
       throw error;
     }
 
-    await ctx.runMutation(internal.todoLifecycle.recordSandboxReady, {
+    await ctx.runMutation(internal.todoRuns.recordSandboxReady, {
       todoId: args.todoId,
       sandboxId: sandbox.sandboxId,
     });
 
-    await ctx.scheduler.runAfter(0, internal.opencode.runTodo, {
+    await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
       todoId: args.todoId,
     });
 

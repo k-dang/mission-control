@@ -33,7 +33,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     api.todoEvents.listRecentForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
-  const startTodo = useMutation(api.todoLifecycle.start);
+  const startTodo = useMutation(api.todoRuns.start);
   const toolCallCount = useQuery(
     api.opencodeToolCallCounts.getForTodo,
     isAuthenticated ? { todoId } : "skip",

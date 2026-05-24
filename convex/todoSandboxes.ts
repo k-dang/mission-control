@@ -4,32 +4,7 @@ import {
   query,
 } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
-
-const opencodeStreamStateValidator = v.union(
-  v.literal("IDLE"),
-  v.literal("STARTED"),
-  v.literal("COMPLETED"),
-  v.literal("FAILED"),
-  v.literal("CANCELLED"),
-);
-
-const opencodeStateValidator = v.object({
-  url: v.optional(v.string()),
-  sessionId: v.optional(v.string()),
-  streamState: opencodeStreamStateValidator,
-  startedAt: v.optional(v.number()),
-  terminalAt: v.optional(v.number()),
-  terminalReason: v.optional(v.string()),
-  shutdownSafe: v.boolean(),
-});
-
-const sandboxRowValidator = v.object({
-  _id: v.id("todoSandboxes"),
-  _creationTime: v.number(),
-  todoId: v.id("todos"),
-  sandboxId: v.string(),
-  opencode: opencodeStateValidator,
-});
+import { sandboxRowValidator } from "./lib/todoValidators";
 
 export const getSandboxByTodoId = internalQuery({
   args: { todoId: v.id("todos") },

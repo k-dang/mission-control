@@ -5,23 +5,7 @@ import {
 import { ConvexError, v } from "convex/values";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
-
-const statusValidator = v.union(
-  v.literal("TODO"),
-  v.literal("INPROGRESS"),
-  v.literal("COMPLETED"),
-  v.literal("FAILED"),
-);
-
-const todoValidator = v.object({
-  _id: v.id("todos"),
-  _creationTime: v.number(),
-  title: v.string(),
-  description: v.optional(v.string()),
-  status: statusValidator,
-  githubUrl: v.optional(v.string()),
-  prUrl: v.optional(v.string()),
-});
+import { todoDocValidator, todoStatusValidator } from "./lib/todoValidators";
 
 export const getById = internalQuery({
   args: { todoId: v.id("todos") },
@@ -31,7 +15,7 @@ export const getById = internalQuery({
       _creationTime: v.number(),
       title: v.string(),
       description: v.optional(v.string()),
-      status: statusValidator,
+      status: todoStatusValidator,
       githubUrl: v.optional(v.string()),
       prUrl: v.optional(v.string()),
     }),
@@ -54,7 +38,7 @@ export const getById = internalQuery({
 
 export const get = query({
   args: { todoId: v.id("todos") },
-  returns: v.union(todoValidator, v.null()),
+  returns: v.union(todoDocValidator, v.null()),
   handler: async (ctx, args) => {
     await requireAuthenticated(ctx);
 
@@ -75,10 +59,10 @@ export const get = query({
 
 export const listByStatusPage = query({
   args: {
-    status: statusValidator,
+    status: todoStatusValidator,
     paginationOpts: paginationOptsValidator,
   },
-  returns: paginationResultValidator(todoValidator),
+  returns: paginationResultValidator(todoDocValidator),
   handler: async (ctx, args) => {
     await requireAuthenticated(ctx);
 

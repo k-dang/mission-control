@@ -80,7 +80,7 @@ export default function Home() {
     { initialNumItems: KANBAN_PAGE_SIZE },
   );
   const createTodo = useMutation(api.todos.create);
-  const startTodo = useMutation(api.todoLifecycle.start);
+  const startTodo = useMutation(api.todoRuns.start);
 
   const [title, setTitle] = useState(CREATE_TODO_DEFAULT_TITLE);
   const [description, setDescription] = useState(

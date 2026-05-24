@@ -10,6 +10,9 @@
 
 import type * as authHelpers from "../authHelpers.js";
 import type * as devTools from "../devTools.js";
+import type * as integrations_notifications from "../integrations/notifications.js";
+import type * as integrations_opencode from "../integrations/opencode.js";
+import type * as integrations_sandbox from "../integrations/sandbox.js";
 import type * as lib_github from "../lib/github.js";
 import type * as lib_opencodeConfig from "../lib/opencodeConfig.js";
 import type * as lib_opencodeEventProjector from "../lib/opencodeEventProjector.js";
@@ -19,12 +22,10 @@ import type * as lib_opencodeStreamMonitor from "../lib/opencodeStreamMonitor.js
 import type * as lib_pullRequest from "../lib/pullRequest.js";
 import type * as lib_sandboxHelpers from "../lib/sandboxHelpers.js";
 import type * as lib_todoEventValidator from "../lib/todoEventValidator.js";
-import type * as notifications from "../notifications.js";
-import type * as opencode from "../opencode.js";
+import type * as lib_todoValidators from "../lib/todoValidators.js";
 import type * as opencodeToolCallCounts from "../opencodeToolCallCounts.js";
-import type * as sandbox from "../sandbox.js";
 import type * as todoEvents from "../todoEvents.js";
-import type * as todoLifecycle from "../todoLifecycle.js";
+import type * as todoRuns from "../todoRuns.js";
 import type * as todoSandboxes from "../todoSandboxes.js";
 import type * as todos from "../todos.js";
 
@@ -37,6 +38,9 @@ import type {
 declare const fullApi: ApiFromModules<{
   authHelpers: typeof authHelpers;
   devTools: typeof devTools;
+  "integrations/notifications": typeof integrations_notifications;
+  "integrations/opencode": typeof integrations_opencode;
+  "integrations/sandbox": typeof integrations_sandbox;
   "lib/github": typeof lib_github;
   "lib/opencodeConfig": typeof lib_opencodeConfig;
   "lib/opencodeEventProjector": typeof lib_opencodeEventProjector;
@@ -46,12 +50,10 @@ declare const fullApi: ApiFromModules<{
   "lib/pullRequest": typeof lib_pullRequest;
   "lib/sandboxHelpers": typeof lib_sandboxHelpers;
   "lib/todoEventValidator": typeof lib_todoEventValidator;
-  notifications: typeof notifications;
-  opencode: typeof opencode;
+  "lib/todoValidators": typeof lib_todoValidators;
   opencodeToolCallCounts: typeof opencodeToolCallCounts;
-  sandbox: typeof sandbox;
   todoEvents: typeof todoEvents;
-  todoLifecycle: typeof todoLifecycle;
+  todoRuns: typeof todoRuns;
   todoSandboxes: typeof todoSandboxes;
   todos: typeof todos;
 }>;

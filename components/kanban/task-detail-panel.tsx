@@ -101,9 +101,9 @@ export function TaskDetailPanel({
   sandbox: Doc<"todoSandboxes"> | null;
   onClose: () => void;
 }) {
-  const updateDraft = useMutation(api.todoLifecycle.updateDraft);
-  const startTodo = useMutation(api.todoLifecycle.start);
-  const deleteTodo = useMutation(api.todoLifecycle.remove);
+  const updateDraft = useMutation(api.todoRuns.updateDraft);
+  const startTodo = useMutation(api.todoRuns.start);
+  const deleteTodo = useMutation(api.todoRuns.remove);
 
   const [editTitle, setEditTitle] = useState(todo.title);
   const [editDescription, setEditDescription] = useState(

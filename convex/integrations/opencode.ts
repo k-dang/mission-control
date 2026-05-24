@@ -3,20 +3,20 @@
 import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import type { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
-import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
-import { internalAction } from "./_generated/server";
-import { createPullRequest } from "./lib/pullRequest";
+import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import { internalAction } from "../_generated/server";
+import { createPullRequest } from "../lib/pullRequest";
 import {
   DEFAULT_VERCEL_SMALL_MODEL,
   OPENCODE_PROVIDER_ID,
-} from "./lib/opencodeConfig";
+} from "../lib/opencodeConfig";
 import {
   type TerminalResult,
   waitForOpencodeTerminalState,
-} from "./lib/opencodeStreamMonitor";
-import { setupOpencodeForTodo } from "./lib/opencodeSandbox";
-import { getSandbox, stopSandboxSafely } from "./lib/sandboxHelpers";
+} from "../lib/opencodeStreamMonitor";
+import { setupOpencodeForTodo } from "../lib/opencodeSandbox";
+import { getSandbox, stopSandboxSafely } from "../lib/sandboxHelpers";
 
 const OPENCODE_MONITOR_RETRY_DELAY_MS = 1_000;
 
@@ -51,21 +51,25 @@ export const runTodo = internalAction({
         todoId: args.todoId,
       });
 
-      await ctx.runMutation(internal.todoLifecycle.recordOpencodeStarted, {
+      await ctx.runMutation(internal.todoRuns.recordOpencodeStarted, {
         todoId: args.todoId,
         opencodeUrl: publicUrl,
         sessionId,
         startedAt: Date.now(),
       });
-      await ctx.scheduler.runAfter(0, internal.opencode.monitorOpencodeStream, {
-        opencodeSessionId: sessionId,
-        opencodeUrl: publicUrl,
-        sandboxId: sandboxRow.sandboxId,
-        todoDescription: todo.description,
-        todoGithubUrl: todo.githubUrl,
-        todoId: args.todoId,
-        todoTitle: todo.title,
-      });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.integrations.opencode.monitorOpencodeStream,
+        {
+          opencodeSessionId: sessionId,
+          opencodeUrl: publicUrl,
+          sandboxId: sandboxRow.sandboxId,
+          todoDescription: todo.description,
+          todoGithubUrl: todo.githubUrl,
+          todoId: args.todoId,
+          todoTitle: todo.title,
+        },
+      );
 
       // Only available in Pro or Enterprise plans
       // console.info("Updating network policy", { todoId: args.todoId });
@@ -85,7 +89,7 @@ export const runTodo = internalAction({
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       console.error("OpenCode failed", { todoId: args.todoId, error: message });
-      await ctx.runMutation(internal.todoLifecycle.failOrchestration, {
+      await ctx.runMutation(internal.todoRuns.failOrchestration, {
         todoId: args.todoId,
         reason: message,
       });
@@ -141,7 +145,7 @@ export const monitorOpencodeStream = internalAction({
       if (outcome.kind === "retry") {
         await ctx.scheduler.runAfter(
           OPENCODE_MONITOR_RETRY_DELAY_MS,
-          internal.opencode.monitorOpencodeStream,
+          internal.integrations.opencode.monitorOpencodeStream,
           {
             opencodeSessionId: args.opencodeSessionId,
             opencodeUrl: args.opencodeUrl,
@@ -156,7 +160,7 @@ export const monitorOpencodeStream = internalAction({
       }
 
       const resolved = await resolveOpencodeOutcome(sandbox, args, outcome);
-      await ctx.runMutation(internal.todoLifecycle.finish, {
+      await ctx.runMutation(internal.todoRuns.finish, {
         todoId: args.todoId,
         streamState: outcome.terminalState,
         terminalAt: outcome.terminalAt,
@@ -168,7 +172,7 @@ export const monitorOpencodeStream = internalAction({
       if (resolved.prUrl) {
         await ctx.scheduler.runAfter(
           0,
-          internal.notifications.sendDiscordWebhook,
+          internal.integrations.notifications.sendDiscordWebhook,
           {
             content: `Pull request created for todo "${args.todoTitle}": ${resolved.prUrl}`,
             context: {
@@ -191,7 +195,7 @@ export const monitorOpencodeStream = internalAction({
         todoId: args.todoId,
         error: message,
       });
-      await ctx.runMutation(internal.todoLifecycle.failOrchestration, {
+      await ctx.runMutation(internal.todoRuns.failOrchestration, {
         todoId: args.todoId,
         reason: message,
       });

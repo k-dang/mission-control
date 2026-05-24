@@ -2,32 +2,10 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
-
-const statusValidator = v.union(
-  v.literal("TODO"),
-  v.literal("INPROGRESS"),
-  v.literal("COMPLETED"),
-  v.literal("FAILED"),
-);
-
-const opencodeStreamStateValidator = v.union(
-  v.literal("IDLE"),
-  v.literal("STARTED"),
-  v.literal("COMPLETED"),
-  v.literal("FAILED"),
-  v.literal("CANCELLED"),
-);
-
-const opencodeTerminalStateValidator = v.union(
-  v.literal("COMPLETED"),
-  v.literal("FAILED"),
-  v.literal("CANCELLED"),
-);
-
-const terminalTodoStatusValidator = v.union(
-  v.literal("COMPLETED"),
-  v.literal("FAILED"),
-);
+import {
+  opencodeTerminalStateValidator,
+  terminalTodoStatusValidator,
+} from "./lib/todoValidators";
 
 const orchestrationValidator = v.union(
   v.literal("scheduled"),
@@ -74,14 +52,18 @@ export const start = mutation({
       status: "INPROGRESS",
     });
 
-    await ctx.scheduler.runAfter(0, internal.notifications.sendDiscordWebhook, {
-      content: `Todo ${args.todoId} moved TODO -> INPROGRESS`,
-      context: {
-        todoId: args.todoId,
-        fromStatus: "TODO",
-        toStatus: "INPROGRESS",
+    await ctx.scheduler.runAfter(
+      0,
+      internal.integrations.notifications.sendDiscordWebhook,
+      {
+        content: `Todo ${args.todoId} moved TODO -> INPROGRESS`,
+        context: {
+          todoId: args.todoId,
+          fromStatus: "TODO",
+          toStatus: "INPROGRESS",
+        },
       },
-    });
+    );
 
     const githubUrl = todo.githubUrl?.trim();
     if (!githubUrl) {
@@ -98,10 +80,14 @@ export const start = mutation({
       .unique();
 
     if (!sandboxRow) {
-      await ctx.scheduler.runAfter(0, internal.sandbox.spawnSandboxForTodo, {
-        todoId: args.todoId,
-        githubUrl,
-      });
+      await ctx.scheduler.runAfter(
+        0,
+        internal.integrations.sandbox.spawnSandboxForTodo,
+        {
+          todoId: args.todoId,
+          githubUrl,
+        },
+      );
     }
 
     return {
@@ -341,5 +327,3 @@ export const failOrchestration = internalMutation({
     return null;
   },
 });
-
-export { statusValidator, opencodeStreamStateValidator };
