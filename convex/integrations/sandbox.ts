@@ -65,7 +65,6 @@ export const spawnSandboxForTodo = internalAction({
       if (error instanceof APIError) {
         throw new Error(
           `Sandbox.create failed (${error.response.status}): ${error.text || JSON.stringify(error.json)}`,
-          { cause: error },
         );
       }
       throw error;
