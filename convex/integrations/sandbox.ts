@@ -1,6 +1,6 @@
 "use node";
 
-import { Sandbox } from "@vercel/sandbox";
+import { APIError, Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { internalAction } from "../_generated/server";
@@ -41,18 +41,35 @@ export const spawnSandboxForTodo = internalAction({
     }
 
     const { projectId, teamId, token } = requireSandboxAccessConfig();
-    const sandbox = await Sandbox.create({
-      source: { type: "git", url: args.githubUrl },
-      ports: [OPENCODE_PORT],
-      runtime: "node24",
-      timeout: 10 * 60 * 1000,
-      env: {
-        GITHUB_TOKEN: process.env.GITHUB_TOKEN!,
-      },
-      teamId,
-      projectId,
-      token,
-    });
+    const githubToken = process.env.GITHUB_TOKEN;
+    if (!githubToken) {
+      throw new Error(
+        "GITHUB_TOKEN is not set; sandbox git clone will 403 on private repos",
+      );
+    }
+    let sandbox: Sandbox;
+    try {
+      sandbox = await Sandbox.create({
+        source: { type: "git", url: args.githubUrl },
+        ports: [OPENCODE_PORT],
+        runtime: "node24",
+        timeout: 10 * 60 * 1000,
+        env: {
+          GITHUB_TOKEN: githubToken,
+        },
+        teamId,
+        projectId,
+        token,
+      });
+    } catch (error) {
+      if (error instanceof APIError) {
+        throw new Error(
+          `Sandbox.create failed (${error.response.status}): ${error.text || JSON.stringify(error.json)}`,
+          { cause: error },
+        );
+      }
+      throw error;
+    }
 
     try {
       await configureGitIdentity(
