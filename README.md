@@ -1,40 +1,60 @@
-# Welcome to your Convex + Next.js app
+# Mission Control
 
-This is a [Convex](https://convex.dev/) project created with [`npm create convex`](https://www.npmjs.com/package/create-convex).
+An AI-powered task board where dragging a card to **In Progress** spawns a sandboxed coding agent that works the task autonomously and opens a pull request when done.
 
-After the initial setup (<2 minutes) you'll have a working full-stack app using:
+## Stack
 
-- Convex as your backend (database, server logic)
-- [React](https://react.dev/) as your frontend (web page interactivity)
-- [Next.js](https://nextjs.org/) for optimized web hosting and page routing
-- [Tailwind](https://tailwindcss.com/) for building great looking accessible UI
+- [Next.js](https://nextjs.org/) 16 (App Router) + React 19
+- [Convex](https://convex.dev/) — real-time database and backend functions
+- [Clerk](https://clerk.com/) — authentication
+- [OpenCode](https://opencode.ai/) — AI coding agent
+- [Vercel Sandbox](https://vercel.com/docs/sandbox) — isolated execution environments
+- [Tailwind CSS](https://tailwindcss.com/) v4
 
-## Get started
+## How it works
 
-If you just cloned this codebase and didn't use `npm create convex`, run:
+1. Create a task with a title, description, and GitHub repo URL.
+2. Drag the card from **Todo** into **In Progress**.
+3. Convex spins up a Vercel sandbox, clones the repo, and runs an OpenCode session against it.
+4. The board updates in real time as the agent works — tool call counts, stream state, and events are all tracked.
+5. On completion the task moves to **Completed** with a PR link, or to **Failed** if the agent couldn't finish.
+
+## Development
+
+```bash
+pnpm install
+pnpm dev          # starts Next.js (port 3001) and Convex backend together
+```
+
+Other commands:
+
+```bash
+pnpm dev:frontend   # Next.js only
+pnpm dev:backend    # Convex only
+pnpm build          # production build
+pnpm lint           # ESLint
+pnpm typecheck      # TypeScript (app + convex)
+pnpm test           # Vitest
+```
+
+## Project layout
 
 ```
-npm install
-npm run dev
+app/          Next.js routes and page components
+components/   Shared UI components (kanban, primitives)
+convex/       Backend — schema, queries, mutations, actions
+  integrations/   Sandbox and OpenCode orchestration
+  lib/            Helpers (GitHub, sandbox, stream monitor)
 ```
 
-If you're reading this README on GitHub and want to use this template, run:
+## Environment variables
 
-```
-npm create convex@latest -- -t nextjs
-```
+Copy `.env.example` to `.env.local` and fill in:
 
-## Learn more
-
-To learn more about developing your project with Convex, check out:
-
-- The [Tour of Convex](https://docs.convex.dev/get-started) for a thorough introduction to Convex principles.
-- The rest of [Convex docs](https://docs.convex.dev/) to learn about all Convex features.
-- [Stack](https://stack.convex.dev/) for in-depth articles on advanced topics.
-
-## Join the community
-
-Join thousands of developers building full-stack apps with Convex:
-
-- Join the [Convex Discord community](https://convex.dev/community) to get help in real-time.
-- Follow [Convex on GitHub](https://github.com/get-convex/), star and contribute to the open-source implementation of Convex.
+| Variable | Purpose |
+|---|---|
+| `CONVEX_DEPLOYMENT` | Your Convex deployment URL |
+| `NEXT_PUBLIC_CONVEX_URL` | Public Convex URL for the client |
+| `CLERK_*` | Clerk auth keys |
+| `GITHUB_TOKEN` | GitHub API token for PR creation |
+| `DISCORD_WEBHOOK_URL` | (Optional) Status notifications |
