@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { todoEventPayloadValidator } from "./lib/todoEventValidator";
 import {
   opencodeStateValidator,
+  runConfigurationValidator,
   todoStatusValidator,
 } from "./lib/todoValidators";
 
@@ -18,6 +19,7 @@ export default defineSchema({
   todoSandboxes: defineTable({
     todoId: v.id("todos"),
     sandboxId: v.string(),
+    runConfiguration: v.optional(runConfigurationValidator),
     opencode: opencodeStateValidator,
   }).index("by_todoId", ["todoId"]),
 

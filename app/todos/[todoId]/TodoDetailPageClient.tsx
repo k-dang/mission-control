@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
+import { DEFAULT_RUN_CONFIGURATION } from "@/convex/lib/runConfiguration";
 import { Button } from "@/components/ui/button";
 import { formatRelativeTime } from "@/lib/utils";
 import {
@@ -75,7 +76,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     setStartError(null);
 
     try {
-      await startTodo({ todoId });
+      await startTodo({ todoId, runConfiguration: DEFAULT_RUN_CONFIGURATION });
     } catch (error) {
       setStartError(
         error instanceof Error ? error.message : "Could not start todo.",

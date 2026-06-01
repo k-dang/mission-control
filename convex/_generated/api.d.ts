@@ -20,6 +20,7 @@ import type * as lib_opencodeHealth from "../lib/opencodeHealth.js";
 import type * as lib_opencodeSandbox from "../lib/opencodeSandbox.js";
 import type * as lib_opencodeStreamMonitor from "../lib/opencodeStreamMonitor.js";
 import type * as lib_pullRequest from "../lib/pullRequest.js";
+import type * as lib_runConfiguration from "../lib/runConfiguration.js";
 import type * as lib_sandboxHelpers from "../lib/sandboxHelpers.js";
 import type * as lib_todoEventValidator from "../lib/todoEventValidator.js";
 import type * as lib_todoValidators from "../lib/todoValidators.js";
@@ -48,6 +49,7 @@ declare const fullApi: ApiFromModules<{
   "lib/opencodeSandbox": typeof lib_opencodeSandbox;
   "lib/opencodeStreamMonitor": typeof lib_opencodeStreamMonitor;
   "lib/pullRequest": typeof lib_pullRequest;
+  "lib/runConfiguration": typeof lib_runConfiguration;
   "lib/sandboxHelpers": typeof lib_sandboxHelpers;
   "lib/todoEventValidator": typeof lib_todoEventValidator;
   "lib/todoValidators": typeof lib_todoValidators;

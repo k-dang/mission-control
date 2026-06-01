@@ -26,6 +26,11 @@ export const terminalTodoStatusValidator = v.union(
   v.literal("FAILED"),
 );
 
+export const runConfigurationValidator = v.object({
+  providerId: v.string(),
+  modelId: v.string(),
+});
+
 export const todoDocValidator = v.object({
   _id: v.id("todos"),
   _creationTime: v.number(),
@@ -51,5 +56,6 @@ export const sandboxRowValidator = v.object({
   _creationTime: v.number(),
   todoId: v.id("todos"),
   sandboxId: v.string(),
+  runConfiguration: v.optional(runConfigurationValidator),
   opencode: opencodeStateValidator,
 });

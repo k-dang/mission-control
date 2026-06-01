@@ -49,14 +49,14 @@ Extend the todo start transition so new starts require a provider/model run conf
 
 ### Acceptance Criteria
 
-- [ ] Starting a TODO task accepts a run configuration containing provider and main model identifiers.
-- [ ] Starting with an unsupported provider/model combination fails before orchestration begins.
-- [ ] A successful start records the run configuration with the active execution state.
-- [ ] Stable todo metadata does not store provider/model data.
-- [ ] Existing execution rows without run configuration remain valid.
-- [ ] Existing queries that return execution state tolerate missing run configuration data.
-- [ ] Backend tests cover valid start, invalid start, and missing historical run configuration compatibility.
-- [ ] Relevant lint/typecheck commands pass for touched code.
+- [x] Starting a TODO task accepts a run configuration containing provider and main model identifiers.
+- [x] Starting with an unsupported provider/model combination fails before orchestration begins.
+- [x] A successful start records the run configuration with the active execution state.
+- [x] Stable todo metadata does not store provider/model data.
+- [x] Existing execution rows without run configuration remain valid.
+- [x] Existing queries that return execution state tolerate missing run configuration data.
+- [x] Backend tests cover valid start, invalid start, and missing historical run configuration compatibility.
+- [x] Relevant lint/typecheck commands pass for touched code.
 
 ---
 

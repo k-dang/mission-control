@@ -5,6 +5,7 @@ import { useState, useRef, useId, type KeyboardEvent } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
+import { DEFAULT_RUN_CONFIGURATION } from "../../convex/lib/runConfiguration";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
 import {
@@ -153,7 +154,10 @@ export function TaskDetailPanel({
     if (status === todo.status) return;
     if (status !== "INPROGRESS") return;
     if (status === "INPROGRESS") {
-      startTodo({ todoId: todo._id });
+      startTodo({
+        todoId: todo._id,
+        runConfiguration: DEFAULT_RUN_CONFIGURATION,
+      });
     }
   };
 

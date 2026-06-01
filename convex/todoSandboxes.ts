@@ -22,6 +22,7 @@ export const getSandboxByTodoId = internalQuery({
       _creationTime: row._creationTime,
       todoId: row.todoId,
       sandboxId: row.sandboxId,
+      runConfiguration: row.runConfiguration,
       opencode: row.opencode,
     };
   },
@@ -44,6 +45,7 @@ export const getSandboxForTodo = query({
       _creationTime: row._creationTime,
       todoId: row.todoId,
       sandboxId: row.sandboxId,
+      runConfiguration: row.runConfiguration,
       opencode: row.opencode,
     };
   },

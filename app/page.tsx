@@ -15,6 +15,7 @@ import {
 } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
+import { DEFAULT_RUN_CONFIGURATION } from "../convex/lib/runConfiguration";
 import { getErrorMessage } from "@/lib/errors";
 import {
   CREATE_TODO_DEFAULT_DESCRIPTION,
@@ -172,7 +173,7 @@ export default function Home() {
     }
 
     try {
-      await startTodo({ todoId });
+      await startTodo({ todoId, runConfiguration: DEFAULT_RUN_CONFIGURATION });
     } catch (error: unknown) {
       setDropError(getErrorMessage(error));
     }

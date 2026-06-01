@@ -11,11 +11,15 @@ import {
   SANDBOX_GIT_USER_EMAIL,
   SANDBOX_GIT_USER_NAME,
 } from "../lib/sandboxHelpers";
+import { runConfigurationValidator } from "../lib/todoValidators";
+
+const STOP_AFTER_SANDBOX_CREATE_ENV = "STOP_AFTER_SANDBOX_CREATE";
 
 export const spawnSandboxForTodo = internalAction({
   args: {
     todoId: v.id("todos"),
     githubUrl: v.string(),
+    runConfiguration: runConfigurationValidator,
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -84,7 +88,18 @@ export const spawnSandboxForTodo = internalAction({
     await ctx.runMutation(internal.todoRuns.recordSandboxReady, {
       todoId: args.todoId,
       sandboxId: sandbox.sandboxId,
+      runConfiguration: args.runConfiguration,
     });
+
+    if (process.env[STOP_AFTER_SANDBOX_CREATE_ENV] === "true") {
+      console.info("Stopping after sandbox creation by environment flag", {
+        todoId: args.todoId,
+        sandboxId: sandbox.sandboxId,
+        env: STOP_AFTER_SANDBOX_CREATE_ENV,
+      });
+      await sandbox.stop();
+      return null;
+    }
 
     await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
       todoId: args.todoId,

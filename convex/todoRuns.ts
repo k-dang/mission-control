@@ -2,8 +2,10 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { internalMutation, mutation } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
+import { parseRunConfiguration } from "./lib/runConfiguration";
 import {
   opencodeTerminalStateValidator,
+  runConfigurationValidator,
   terminalTodoStatusValidator,
 } from "./lib/todoValidators";
 
@@ -16,6 +18,7 @@ const orchestrationValidator = v.union(
 export const start = mutation({
   args: {
     todoId: v.id("todos"),
+    runConfiguration: runConfigurationValidator,
   },
   returns: v.object({
     todoId: v.id("todos"),
@@ -24,6 +27,14 @@ export const start = mutation({
   }),
   handler: async (ctx, args) => {
     await requireAuthenticated(ctx);
+
+    const runConfiguration = parseRunConfiguration(args.runConfiguration);
+    if (!runConfiguration.ok) {
+      throw new ConvexError({
+        code: "UNSUPPORTED_RUN_CONFIGURATION",
+        message: runConfiguration.error,
+      });
+    }
 
     const todo = await ctx.db.get("todos", args.todoId);
     if (!todo) {
@@ -86,8 +97,13 @@ export const start = mutation({
         {
           todoId: args.todoId,
           githubUrl,
+          runConfiguration: runConfiguration.value,
         },
       );
+    } else if (!sandboxRow.runConfiguration) {
+      await ctx.db.patch("todoSandboxes", sandboxRow._id, {
+        runConfiguration: runConfiguration.value,
+      });
     }
 
     return {
@@ -190,6 +206,7 @@ export const recordSandboxReady = internalMutation({
   args: {
     todoId: v.id("todos"),
     sandboxId: v.string(),
+    runConfiguration: runConfigurationValidator,
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -205,11 +222,13 @@ export const recordSandboxReady = internalMutation({
           streamState: "IDLE",
           shutdownSafe: false,
         },
+        runConfiguration: args.runConfiguration,
       });
     } else {
       await ctx.db.insert("todoSandboxes", {
         todoId: args.todoId,
         sandboxId: args.sandboxId,
+        runConfiguration: args.runConfiguration,
         opencode: {
           streamState: "IDLE",
           shutdownSafe: false,
