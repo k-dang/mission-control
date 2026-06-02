@@ -37,11 +37,26 @@ type OpencodeInstallResult = {
   error: string | null;
 };
 
+type RuntimeProviderId = "vercel" | "openrouter";
+
+type RunConfigurationResult = {
+  ok: boolean;
+  providerId: string;
+  modelId: string;
+  opencodeModel: string | null;
+  opencodeSmallModel: string | null;
+  enabledProviders: string[];
+  error: string | null;
+};
+
 export default function DevPageClient() {
   const checkGithubToken = useAction(api.devTools.checkGithubToken);
   const createTestPr = useAction(api.devTools.createMissionControlTestPullRequest);
   const checkOpencodeInstall = useAction(
     api.devTools.checkOpencodeInstall,
+  );
+  const checkRunConfiguration = useAction(
+    api.devTools.checkRunConfiguration,
   );
   const [result, setResult] = useState<CheckResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -50,6 +65,11 @@ export default function DevPageClient() {
   const [opencodeResult, setOpencodeResult] =
     useState<OpencodeInstallResult | null>(null);
   const [opencodeLoading, setOpencodeLoading] = useState(false);
+  const [runtimeResult, setRuntimeResult] =
+    useState<RunConfigurationResult | null>(null);
+  const [runtimeLoading, setRuntimeLoading] = useState<RuntimeProviderId | null>(
+    null,
+  );
 
   const handleCheck = async () => {
     setLoading(true);
@@ -81,6 +101,17 @@ export default function DevPageClient() {
       setOpencodeResult(res);
     } finally {
       setOpencodeLoading(false);
+    }
+  };
+
+  const handleCheckRuntime = async (providerId: RuntimeProviderId) => {
+    setRuntimeLoading(providerId);
+    setRuntimeResult(null);
+    try {
+      const res = await checkRunConfiguration({ providerId });
+      setRuntimeResult(res);
+    } finally {
+      setRuntimeLoading(null);
     }
   };
 
@@ -235,6 +266,82 @@ export default function DevPageClient() {
             )}
             {opencodeResult.error && (
               <p className="pt-1 text-destructive">{opencodeResult.error}</p>
+            )}
+          </div>
+        )}
+
+        <p className="pt-2 text-sm text-muted-foreground">
+          Verifies each run configuration path and generated OpenCode model
+          routing without exposing provider credentials.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => handleCheckRuntime("vercel")}
+            disabled={runtimeLoading !== null}
+            variant="secondary"
+          >
+            {runtimeLoading === "vercel" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Terminal className="h-4 w-4" />
+            )}
+            {runtimeLoading === "vercel" ? "Checking Vercel..." : "Check Vercel"}
+          </Button>
+          <Button
+            onClick={() => handleCheckRuntime("openrouter")}
+            disabled={runtimeLoading !== null}
+            variant="secondary"
+          >
+            {runtimeLoading === "openrouter" ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Terminal className="h-4 w-4" />
+            )}
+            {runtimeLoading === "openrouter"
+              ? "Checking OpenRouter..."
+              : "Check OpenRouter"}
+          </Button>
+        </div>
+
+        {runtimeResult !== null && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <Row
+              label="Runtime check"
+              ok={runtimeResult.ok}
+              value={runtimeResult.ok ? "Passed" : "Failed"}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="shrink-0 text-muted-foreground">Run config</span>
+              <span className="break-all text-right font-mono text-xs">
+                {runtimeResult.providerId}/{runtimeResult.modelId}
+              </span>
+            </div>
+            {runtimeResult.opencodeModel && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Main model</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {runtimeResult.opencodeModel}
+                </span>
+              </div>
+            )}
+            {runtimeResult.opencodeSmallModel && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Small model</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {runtimeResult.opencodeSmallModel}
+                </span>
+              </div>
+            )}
+            {runtimeResult.enabledProviders.length > 0 && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Providers</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {runtimeResult.enabledProviders.join(", ")}
+                </span>
+              </div>
+            )}
+            {runtimeResult.error && (
+              <p className="pt-1 text-destructive">{runtimeResult.error}</p>
             )}
           </div>
         )}

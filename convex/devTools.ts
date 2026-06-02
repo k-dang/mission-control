@@ -5,8 +5,13 @@ import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { z } from "zod";
 import { action } from "./_generated/server";
-import { OPENCODE_VERSION } from "./lib/opencodeConfig";
+import {
+  buildOpencodeConfig,
+  getOpencodeMainModel,
+  OPENCODE_VERSION,
+} from "./lib/opencodeConfig";
 import { installOpencode } from "./lib/opencodeSandbox";
+import { parseRunConfiguration } from "./lib/runConfiguration";
 import { requireSandboxAccessConfig } from "./lib/sandboxHelpers";
 
 const MISSION_CONTROL = { owner: "k-dang", repo: "mission-control" } as const;
@@ -245,6 +250,114 @@ export const checkOpencodeInstall = action({
           });
         }
       }
+    }
+  },
+});
+
+const devRunConfigurations = {
+  vercel: {
+    providerId: "vercel",
+    modelId: "moonshotai/kimi-k2.5",
+  },
+  openrouter: {
+    providerId: "openrouter",
+    modelId: "moonshotai/kimi-k2.6:free",
+  },
+} as const;
+
+export const checkRunConfiguration = action({
+  args: {
+    providerId: v.union(v.literal("vercel"), v.literal("openrouter")),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    providerId: v.string(),
+    modelId: v.string(),
+    opencodeModel: v.union(v.string(), v.null()),
+    opencodeSmallModel: v.union(v.string(), v.null()),
+    enabledProviders: v.array(v.string()),
+    error: v.union(v.string(), v.null()),
+  }),
+  handler: async (_, args) => {
+    const runConfiguration = devRunConfigurations[args.providerId];
+    const { providerId, modelId } = runConfiguration;
+
+    if (!areDevToolsEnabled()) {
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        opencodeModel: null,
+        opencodeSmallModel: null,
+        enabledProviders: [],
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
+    const aiGatewayApiKey = process.env.AI_GATEWAY_API_KEY?.trim();
+    const openRouterApiKey = process.env.OPENROUTER_API_KEY?.trim();
+    const missingKey =
+      providerId === "vercel" && !aiGatewayApiKey
+        ? "AI_GATEWAY_API_KEY"
+        : providerId === "openrouter" && !openRouterApiKey
+          ? "OPENROUTER_API_KEY"
+          : null;
+    if (missingKey) {
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        opencodeModel: null,
+        opencodeSmallModel: null,
+        enabledProviders: [],
+        error: `${missingKey} is not set in Convex environment variables.`,
+      };
+    }
+
+    try {
+      const parsed = parseRunConfiguration(runConfiguration);
+      if (!parsed.ok) {
+        return {
+          ok: false,
+          providerId,
+          modelId,
+          opencodeModel: null,
+          opencodeSmallModel: null,
+          enabledProviders: [],
+          error: parsed.error,
+        };
+      }
+
+      const config =
+        providerId === "vercel"
+          ? buildOpencodeConfig(getOpencodeMainModel(parsed.value), {
+              selectedProviderID: "vercel",
+              aiGatewayApiKey: aiGatewayApiKey!,
+            })
+          : buildOpencodeConfig(getOpencodeMainModel(parsed.value), {
+              selectedProviderID: "openrouter",
+              openRouterApiKey: openRouterApiKey!,
+            });
+
+      return {
+        ok: true,
+        providerId,
+        modelId,
+        opencodeModel: config.model,
+        opencodeSmallModel: config.small_model,
+        enabledProviders: config.enabled_providers,
+        error: null,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        opencodeModel: null,
+        opencodeSmallModel: null,
+        enabledProviders: [],
+        error: err instanceof Error ? err.message : String(err),
+      };
     }
   },
 });

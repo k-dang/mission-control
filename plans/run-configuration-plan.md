@@ -70,13 +70,13 @@ Thread the recorded run configuration into OpenCode setup so the generated OpenC
 
 ### Acceptance Criteria
 
-- [ ] OpenCode configuration includes the selected provider and selected main model.
-- [ ] The initial OpenCode prompt is submitted with the selected provider and selected main model.
-- [ ] The small model remains fixed and is not exposed in the run configuration.
-- [ ] Provider-specific config generation remains deterministic and testable where practical.
-- [ ] Unsupported or inconsistent run configuration data fails clearly before a misleading run starts.
-- [ ] Tests cover pure config-generation behavior if it can be isolated cleanly.
-- [ ] Relevant lint/typecheck commands pass for touched code.
+- [x] OpenCode configuration includes the selected provider and selected main model.
+- [x] The initial OpenCode prompt is submitted with the selected provider and selected main model.
+- [x] The small model remains fixed and is not exposed in the run configuration.
+- [x] Provider-specific config generation remains deterministic and testable where practical.
+- [x] Unsupported or inconsistent run configuration data fails clearly before a misleading run starts.
+- [x] Tests cover pure config-generation behavior if it can be isolated cleanly.
+- [x] Relevant lint/typecheck commands pass for touched code.
 
 ---
 

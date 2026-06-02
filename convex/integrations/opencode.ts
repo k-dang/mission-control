@@ -7,16 +7,16 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction } from "../_generated/server";
 import { createPullRequest } from "../lib/pullRequest";
-import {
-  DEFAULT_VERCEL_SMALL_MODEL,
-  OPENCODE_PROVIDER_ID,
-} from "../lib/opencodeConfig";
+import { getOpencodeMainModel } from "../lib/opencodeConfig";
+import type { RunConfiguration } from "../lib/runConfiguration";
+import { parseRunConfiguration } from "../lib/runConfiguration";
 import {
   type TerminalResult,
   waitForOpencodeTerminalState,
 } from "../lib/opencodeStreamMonitor";
 import { setupOpencodeForTodo } from "../lib/opencodeSandbox";
 import { getSandbox, stopSandboxSafely } from "../lib/sandboxHelpers";
+import { runConfigurationValidator } from "../lib/todoValidators";
 
 const OPENCODE_MONITOR_RETRY_DELAY_MS = 1_000;
 
@@ -41,14 +41,26 @@ export const runTodo = internalAction({
       });
       return null;
     }
-
     let sandbox: Sandbox | undefined;
     try {
+      if (!sandboxRow.runConfiguration) {
+        throw new Error(
+          `Run configuration missing for todo ${args.todoId}; cannot start OpenCode`,
+        );
+      }
+      const runConfiguration = parseRunConfiguration(
+        sandboxRow.runConfiguration,
+      );
+      if (!runConfiguration.ok) {
+        throw new Error(runConfiguration.error);
+      }
+
       sandbox = await getSandbox(sandboxRow.sandboxId);
 
       const { publicUrl, sessionId } = await setupOpencodeForTodo(sandbox, {
         todo,
         todoId: args.todoId,
+        selectedModel: getOpencodeMainModel(runConfiguration.value),
       });
 
       await ctx.runMutation(internal.todoRuns.recordOpencodeStarted, {
@@ -68,6 +80,7 @@ export const runTodo = internalAction({
           todoGithubUrl: todo.githubUrl,
           todoId: args.todoId,
           todoTitle: todo.title,
+          runConfiguration: runConfiguration.value,
         },
       );
 
@@ -114,6 +127,7 @@ export const monitorOpencodeStream = internalAction({
     todoGithubUrl: v.optional(v.string()),
     todoId: v.id("todos"),
     todoTitle: v.string(),
+    runConfiguration: runConfigurationValidator,
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -154,12 +168,25 @@ export const monitorOpencodeStream = internalAction({
             todoGithubUrl: args.todoGithubUrl,
             todoId: args.todoId,
             todoTitle: args.todoTitle,
+            runConfiguration: args.runConfiguration,
           },
         );
         return null;
       }
 
-      const resolved = await resolveOpencodeOutcome(sandbox, args, outcome);
+      const runConfiguration = parseRunConfiguration(args.runConfiguration);
+      if (!runConfiguration.ok) {
+        throw new Error(runConfiguration.error);
+      }
+
+      const resolved = await resolveOpencodeOutcome(
+        sandbox,
+        {
+          ...args,
+          runConfiguration: runConfiguration.value,
+        },
+        outcome,
+      );
       await ctx.runMutation(internal.todoRuns.finish, {
         todoId: args.todoId,
         streamState: outcome.terminalState,
@@ -219,6 +246,7 @@ type FinalizeArgs = {
   todoGithubUrl?: string;
   todoId: Id<"todos">;
   todoTitle: string;
+  runConfiguration: RunConfiguration;
 };
 
 type ResolvedOpencodeOutcome = {
@@ -249,8 +277,8 @@ async function resolveOpencodeOutcome(
         opencodeSessionId: args.opencodeSessionId,
         opencodeUrl: args.opencodeUrl,
         model: {
-          modelID: DEFAULT_VERCEL_SMALL_MODEL,
-          providerID: OPENCODE_PROVIDER_ID,
+          modelID: args.runConfiguration.modelId,
+          providerID: args.runConfiguration.providerId,
         },
       },
     });

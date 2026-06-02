@@ -4,13 +4,13 @@ import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import type { Sandbox } from "@vercel/sandbox";
 import type { Id } from "../_generated/dataModel";
 import {
-  DEFAULT_VERCEL_MODEL,
-  DEFAULT_VERCEL_SMALL_MODEL,
+  buildOpencodeConfig,
   OPENCODE_BIN,
   OPENCODE_CONFIG_PATH,
   OPENCODE_PORT,
-  OPENCODE_PROVIDER_ID,
   OPENCODE_VERSION,
+  type OpencodeConfigApiKeys,
+  type OpencodeModelSelection,
 } from "./opencodeConfig";
 import { waitForOpencodeHealth } from "./opencodeHealth";
 
@@ -22,6 +22,38 @@ function readAiGatewayApiKey(): string {
     );
   }
   return key;
+}
+
+function readOpenRouterApiKey(): string {
+  const key = process.env.OPENROUTER_API_KEY?.trim();
+  if (!key) {
+    throw new Error(
+      "OPENROUTER_API_KEY is required for OpenCode with OpenRouter (set in Convex env)",
+    );
+  }
+  return key;
+}
+
+function readOpencodeConfigApiKeys(
+  selectedModel: OpencodeModelSelection,
+): OpencodeConfigApiKeys {
+  if (selectedModel.providerID === "vercel") {
+    return {
+      selectedProviderID: "vercel",
+      aiGatewayApiKey: readAiGatewayApiKey(),
+    };
+  }
+
+  if (selectedModel.providerID === "openrouter") {
+    return {
+      selectedProviderID: "openrouter",
+      openRouterApiKey: readOpenRouterApiKey(),
+    };
+  }
+
+  throw new Error(
+    `Unsupported OpenCode provider for run configuration: ${selectedModel.providerID}`,
+  );
 }
 
 export async function installOpencode(sandbox: Sandbox) {
@@ -72,24 +104,12 @@ function buildTodoPrompt(
   return lines.join("\n");
 }
 
-async function writeOpencodeConfig(sandbox: Sandbox) {
-  const apiKey = readAiGatewayApiKey();
+async function writeOpencodeConfig(
+  sandbox: Sandbox,
+  selectedModel: OpencodeModelSelection,
+) {
   const opencodeConfig = JSON.stringify(
-    {
-      $schema: "https://opencode.ai/config.json",
-      enabled_providers: ["vercel"],
-      provider: {
-        vercel: {
-          options: { apiKey },
-          models: {
-            [DEFAULT_VERCEL_MODEL]: {},
-            [DEFAULT_VERCEL_SMALL_MODEL]: {},
-          },
-        },
-      },
-      model: DEFAULT_VERCEL_MODEL,
-      small_model: DEFAULT_VERCEL_SMALL_MODEL,
-    },
+    buildOpencodeConfig(selectedModel, readOpencodeConfigApiKeys(selectedModel)),
     null,
     2,
   );
@@ -122,12 +142,13 @@ export async function setupOpencodeForTodo(
       githubUrl?: string;
     };
     todoId: Id<"todos">;
+    selectedModel: OpencodeModelSelection;
   },
 ) {
   console.info("Installing OpenCode", { todoId: args.todoId });
   const cliVersion = await installOpencode(sandbox);
 
-  await writeOpencodeConfig(sandbox);
+  await writeOpencodeConfig(sandbox, args.selectedModel);
 
   console.info("Starting OpenCode server", { todoId: args.todoId });
   const { publicUrl, client } = await startOpencodeServer(sandbox);
@@ -151,10 +172,7 @@ export async function setupOpencodeForTodo(
 
   const prompt = await client.session.promptAsync({
     sessionID: session.data.id,
-    model: {
-      providerID: OPENCODE_PROVIDER_ID,
-      modelID: DEFAULT_VERCEL_MODEL,
-    },
+    model: args.selectedModel,
     parts: [
       {
         type: "text",
