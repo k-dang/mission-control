@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Id } from "@/convex/_generated/dataModel";
-import { DEFAULT_RUN_CONFIGURATION } from "@/convex/lib/runConfiguration";
 import { Button } from "@/components/ui/button";
 import { formatRelativeTime } from "@/lib/utils";
 import {
@@ -26,6 +25,8 @@ import {
   type DossierStyle,
 } from "@/components/todo-detail/todo-detail-constants";
 import { TransmissionLog } from "@/components/todo-detail/transmission-log";
+import { StartRunDialog } from "@/components/kanban/start-run-dialog";
+import { useStartTodoRun } from "@/components/kanban/use-start-todo-run";
 
 export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -34,13 +35,11 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     api.todoEvents.listRecentForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
-  const startTodo = useMutation(api.todoRuns.start);
   const toolCallCount = useQuery(
     api.opencodeToolCallCounts.getForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
-  const [isStarting, setIsStarting] = useState(false);
-  const [startError, setStartError] = useState<string | null>(null);
+  const startTodoRun = useStartTodoRun();
 
   const orderedEvents = useMemo(() => {
     if (todoEvents === undefined) return [];
@@ -69,26 +68,9 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     stickToTransmissionEndRef.current = nearBottom;
   }, []);
 
-  const handleStartTodo = async () => {
-    if (isStarting) return;
-
-    setIsStarting(true);
-    setStartError(null);
-
-    try {
-      await startTodo({ todoId, runConfiguration: DEFAULT_RUN_CONFIGURATION });
-    } catch (error) {
-      setStartError(
-        error instanceof Error ? error.message : "Could not start todo.",
-      );
-    } finally {
-      setIsStarting(false);
-    }
-  };
-
   const startButtonContent = (
     <>
-      {isStarting ? (
+      {startTodoRun.isStarting ? (
         <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
       ) : (
         <Play className="h-3.5 w-3.5" />
@@ -371,15 +353,15 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
                         <Button
                           type="button"
                           size="sm"
-                          onClick={handleStartTodo}
-                          disabled={isStarting}
+                          onClick={() => startTodoRun.requestStart(todo)}
+                          disabled={startTodoRun.isStarting}
                           className="w-full border border-col-inprogress/30 bg-col-inprogress/15 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-col-inprogress hover:bg-col-inprogress/20"
                         >
                           {startButtonContent}
                         </Button>
-                        {startError ? (
+                        {startTodoRun.error ? (
                           <p className="mt-2 font-mono text-[10px] leading-4 text-destructive">
-                            {startError}
+                            {startTodoRun.error}
                           </p>
                         ) : null}
                       </dd>
@@ -492,6 +474,10 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
           </div>
         </footer>
       </div>
+      <StartRunDialog
+        key={startTodoRun.dialogKey}
+        {...startTodoRun.dialogProps}
+      />
     </main>
   );
 }

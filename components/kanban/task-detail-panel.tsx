@@ -5,7 +5,6 @@ import { useState, useRef, useId, type KeyboardEvent } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc } from "../../convex/_generated/dataModel";
-import { DEFAULT_RUN_CONFIGURATION } from "../../convex/lib/runConfiguration";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
 import {
@@ -97,13 +96,14 @@ export function TaskDetailPanel({
   todo,
   sandbox,
   onClose,
+  onRequestStart,
 }: {
   todo: Doc<"todos">;
   sandbox: Doc<"todoSandboxes"> | null;
   onClose: () => void;
+  onRequestStart: (todo: Pick<Doc<"todos">, "_id" | "title">) => void;
 }) {
   const updateDraft = useMutation(api.todoRuns.updateDraft);
-  const startTodo = useMutation(api.todoRuns.start);
   const deleteTodo = useMutation(api.todoRuns.remove);
 
   const [editTitle, setEditTitle] = useState(todo.title);
@@ -154,10 +154,7 @@ export function TaskDetailPanel({
     if (status === todo.status) return;
     if (status !== "INPROGRESS") return;
     if (status === "INPROGRESS") {
-      startTodo({
-        todoId: todo._id,
-        runConfiguration: DEFAULT_RUN_CONFIGURATION,
-      });
+      onRequestStart(todo);
     }
   };
 

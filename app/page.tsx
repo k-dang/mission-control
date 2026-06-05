@@ -15,7 +15,6 @@ import {
 } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
-import { DEFAULT_RUN_CONFIGURATION } from "../convex/lib/runConfiguration";
 import { getErrorMessage } from "@/lib/errors";
 import {
   CREATE_TODO_DEFAULT_DESCRIPTION,
@@ -39,6 +38,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { TaskDetailPanel } from "@/components/kanban/task-detail-panel";
+import { StartRunDialog } from "@/components/kanban/start-run-dialog";
+import { useStartTodoRun } from "@/components/kanban/use-start-todo-run";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,7 +82,7 @@ export default function Home() {
     { initialNumItems: KANBAN_PAGE_SIZE },
   );
   const createTodo = useMutation(api.todos.create);
-  const startTodo = useMutation(api.todoRuns.start);
+  const startTodoRun = useStartTodoRun();
 
   const [title, setTitle] = useState(CREATE_TODO_DEFAULT_TITLE);
   const [description, setDescription] = useState(
@@ -172,10 +173,9 @@ export default function Home() {
       return;
     }
 
-    try {
-      await startTodo({ todoId, runConfiguration: DEFAULT_RUN_CONFIGURATION });
-    } catch (error: unknown) {
-      setDropError(getErrorMessage(error));
+    const todo = todoPage.results.find((candidate) => candidate._id === todoId);
+    if (todo) {
+      startTodoRun.requestStart(todo);
     }
   };
 
@@ -454,6 +454,15 @@ export default function Home() {
             <p>{dropError}</p>
           </div>
         ) : null}
+        {startTodoRun.error ? (
+          <div
+            className="flex items-center gap-2 text-sm text-destructive"
+            role="status"
+          >
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            <p>{startTodoRun.error}</p>
+          </div>
+        ) : null}
 
         <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-4 md:overflow-hidden">
           <KanbanColumn
@@ -535,10 +544,15 @@ export default function Home() {
               todo={resolvedTodo}
               sandbox={selectedSandbox ?? null}
               onClose={() => setSelectedTodoId(null)}
+              onRequestStart={startTodoRun.requestStart}
             />
           )}
         </SheetContent>
       </Sheet>
+      <StartRunDialog
+        key={startTodoRun.dialogKey}
+        {...startTodoRun.dialogProps}
+      />
     </main>
   );
 }
