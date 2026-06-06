@@ -104,7 +104,7 @@ function buildTodoPrompt(
   return lines.join("\n");
 }
 
-async function writeOpencodeConfig(
+export async function writeOpencodeConfig(
   sandbox: Sandbox,
   selectedModel: OpencodeModelSelection,
 ) {
@@ -121,7 +121,7 @@ async function writeOpencodeConfig(
   ]);
 }
 
-async function startOpencodeServer(sandbox: Sandbox) {
+export async function startOpencodeServer(sandbox: Sandbox) {
   await sandbox.runCommand({
     cmd: OPENCODE_BIN,
     args: ["serve", "--hostname", "0.0.0.0", "--port", `${OPENCODE_PORT}`],
