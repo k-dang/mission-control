@@ -10,6 +10,7 @@ import {
   buildOpencodeConfig,
   getOpencodeMainModel,
   OPENCODE_PORT,
+  OPENCODE_PROVIDER_API_KEY_ENV,
   OPENCODE_VERSION,
 } from "./lib/opencodeConfig";
 import {
@@ -19,6 +20,7 @@ import {
 } from "./lib/opencodeSandbox";
 import { waitForOpencodeHealth } from "./lib/opencodeHealth";
 import { parseRunConfiguration } from "./lib/runConfiguration";
+import { runConfigurationProviderIdValidator } from "./lib/todoValidators";
 import { getSandbox, requireSandboxAccessConfig } from "./lib/sandboxHelpers";
 
 const MISSION_CONTROL = { owner: "k-dang", repo: "mission-control" } as const;
@@ -271,11 +273,15 @@ const devRunConfigurations = {
     providerId: "openrouter",
     modelId: "moonshotai/kimi-k2.6:free",
   },
+  opencode: {
+    providerId: "opencode",
+    modelId: "deepseek-v4-flash-free",
+  },
 } as const;
 
 export const checkRunConfiguration = action({
   args: {
-    providerId: v.union(v.literal("vercel"), v.literal("openrouter")),
+    providerId: runConfigurationProviderIdValidator,
   },
   returns: v.object({
     ok: v.boolean(),
@@ -302,15 +308,9 @@ export const checkRunConfiguration = action({
       };
     }
 
-    const aiGatewayApiKey = process.env.AI_GATEWAY_API_KEY?.trim();
-    const openRouterApiKey = process.env.OPENROUTER_API_KEY?.trim();
-    const missingKey =
-      providerId === "vercel" && !aiGatewayApiKey
-        ? "AI_GATEWAY_API_KEY"
-        : providerId === "openrouter" && !openRouterApiKey
-          ? "OPENROUTER_API_KEY"
-          : null;
-    if (missingKey) {
+    const envVar = OPENCODE_PROVIDER_API_KEY_ENV[providerId];
+    const apiKey = process.env[envVar]?.trim();
+    if (!apiKey) {
       return {
         ok: false,
         providerId,
@@ -318,7 +318,7 @@ export const checkRunConfiguration = action({
         opencodeModel: null,
         opencodeSmallModel: null,
         enabledProviders: [],
-        error: `${missingKey} is not set in Convex environment variables.`,
+        error: `${envVar} is not set in Convex environment variables.`,
       };
     }
 
@@ -336,16 +336,10 @@ export const checkRunConfiguration = action({
         };
       }
 
-      const config =
-        providerId === "vercel"
-          ? buildOpencodeConfig(getOpencodeMainModel(parsed.value), {
-              selectedProviderID: "vercel",
-              aiGatewayApiKey: aiGatewayApiKey!,
-            })
-          : buildOpencodeConfig(getOpencodeMainModel(parsed.value), {
-              selectedProviderID: "openrouter",
-              openRouterApiKey: openRouterApiKey!,
-            });
+      const config = buildOpencodeConfig(getOpencodeMainModel(parsed.value), {
+        selectedProviderID: providerId,
+        apiKey,
+      });
 
       return {
         ok: true,
@@ -372,7 +366,7 @@ export const checkRunConfiguration = action({
 
 export const startOpencodeSmokeSandbox = action({
   args: {
-    providerId: v.union(v.literal("vercel"), v.literal("openrouter")),
+    providerId: runConfigurationProviderIdValidator,
   },
   returns: v.object({
     ok: v.boolean(),
@@ -473,7 +467,7 @@ export const startOpencodeSmokeSandbox = action({
 
 export const sendOpencodeSmokePrompt = action({
   args: {
-    providerId: v.union(v.literal("vercel"), v.literal("openrouter")),
+    providerId: runConfigurationProviderIdValidator,
     sandboxId: v.string(),
     opencodeUrl: v.string(),
     sessionId: v.string(),

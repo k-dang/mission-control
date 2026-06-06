@@ -61,6 +61,7 @@ export const start = mutation({
 
     await ctx.db.patch("todos", args.todoId, {
       status: "INPROGRESS",
+      runConfiguration: runConfiguration.value,
     });
 
     await ctx.scheduler.runAfter(

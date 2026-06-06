@@ -1,4 +1,8 @@
-import { parseRunConfiguration, type RunConfiguration } from "./runConfiguration";
+import {
+  parseRunConfiguration,
+  type RunConfiguration,
+  type RunConfigurationProviderId,
+} from "./runConfiguration";
 
 export const OPENCODE_PORT = 4096;
 export const OPENCODE_VERSION = "1.14.48";
@@ -20,15 +24,53 @@ export type OpencodeModelSelection = {
   modelID: string;
 };
 
-export type OpencodeConfigApiKeys =
-  | {
-      selectedProviderID: "vercel";
-      aiGatewayApiKey: string;
-    }
-  | {
-      selectedProviderID: "openrouter";
-      openRouterApiKey: string;
-    };
+export type OpencodeConfigApiKeys = {
+  selectedProviderID: RunConfigurationProviderId;
+  apiKey: string;
+};
+
+/**
+ * Canonical map from a run-configuration provider to the Convex env var holding
+ * its OpenCode credential. `satisfies Record<RunConfigurationProviderId, …>`
+ * makes adding a provider to the catalog a compile error here until its
+ * credential env var is declared — so the provider/credential knowledge lives
+ * in exactly one place.
+ */
+export const OPENCODE_PROVIDER_API_KEY_ENV = {
+  vercel: "AI_GATEWAY_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+  opencode: "OPENCODE_ZEN_API_KEY",
+} as const satisfies Record<RunConfigurationProviderId, string>;
+
+function isRunConfigurationProviderId(
+  providerID: string,
+): providerID is RunConfigurationProviderId {
+  return providerID in OPENCODE_PROVIDER_API_KEY_ENV;
+}
+
+/**
+ * Reads the OpenCode credential for `providerID` from the Convex environment,
+ * throwing a clear error when the provider is unknown or its key is unset.
+ */
+export function readOpencodeConfigApiKeys(
+  providerID: string,
+): OpencodeConfigApiKeys {
+  if (!isRunConfigurationProviderId(providerID)) {
+    throw new Error(
+      `Unsupported OpenCode provider for run configuration: ${providerID}`,
+    );
+  }
+
+  const envVar = OPENCODE_PROVIDER_API_KEY_ENV[providerID];
+  const apiKey = process.env[envVar]?.trim();
+  if (!apiKey) {
+    throw new Error(
+      `${envVar} is required for OpenCode run configuration "${providerID}" (set in Convex env)`,
+    );
+  }
+
+  return { selectedProviderID: providerID, apiKey };
+}
 
 export function formatOpencodeModelId(selection: OpencodeModelSelection) {
   return `${selection.providerID}/${selection.modelID}`;
@@ -58,33 +100,14 @@ export function buildOpencodeConfig(
     );
   }
 
-  const provider: Record<string, OpencodeProviderConfig> = {};
-
-  if (
-    mainModel.providerID === "vercel" &&
-    apiKeys.selectedProviderID === "vercel"
-  ) {
-    provider.vercel = {
-      options: { apiKey: apiKeys.aiGatewayApiKey },
+  const provider: Record<string, OpencodeProviderConfig> = {
+    [mainModel.providerID]: {
+      options: { apiKey: apiKeys.apiKey },
       models: {
         [mainModel.modelID]: {},
       },
-    };
-  } else if (
-    mainModel.providerID === "openrouter" &&
-    apiKeys.selectedProviderID === "openrouter"
-  ) {
-    provider.openrouter = {
-      options: { apiKey: apiKeys.openRouterApiKey },
-      models: {
-        [mainModel.modelID]: {},
-      },
-    };
-  } else {
-    throw new Error(
-      `Unsupported OpenCode provider for run configuration: ${mainModel.providerID}`,
-    );
-  }
+    },
+  };
 
   return {
     $schema: "https://opencode.ai/config.json",

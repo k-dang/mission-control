@@ -2,17 +2,18 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_RUN_CONFIGURATION,
   RUN_CONFIGURATION_PROVIDERS,
-  formatRunConfigurationLabel,
-  getRunConfigurationLabel,
+  UNKNOWN_RUN_CONFIGURATION_LABEL,
+  describeRunConfiguration,
   isSupportedRunConfiguration,
   parseRunConfiguration,
 } from "./runConfiguration";
 
 describe("run configuration catalog", () => {
-  it("includes Vercel AI Gateway and OpenRouter providers", () => {
+  it("includes Vercel AI Gateway, OpenRouter, and OpenCode Zen providers", () => {
     expect(RUN_CONFIGURATION_PROVIDERS.map((provider) => provider.id)).toEqual([
       "vercel",
       "openrouter",
+      "opencode",
     ]);
   });
 
@@ -35,6 +36,12 @@ describe("run configuration catalog", () => {
       isSupportedRunConfiguration({
         providerId: "openrouter",
         modelId: "nvidia/nemotron-3-ultra-550b-a55b:free",
+      }),
+    ).toBe(true);
+    expect(
+      isSupportedRunConfiguration({
+        providerId: "opencode",
+        modelId: "deepseek-v4-flash-free",
       }),
     ).toBe(true);
   });
@@ -79,31 +86,42 @@ describe("run configuration catalog", () => {
     });
   });
 
-  it("returns display labels for supported configurations", () => {
+  it("describes known, missing, and stale run configuration for display", () => {
     expect(
-      getRunConfigurationLabel({
+      describeRunConfiguration({
         providerId: "vercel",
         modelId: "moonshotai/kimi-k2.5",
       }),
-    ).toEqual({
-      modelLabel: "Kimi K2.5",
-      providerLabel: "Vercel AI Gateway",
-    });
+    ).toBe("Vercel AI Gateway · Kimi K2.5");
 
     expect(
-      formatRunConfigurationLabel({
+      describeRunConfiguration({
         providerId: "openrouter",
         modelId: "nvidia/nemotron-3-ultra-550b-a55b:free",
       }),
     ).toBe("OpenRouter · NVIDIA Nemotron 3 Ultra 550B Free");
-  });
 
-  it("returns null labels for unsupported configurations", () => {
+    expect(describeRunConfiguration(undefined)).toBe(
+      UNKNOWN_RUN_CONFIGURATION_LABEL,
+    );
+    expect(describeRunConfiguration(null)).toBe(
+      UNKNOWN_RUN_CONFIGURATION_LABEL,
+    );
+
+    // Unknown model under a known provider (e.g. retired after a run).
     expect(
-      getRunConfigurationLabel({
+      describeRunConfiguration({
         providerId: "vercel",
         modelId: "anthropic/unknown",
       }),
-    ).toBeNull();
+    ).toBe(UNKNOWN_RUN_CONFIGURATION_LABEL);
+
+    // Entirely unknown provider.
+    expect(
+      describeRunConfiguration({
+        providerId: "legacy-provider",
+        modelId: "legacy-model",
+      }),
+    ).toBe(UNKNOWN_RUN_CONFIGURATION_LABEL);
   });
 });

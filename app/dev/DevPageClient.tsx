@@ -49,7 +49,7 @@ type OpencodeInstallResult = {
   error: string | null;
 };
 
-type RuntimeProviderId = "vercel" | "openrouter";
+type RuntimeProviderId = "vercel" | "openrouter" | "opencode";
 
 type RunConfigurationResult = {
   ok: boolean;
@@ -401,32 +401,23 @@ export default function DevPageClient() {
           routing without exposing provider credentials.
         </p>
         <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={() => handleCheckRuntime("vercel")}
-            disabled={runtimeLoading !== null}
-            variant="secondary"
-          >
-            {runtimeLoading === "vercel" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Terminal className="h-4 w-4" />
-            )}
-            {runtimeLoading === "vercel" ? "Checking Vercel..." : "Check Vercel"}
-          </Button>
-          <Button
-            onClick={() => handleCheckRuntime("openrouter")}
-            disabled={runtimeLoading !== null}
-            variant="secondary"
-          >
-            {runtimeLoading === "openrouter" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Terminal className="h-4 w-4" />
-            )}
-            {runtimeLoading === "openrouter"
-              ? "Checking OpenRouter..."
-              : "Check OpenRouter"}
-          </Button>
+          {RUN_CONFIGURATION_PROVIDERS.map((provider) => (
+            <Button
+              key={provider.id}
+              onClick={() => handleCheckRuntime(provider.id)}
+              disabled={runtimeLoading !== null}
+              variant="secondary"
+            >
+              {runtimeLoading === provider.id ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Terminal className="h-4 w-4" />
+              )}
+              {runtimeLoading === provider.id
+                ? `Checking ${provider.label}...`
+                : `Check ${provider.label}`}
+            </Button>
+          ))}
         </div>
 
         {runtimeResult !== null && (

@@ -26,6 +26,12 @@ export const terminalTodoStatusValidator = v.union(
   v.literal("FAILED"),
 );
 
+export const runConfigurationProviderIdValidator = v.union(
+  v.literal("vercel"),
+  v.literal("openrouter"),
+  v.literal("opencode"),
+);
+
 export const runConfigurationValidator = v.object({
   providerId: v.string(),
   modelId: v.string(),
@@ -39,6 +45,7 @@ export const todoDocValidator = v.object({
   status: todoStatusValidator,
   githubUrl: v.optional(v.string()),
   prUrl: v.optional(v.string()),
+  runConfiguration: v.optional(runConfigurationValidator),
 });
 
 export const opencodeStateValidator = v.object({

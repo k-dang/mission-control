@@ -64,6 +64,10 @@ describe("todo run start transition", () => {
     const todo = await authed.query(api.todos.get, { todoId });
 
     expect(todo?.status).toBe("INPROGRESS");
+    expect(todo?.runConfiguration).toEqual({
+      providerId: "openrouter",
+      modelId: "moonshotai/kimi-k2.6:free",
+    });
     expect(sandbox?.runConfiguration).toEqual({
       providerId: "openrouter",
       modelId: "moonshotai/kimi-k2.6:free",

@@ -3,6 +3,7 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
 import { GripVertical, Clock } from "lucide-react";
+import { RunConfigurationLabel } from "./run-configuration-label";
 
 const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
   TODO: "bg-col-todo",
@@ -26,6 +27,7 @@ function TodoCardComponent({
 }) {
   const isCompleted = todo.status === "COMPLETED";
   const isDragging = useRef(false);
+  const showRunConfiguration = todo.status !== "TODO";
 
   return (
     <div
@@ -82,10 +84,18 @@ function TodoCardComponent({
         </div>
       </div>
       <div className="mt-2 flex items-center gap-1.5 border-t border-border/30 pt-2">
-        <Clock className="h-3 w-3 text-muted-foreground/50" />
+        <Clock className="h-3 w-3 shrink-0 text-muted-foreground/50" />
         <span className="font-mono text-[10px] text-muted-foreground/50">
           {formatRelativeTime(todo._creationTime)}
         </span>
+        {showRunConfiguration ? (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <RunConfigurationLabel
+              runConfiguration={todo.runConfiguration}
+            />
+          </>
+        ) : null}
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import {
 
 const apiKeys = {
   selectedProviderID: "openrouter",
-  openRouterApiKey: "openrouter-key",
+  apiKey: "openrouter-key",
 } as const;
 
 describe("OpenCode config generation", () => {
@@ -28,7 +28,7 @@ describe("OpenCode config generation", () => {
       },
       {
         selectedProviderID: "vercel",
-        aiGatewayApiKey: "ai-gateway-key",
+        apiKey: "ai-gateway-key",
       },
     );
 
@@ -94,7 +94,7 @@ describe("OpenCode config generation", () => {
         },
         {
           selectedProviderID: "vercel",
-          aiGatewayApiKey: "ai-gateway-key",
+          apiKey: "ai-gateway-key",
         },
       ),
     ).toThrow(

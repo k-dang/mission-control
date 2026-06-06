@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { LucideIcon } from "lucide-react";
 import { ExternalLink, Clock, Circle, RotateCw, CheckCircle2, XCircle } from "lucide-react";
+import { RunConfigurationLabel } from "./run-configuration-label";
 
 type StatusOption = {
   value: Doc<"todos">["status"];
@@ -119,6 +120,7 @@ export function TaskDetailPanel({
   const githubUrlFieldId = useId();
 
   const isEditable = todo.status === "TODO";
+  const showRunConfiguration = todo.status !== "TODO";
 
   const commitTitle = () => {
     if (!isEditable) return;
@@ -382,6 +384,16 @@ export function TaskDetailPanel({
                   {sandbox.opencode.url}
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </Link>
+              </div>
+            ) : null}
+            {showRunConfiguration ? (
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] text-muted-foreground/60">
+                  RUN
+                </span>
+                <RunConfigurationLabel
+                  runConfiguration={todo.runConfiguration}
+                />
               </div>
             ) : null}
           </div>

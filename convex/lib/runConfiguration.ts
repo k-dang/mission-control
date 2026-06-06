@@ -22,6 +22,13 @@ export const RUN_CONFIGURATION_PROVIDERS = [
       },
     ],
   },
+  {
+    id: "opencode",
+    label: "OpenCode Zen",
+    models: [
+      { id: "deepseek-v4-flash-free", label: "DeepSeek V4 Flash Free" },
+    ],
+  },
 ] as const satisfies readonly {
   id: string;
   label: string;
@@ -38,15 +45,20 @@ export type RunConfiguration = {
   modelId: string;
 };
 
+/**
+ * Loosely-typed provider/model pair as it may arrive from stored data or the
+ * client, before it has been validated against the catalog. Use
+ * {@link RunConfiguration} for values known to be supported.
+ */
+export type RunConfigurationInput = {
+  providerId: string;
+  modelId: string;
+};
+
 export const DEFAULT_RUN_CONFIGURATION = {
   providerId: "vercel",
   modelId: "moonshotai/kimi-k2.5",
 } as const satisfies RunConfiguration;
-
-export type RunConfigurationLabel = {
-  providerLabel: string;
-  modelLabel: string;
-};
 
 export type ParseRunConfigurationResult =
   | { ok: true; value: RunConfiguration }
@@ -63,20 +75,14 @@ function findModel(providerId: string, modelId: string) {
 }
 
 export function isSupportedRunConfiguration(
-  configuration: {
-    providerId: string;
-    modelId: string;
-  },
+  configuration: RunConfigurationInput,
 ): configuration is RunConfiguration {
-  return Boolean(
-    findModel(configuration.providerId, configuration.modelId),
-  );
+  return Boolean(findModel(configuration.providerId, configuration.modelId));
 }
 
-export function parseRunConfiguration(configuration: {
-  providerId: string;
-  modelId: string;
-}): ParseRunConfigurationResult {
+export function parseRunConfiguration(
+  configuration: RunConfigurationInput,
+): ParseRunConfigurationResult {
   if (isSupportedRunConfiguration(configuration)) {
     return {
       ok: true,
@@ -93,30 +99,25 @@ export function parseRunConfiguration(configuration: {
   };
 }
 
-export function getRunConfigurationLabel(configuration: {
-  providerId: string;
-  modelId: string;
-}): RunConfigurationLabel | null {
-  const provider = findProvider(configuration.providerId);
-  const model = findModel(configuration.providerId, configuration.modelId);
+export const UNKNOWN_RUN_CONFIGURATION_LABEL = "Unknown run configuration";
+
+/**
+ * Human-readable "Provider · Model" label for a stored or loosely-typed run
+ * configuration, falling back to {@link UNKNOWN_RUN_CONFIGURATION_LABEL} when it
+ * is absent or no longer in the catalog (e.g. a model retired after the run).
+ */
+export function describeRunConfiguration(
+  runConfiguration: RunConfigurationInput | undefined | null,
+): string {
+  if (!runConfiguration) {
+    return UNKNOWN_RUN_CONFIGURATION_LABEL;
+  }
+
+  const provider = findProvider(runConfiguration.providerId);
+  const model = findModel(runConfiguration.providerId, runConfiguration.modelId);
   if (!provider || !model) {
-    return null;
+    return UNKNOWN_RUN_CONFIGURATION_LABEL;
   }
 
-  return {
-    providerLabel: provider.label,
-    modelLabel: model.label,
-  };
-}
-
-export function formatRunConfigurationLabel(configuration: {
-  providerId: string;
-  modelId: string;
-}): string | null {
-  const label = getRunConfigurationLabel(configuration);
-  if (!label) {
-    return null;
-  }
-
-  return `${label.providerLabel} · ${label.modelLabel}`;
+  return `${provider.label} · ${model.label}`;
 }

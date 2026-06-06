@@ -9,52 +9,10 @@ import {
   OPENCODE_CONFIG_PATH,
   OPENCODE_PORT,
   OPENCODE_VERSION,
-  type OpencodeConfigApiKeys,
+  readOpencodeConfigApiKeys,
   type OpencodeModelSelection,
 } from "./opencodeConfig";
 import { waitForOpencodeHealth } from "./opencodeHealth";
-
-function readAiGatewayApiKey(): string {
-  const key = process.env.AI_GATEWAY_API_KEY?.trim();
-  if (!key) {
-    throw new Error(
-      "AI_GATEWAY_API_KEY is required for OpenCode with Vercel AI Gateway (set in Convex env)",
-    );
-  }
-  return key;
-}
-
-function readOpenRouterApiKey(): string {
-  const key = process.env.OPENROUTER_API_KEY?.trim();
-  if (!key) {
-    throw new Error(
-      "OPENROUTER_API_KEY is required for OpenCode with OpenRouter (set in Convex env)",
-    );
-  }
-  return key;
-}
-
-function readOpencodeConfigApiKeys(
-  selectedModel: OpencodeModelSelection,
-): OpencodeConfigApiKeys {
-  if (selectedModel.providerID === "vercel") {
-    return {
-      selectedProviderID: "vercel",
-      aiGatewayApiKey: readAiGatewayApiKey(),
-    };
-  }
-
-  if (selectedModel.providerID === "openrouter") {
-    return {
-      selectedProviderID: "openrouter",
-      openRouterApiKey: readOpenRouterApiKey(),
-    };
-  }
-
-  throw new Error(
-    `Unsupported OpenCode provider for run configuration: ${selectedModel.providerID}`,
-  );
-}
 
 export async function installOpencode(sandbox: Sandbox) {
   const install = await sandbox.runCommand({
@@ -109,7 +67,10 @@ export async function writeOpencodeConfig(
   selectedModel: OpencodeModelSelection,
 ) {
   const opencodeConfig = JSON.stringify(
-    buildOpencodeConfig(selectedModel, readOpencodeConfigApiKeys(selectedModel)),
+    buildOpencodeConfig(
+      selectedModel,
+      readOpencodeConfigApiKeys(selectedModel.providerID),
+    ),
     null,
     2,
   );
