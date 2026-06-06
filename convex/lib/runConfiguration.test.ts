@@ -24,11 +24,17 @@ describe("run configuration catalog", () => {
     expect(isSupportedRunConfiguration(DEFAULT_RUN_CONFIGURATION)).toBe(true);
   });
 
-  it("supports one curated model per provider", () => {
+  it("supports curated models per provider", () => {
     expect(
       isSupportedRunConfiguration({
         providerId: "openrouter",
         modelId: "moonshotai/kimi-k2.6:free",
+      }),
+    ).toBe(true);
+    expect(
+      isSupportedRunConfiguration({
+        providerId: "openrouter",
+        modelId: "nvidia/nemotron-3-ultra-550b-a55b:free",
       }),
     ).toBe(true);
   });
@@ -87,9 +93,9 @@ describe("run configuration catalog", () => {
     expect(
       formatRunConfigurationLabel({
         providerId: "openrouter",
-        modelId: "moonshotai/kimi-k2.6:free",
+        modelId: "nvidia/nemotron-3-ultra-550b-a55b:free",
       }),
-    ).toBe("OpenRouter · Kimi K2.6 Free");
+    ).toBe("OpenRouter · NVIDIA Nemotron 3 Ultra 550B Free");
   });
 
   it("returns null labels for unsupported configurations", () => {

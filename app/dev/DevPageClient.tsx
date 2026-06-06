@@ -11,6 +11,7 @@ import {
   GitPullRequest,
   Terminal,
   Send,
+  Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -80,6 +81,12 @@ type SmokePromptResult = {
   error: string | null;
 };
 
+type StopSmokeSandboxResult = {
+  ok: boolean;
+  sandboxId: string;
+  error: string | null;
+};
+
 export default function DevPageClient() {
   const checkGithubToken = useAction(api.devTools.checkGithubToken);
   const createTestPr = useAction(api.devTools.createMissionControlTestPullRequest);
@@ -91,6 +98,7 @@ export default function DevPageClient() {
   );
   const startSmokeSandbox = useAction(api.devTools.startOpencodeSmokeSandbox);
   const sendSmokePrompt = useAction(api.devTools.sendOpencodeSmokePrompt);
+  const stopSmokeSandbox = useAction(api.devTools.stopOpencodeSmokeSandbox);
   const [result, setResult] = useState<CheckResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [prResult, setPrResult] = useState<PrResult | null>(null);
@@ -110,8 +118,11 @@ export default function DevPageClient() {
   );
   const [smokePromptResult, setSmokePromptResult] =
     useState<SmokePromptResult | null>(null);
+  const [stopSmokeSandboxResult, setStopSmokeSandboxResult] =
+    useState<StopSmokeSandboxResult | null>(null);
   const [smokeSandboxLoading, setSmokeSandboxLoading] = useState(false);
   const [smokePromptLoading, setSmokePromptLoading] = useState(false);
+  const [stopSmokeSandboxLoading, setStopSmokeSandboxLoading] = useState(false);
   const [smokePrompt, setSmokePrompt] = useState(
     "Reply with the active model and say whether this OpenCode session is healthy.",
   );
@@ -164,6 +175,7 @@ export default function DevPageClient() {
     setSmokeSandboxLoading(true);
     setSmokeSandbox(null);
     setSmokePromptResult(null);
+    setStopSmokeSandboxResult(null);
     try {
       const res = await startSmokeSandbox({ providerId: smokeProviderId });
       setSmokeSandbox(res);
@@ -197,13 +209,37 @@ export default function DevPageClient() {
     }
   };
 
+  const handleStopSmokeSandbox = async () => {
+    if (!smokeSandbox?.sandboxId) {
+      return;
+    }
+
+    setStopSmokeSandboxLoading(true);
+    setStopSmokeSandboxResult(null);
+    try {
+      const res = await stopSmokeSandbox({ sandboxId: smokeSandbox.sandboxId });
+      setStopSmokeSandboxResult(res);
+    } finally {
+      setStopSmokeSandboxLoading(false);
+    }
+  };
+
   const canSendSmokePrompt =
     smokeSandbox?.ok === true &&
     Boolean(smokeSandbox.sandboxId) &&
     Boolean(smokeSandbox.opencodeUrl) &&
     Boolean(smokeSandbox.sessionId) &&
     smokePrompt.trim().length > 0 &&
-    !smokePromptLoading;
+    stopSmokeSandboxResult?.ok !== true &&
+    !smokePromptLoading &&
+    !stopSmokeSandboxLoading;
+
+  const canStopSmokeSandbox =
+    Boolean(smokeSandbox?.sandboxId) &&
+    stopSmokeSandboxResult?.ok !== true &&
+    !smokeSandboxLoading &&
+    !smokePromptLoading &&
+    !stopSmokeSandboxLoading;
 
   return (
     <main className="min-h-screen space-y-8 p-10">
@@ -456,6 +492,7 @@ export default function DevPageClient() {
               setSmokeProviderId(value as RuntimeProviderId);
               setSmokeSandbox(null);
               setSmokePromptResult(null);
+              setStopSmokeSandboxResult(null);
             }}
           >
             <SelectTrigger id="smoke-run-config" className="max-w-sm">
@@ -471,18 +508,34 @@ export default function DevPageClient() {
           </Select>
         </div>
 
-        <Button
-          onClick={handleStartSmokeSandbox}
-          disabled={smokeSandboxLoading || smokePromptLoading}
-          variant="secondary"
-        >
-          {smokeSandboxLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Terminal className="h-4 w-4" />
-          )}
-          {smokeSandboxLoading ? "Starting sandbox..." : "Start smoke sandbox"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={handleStartSmokeSandbox}
+            disabled={
+              smokeSandboxLoading || smokePromptLoading || stopSmokeSandboxLoading
+            }
+            variant="secondary"
+          >
+            {smokeSandboxLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Terminal className="h-4 w-4" />
+            )}
+            {smokeSandboxLoading ? "Starting sandbox..." : "Start smoke sandbox"}
+          </Button>
+          <Button
+            onClick={handleStopSmokeSandbox}
+            disabled={!canStopSmokeSandbox}
+            variant="secondary"
+          >
+            {stopSmokeSandboxLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+            {stopSmokeSandboxLoading ? "Stopping sandbox..." : "Stop sandbox"}
+          </Button>
+        </div>
 
         {smokeSandbox !== null && (
           <div className="space-y-2 rounded-lg border p-4 text-sm">
@@ -533,6 +586,18 @@ export default function DevPageClient() {
             )}
             {smokeSandbox.error && (
               <p className="pt-1 text-destructive">{smokeSandbox.error}</p>
+            )}
+            {stopSmokeSandboxResult !== null && (
+              <Row
+                label="Sandbox stopped"
+                ok={stopSmokeSandboxResult.ok}
+                value={stopSmokeSandboxResult.ok ? "Yes" : "No"}
+              />
+            )}
+            {stopSmokeSandboxResult?.error && (
+              <p className="pt-1 text-destructive">
+                {stopSmokeSandboxResult.error}
+              </p>
             )}
           </div>
         )}

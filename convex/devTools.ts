@@ -558,6 +558,42 @@ export const sendOpencodeSmokePrompt = action({
   },
 });
 
+export const stopOpencodeSmokeSandbox = action({
+  args: {
+    sandboxId: v.string(),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    sandboxId: v.string(),
+    error: v.union(v.string(), v.null()),
+  }),
+  handler: async (_, args) => {
+    if (!areDevToolsEnabled()) {
+      return {
+        ok: false,
+        sandboxId: args.sandboxId,
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
+    try {
+      const sandbox = await getSandbox(args.sandboxId);
+      await sandbox.stop();
+      return {
+        ok: true,
+        sandboxId: args.sandboxId,
+        error: null,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        sandboxId: args.sandboxId,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  },
+});
+
 /** Creates a real PR on k-dang/mission-control to verify the token can push and open PRs. */
 export const createMissionControlTestPullRequest = action({
   args: {},

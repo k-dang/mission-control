@@ -16,6 +16,10 @@ export const RUN_CONFIGURATION_PROVIDERS = [
     label: "OpenRouter",
     models: [
       { id: "moonshotai/kimi-k2.6:free", label: "Kimi K2.6 Free" },
+      {
+        id: "nvidia/nemotron-3-ultra-550b-a55b:free",
+        label: "NVIDIA Nemotron 3 Ultra 550B Free",
+      },
     ],
   },
 ] as const satisfies readonly {
