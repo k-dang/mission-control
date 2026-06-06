@@ -120,11 +120,11 @@ function SidebarContent() {
 export function AppSidebar() {
   return (
     <>
-      <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-border/40 bg-background/95 md:block">
+      <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-border/40 bg-background/95 lg:block">
         <SidebarContent />
       </aside>
 
-      <div className="fixed left-3 top-3 z-50 md:hidden">
+      <div className="fixed left-3 top-3 z-50 lg:hidden">
         <Sheet>
           <SheetTrigger asChild>
             <Button

@@ -208,9 +208,9 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
+      <main className="grain-overlay relative flex min-h-screen flex-col 2xl:h-dvh 2xl:overflow-hidden">
         <div className="ambient-bg" />
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 pt-16 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 pt-16 lg:p-10 2xl:h-dvh 2xl:min-h-0 2xl:overflow-hidden">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
               <div className="h-8 w-8 animate-pulse rounded-lg bg-muted/40" />
@@ -218,7 +218,7 @@ export default function Home() {
             </div>
             <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
           </div>
-          <div className="grid gap-5 md:grid-cols-4">
+          <div className="flex flex-col gap-5 md:grid md:grid-cols-2 2xl:grid-cols-4">
             {[0, 1, 2, 3].map((col) => (
               <div
                 key={col}
@@ -251,9 +251,9 @@ export default function Home() {
 
   if (isBoardLoading) {
     return (
-      <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
+      <main className="grain-overlay relative flex min-h-screen flex-col 2xl:h-dvh 2xl:overflow-hidden">
         <div className="ambient-bg" />
-        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 pt-16 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
+        <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-8 p-6 pt-16 lg:p-10 2xl:h-dvh 2xl:min-h-0 2xl:overflow-hidden">
           {/* Skeleton header */}
           <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -263,7 +263,7 @@ export default function Home() {
             <div className="h-10 w-full animate-pulse rounded-xl bg-muted/20" />
           </div>
           {/* Skeleton columns */}
-          <div className="grid gap-5 md:grid-cols-4">
+          <div className="flex flex-col gap-5 md:grid md:grid-cols-2 2xl:grid-cols-4">
             {[0, 1, 2, 3].map((col) => (
               <div
                 key={col}
@@ -291,9 +291,9 @@ export default function Home() {
   }
 
   return (
-    <main className="grain-overlay relative flex min-h-screen flex-col md:h-dvh md:overflow-hidden">
+    <main className="grain-overlay relative flex min-h-screen flex-col 2xl:h-dvh 2xl:overflow-hidden">
       <div className="ambient-bg" />
-      <div className="relative z-10 mx-auto flex min-h-screen w-full flex-col gap-8 p-6 pt-16 md:h-dvh md:min-h-0 md:overflow-hidden md:p-10">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full flex-col gap-8 p-6 pt-16 lg:p-10 2xl:h-dvh 2xl:min-h-0 2xl:overflow-hidden">
         <header className="space-y-3">
           <div className="flex items-center justify-between">
             {/* Stat pills */}
@@ -464,7 +464,54 @@ export default function Home() {
           </div>
         ) : null}
 
-        <section className="grid gap-5 md:min-h-0 md:flex-1 md:grid-cols-4 md:overflow-hidden">
+        <section className="flex flex-col gap-6 md:hidden">
+          <KanbanColumn
+            layout="feed"
+            status="TODO"
+            todos={todos.todo}
+            draggable={false}
+            onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
+            canLoadMore={todoPage.status === "CanLoadMore"}
+            isLoadingMore={todoPage.status === "LoadingMore"}
+            onLoadMore={() => todoPage.loadMore(KANBAN_PAGE_SIZE)}
+          />
+          <KanbanColumn
+            layout="feed"
+            status="INPROGRESS"
+            todos={todos.inprogress}
+            draggable={false}
+            onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
+            canLoadMore={inprogressPage.status === "CanLoadMore"}
+            isLoadingMore={inprogressPage.status === "LoadingMore"}
+            onLoadMore={() => inprogressPage.loadMore(KANBAN_PAGE_SIZE)}
+          />
+          <KanbanColumn
+            layout="feed"
+            status="COMPLETED"
+            todos={todos.completed}
+            draggable={false}
+            onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
+            canLoadMore={completedPage.status === "CanLoadMore"}
+            isLoadingMore={completedPage.status === "LoadingMore"}
+            onLoadMore={() => completedPage.loadMore(KANBAN_PAGE_SIZE)}
+          />
+          <KanbanColumn
+            layout="feed"
+            status="FAILED"
+            todos={todos.failed}
+            draggable={false}
+            onDragStart={handleDragStart}
+            onCardClick={handleCardClick}
+            canLoadMore={failedPage.status === "CanLoadMore"}
+            isLoadingMore={failedPage.status === "LoadingMore"}
+            onLoadMore={() => failedPage.loadMore(KANBAN_PAGE_SIZE)}
+          />
+        </section>
+
+        <section className="hidden gap-5 md:grid md:grid-cols-2 2xl:min-h-0 2xl:flex-1 2xl:grid-cols-4 2xl:overflow-hidden">
           <KanbanColumn
             id="todo"
             status="TODO"

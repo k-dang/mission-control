@@ -69,6 +69,7 @@ export function KanbanColumn({
   status,
   todos,
   draggable,
+  layout = "column",
   onDragStart,
   onDragEnd,
   onDragOver,
@@ -84,6 +85,7 @@ export function KanbanColumn({
   status: Doc<"todos">["status"];
   todos: Doc<"todos">[];
   draggable: boolean;
+  layout?: "column" | "feed";
   onDragStart: (event: DragEvent<HTMLDivElement>, todoId: Id<"todos">) => void;
   onDragEnd?: () => void;
   onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
@@ -106,7 +108,9 @@ export function KanbanColumn({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={cn(
-        "rounded-xl border border-border/50 bg-card/40 p-4 transition-[border-color,box-shadow] duration-200 md:flex md:min-h-0 md:flex-col md:overflow-hidden",
+        "rounded-xl border border-border/50 bg-card/40 p-4 transition-[border-color,box-shadow] duration-200",
+        layout === "column" &&
+          "2xl:flex 2xl:min-h-0 2xl:flex-col 2xl:overflow-hidden",
         config.accentClass,
         isDropTarget && (status === "INPROGRESS" ? "drop-glow-inprogress border-col-inprogress/30" : "drop-glow border-primary/30"),
       )}
@@ -136,8 +140,13 @@ export function KanbanColumn({
           </span>
         </div>
       </div>
-      <div className="max-h-[calc(100vh-320px)] overflow-y-auto overscroll-contain md:min-h-0 md:flex-1 md:max-h-none">
-        <div className="space-y-3 pr-3">
+      <div
+        className={cn(
+          layout === "column" &&
+            "2xl:min-h-0 2xl:flex-1 2xl:overflow-y-auto 2xl:overscroll-contain",
+        )}
+      >
+        <div className={cn("space-y-3", layout === "column" && "pr-3")}>
           {todos.length === 0 ? (
             <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border/40 p-6 text-center">
               <EmptyIcon className="h-5 w-5 text-muted-foreground/30" />
