@@ -1,6 +1,7 @@
 "use node";
 
 import { Buffer } from "node:buffer";
+import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { z } from "zod";
@@ -8,11 +9,17 @@ import { action } from "./_generated/server";
 import {
   buildOpencodeConfig,
   getOpencodeMainModel,
+  OPENCODE_PORT,
   OPENCODE_VERSION,
 } from "./lib/opencodeConfig";
-import { installOpencode } from "./lib/opencodeSandbox";
+import {
+  installOpencode,
+  startOpencodeServer,
+  writeOpencodeConfig,
+} from "./lib/opencodeSandbox";
+import { waitForOpencodeHealth } from "./lib/opencodeHealth";
 import { parseRunConfiguration } from "./lib/runConfiguration";
-import { requireSandboxAccessConfig } from "./lib/sandboxHelpers";
+import { getSandbox, requireSandboxAccessConfig } from "./lib/sandboxHelpers";
 
 const MISSION_CONTROL = { owner: "k-dang", repo: "mission-control" } as const;
 const DEV_TOOLS_DISABLED_ERROR =
@@ -195,6 +202,7 @@ export const checkOpencodeInstall = action({
     try {
       sandbox = await Sandbox.create({
         ...requireSandboxAccessConfig(),
+        ports: [OPENCODE_PORT],
         runtime: "node24",
         timeout: 10 * 60 * 1000,
       });
@@ -356,6 +364,194 @@ export const checkRunConfiguration = action({
         opencodeModel: null,
         opencodeSmallModel: null,
         enabledProviders: [],
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  },
+});
+
+export const startOpencodeSmokeSandbox = action({
+  args: {
+    providerId: v.union(v.literal("vercel"), v.literal("openrouter")),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    providerId: v.string(),
+    modelId: v.string(),
+    opencodeModel: v.union(v.string(), v.null()),
+    sandboxId: v.union(v.string(), v.null()),
+    opencodeUrl: v.union(v.string(), v.null()),
+    sessionId: v.union(v.string(), v.null()),
+    installedVersion: v.union(v.string(), v.null()),
+    error: v.union(v.string(), v.null()),
+  }),
+  handler: async (_, args) => {
+    const runConfiguration = devRunConfigurations[args.providerId];
+    const { providerId, modelId } = runConfiguration;
+
+    if (!areDevToolsEnabled()) {
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        opencodeModel: null,
+        sandboxId: null,
+        opencodeUrl: null,
+        sessionId: null,
+        installedVersion: null,
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
+    let sandbox: Sandbox | undefined;
+    try {
+      const parsed = parseRunConfiguration(runConfiguration);
+      if (!parsed.ok) {
+        throw new Error(parsed.error);
+      }
+
+      const selectedModel = getOpencodeMainModel(parsed.value);
+      sandbox = await Sandbox.create({
+        ...requireSandboxAccessConfig(),
+        ports: [OPENCODE_PORT],
+        runtime: "node24",
+        timeout: 10 * 60 * 1000,
+      });
+
+      const installedVersion = await installOpencode(sandbox);
+      await writeOpencodeConfig(sandbox, selectedModel);
+      const { publicUrl, client } = await startOpencodeServer(sandbox);
+      await waitForOpencodeHealth(client);
+
+      const session = await client.session.create({
+        title: `Dev smoke test: ${providerId}/${modelId}`,
+      });
+      if (session.error || !session.data) {
+        throw new Error(
+          `Failed to create OpenCode session: ${session.error?.data.message ?? "missing session data"}`,
+        );
+      }
+
+      return {
+        ok: true,
+        providerId,
+        modelId,
+        opencodeModel: `${selectedModel.providerID}/${selectedModel.modelID}`,
+        sandboxId: sandbox.sandboxId,
+        opencodeUrl: publicUrl,
+        sessionId: session.data.id,
+        installedVersion,
+        error: null,
+      };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      if (sandbox) {
+        try {
+          await sandbox.stop();
+        } catch (stopErr) {
+          console.warn("Failed to stop failed dev OpenCode smoke sandbox", {
+            sandboxId: sandbox.sandboxId,
+            error: stopErr,
+          });
+        }
+      }
+
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        opencodeModel: null,
+        sandboxId: sandbox?.sandboxId ?? null,
+        opencodeUrl: null,
+        sessionId: null,
+        installedVersion: null,
+        error,
+      };
+    }
+  },
+});
+
+export const sendOpencodeSmokePrompt = action({
+  args: {
+    providerId: v.union(v.literal("vercel"), v.literal("openrouter")),
+    sandboxId: v.string(),
+    opencodeUrl: v.string(),
+    sessionId: v.string(),
+    prompt: v.string(),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    providerId: v.string(),
+    modelId: v.string(),
+    sessionId: v.string(),
+    error: v.union(v.string(), v.null()),
+  }),
+  handler: async (_, args) => {
+    const runConfiguration = devRunConfigurations[args.providerId];
+    const { providerId, modelId } = runConfiguration;
+
+    if (!areDevToolsEnabled()) {
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        sessionId: args.sessionId,
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
+    const trimmedPrompt = args.prompt.trim();
+    if (!trimmedPrompt) {
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        sessionId: args.sessionId,
+        error: "Enter a test prompt before sending.",
+      };
+    }
+
+    try {
+      // Touch the sandbox first so an expired/stopped sandbox is reported clearly.
+      await getSandbox(args.sandboxId);
+      const parsed = parseRunConfiguration(runConfiguration);
+      if (!parsed.ok) {
+        throw new Error(parsed.error);
+      }
+
+      const selectedModel = getOpencodeMainModel(parsed.value);
+      const client = createOpencodeClient({ baseUrl: args.opencodeUrl });
+      await waitForOpencodeHealth(client);
+
+      const prompt = await client.session.promptAsync({
+        sessionID: args.sessionId,
+        model: selectedModel,
+        parts: [
+          {
+            type: "text",
+            text: trimmedPrompt,
+          },
+        ],
+      });
+      if (prompt.error) {
+        throw new Error(
+          `Failed to submit OpenCode prompt: ${prompt.error.data.message}`,
+        );
+      }
+
+      return {
+        ok: true,
+        providerId,
+        modelId,
+        sessionId: args.sessionId,
+        error: null,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        sessionId: args.sessionId,
         error: err instanceof Error ? err.message : String(err),
       };
     }

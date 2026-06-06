@@ -10,8 +10,19 @@ import {
   ArrowLeft,
   GitPullRequest,
   Terminal,
+  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { RUN_CONFIGURATION_PROVIDERS } from "@/convex/lib/runConfiguration";
 import { api } from "../../convex/_generated/api";
 
 type CheckResult = {
@@ -49,6 +60,26 @@ type RunConfigurationResult = {
   error: string | null;
 };
 
+type SmokeSandboxResult = {
+  ok: boolean;
+  providerId: string;
+  modelId: string;
+  opencodeModel: string | null;
+  sandboxId: string | null;
+  opencodeUrl: string | null;
+  sessionId: string | null;
+  installedVersion: string | null;
+  error: string | null;
+};
+
+type SmokePromptResult = {
+  ok: boolean;
+  providerId: string;
+  modelId: string;
+  sessionId: string;
+  error: string | null;
+};
+
 export default function DevPageClient() {
   const checkGithubToken = useAction(api.devTools.checkGithubToken);
   const createTestPr = useAction(api.devTools.createMissionControlTestPullRequest);
@@ -58,6 +89,8 @@ export default function DevPageClient() {
   const checkRunConfiguration = useAction(
     api.devTools.checkRunConfiguration,
   );
+  const startSmokeSandbox = useAction(api.devTools.startOpencodeSmokeSandbox);
+  const sendSmokePrompt = useAction(api.devTools.sendOpencodeSmokePrompt);
   const [result, setResult] = useState<CheckResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [prResult, setPrResult] = useState<PrResult | null>(null);
@@ -69,6 +102,18 @@ export default function DevPageClient() {
     useState<RunConfigurationResult | null>(null);
   const [runtimeLoading, setRuntimeLoading] = useState<RuntimeProviderId | null>(
     null,
+  );
+  const [smokeProviderId, setSmokeProviderId] =
+    useState<RuntimeProviderId>("vercel");
+  const [smokeSandbox, setSmokeSandbox] = useState<SmokeSandboxResult | null>(
+    null,
+  );
+  const [smokePromptResult, setSmokePromptResult] =
+    useState<SmokePromptResult | null>(null);
+  const [smokeSandboxLoading, setSmokeSandboxLoading] = useState(false);
+  const [smokePromptLoading, setSmokePromptLoading] = useState(false);
+  const [smokePrompt, setSmokePrompt] = useState(
+    "Reply with the active model and say whether this OpenCode session is healthy.",
   );
 
   const handleCheck = async () => {
@@ -114,6 +159,51 @@ export default function DevPageClient() {
       setRuntimeLoading(null);
     }
   };
+
+  const handleStartSmokeSandbox = async () => {
+    setSmokeSandboxLoading(true);
+    setSmokeSandbox(null);
+    setSmokePromptResult(null);
+    try {
+      const res = await startSmokeSandbox({ providerId: smokeProviderId });
+      setSmokeSandbox(res);
+    } finally {
+      setSmokeSandboxLoading(false);
+    }
+  };
+
+  const handleSendSmokePrompt = async () => {
+    if (
+      !smokeSandbox?.sandboxId ||
+      !smokeSandbox.opencodeUrl ||
+      !smokeSandbox.sessionId
+    ) {
+      return;
+    }
+
+    setSmokePromptLoading(true);
+    setSmokePromptResult(null);
+    try {
+      const res = await sendSmokePrompt({
+        providerId: smokeProviderId,
+        sandboxId: smokeSandbox.sandboxId,
+        opencodeUrl: smokeSandbox.opencodeUrl,
+        sessionId: smokeSandbox.sessionId,
+        prompt: smokePrompt,
+      });
+      setSmokePromptResult(res);
+    } finally {
+      setSmokePromptLoading(false);
+    }
+  };
+
+  const canSendSmokePrompt =
+    smokeSandbox?.ok === true &&
+    Boolean(smokeSandbox.sandboxId) &&
+    Boolean(smokeSandbox.opencodeUrl) &&
+    Boolean(smokeSandbox.sessionId) &&
+    smokePrompt.trim().length > 0 &&
+    !smokePromptLoading;
 
   return (
     <main className="min-h-screen space-y-8 p-10">
@@ -342,6 +432,146 @@ export default function DevPageClient() {
             )}
             {runtimeResult.error && (
               <p className="pt-1 text-destructive">{runtimeResult.error}</p>
+            )}
+          </div>
+        )}
+      </section>
+
+      <section className="max-w-2xl space-y-4 rounded-lg border p-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">OpenCode config smoke test</h2>
+          <p className="text-sm text-muted-foreground">
+            Pick one supported run config, start a temporary sandbox with
+            OpenCode configured for it, then send a prompt to verify the session
+            accepts work.
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="smoke-run-config">Run config</Label>
+          <Select
+            value={smokeProviderId}
+            disabled={smokeSandboxLoading || smokePromptLoading}
+            onValueChange={(value) => {
+              setSmokeProviderId(value as RuntimeProviderId);
+              setSmokeSandbox(null);
+              setSmokePromptResult(null);
+            }}
+          >
+            <SelectTrigger id="smoke-run-config" className="max-w-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {RUN_CONFIGURATION_PROVIDERS.map((provider) => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {provider.label} · {provider.models[0]?.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <Button
+          onClick={handleStartSmokeSandbox}
+          disabled={smokeSandboxLoading || smokePromptLoading}
+          variant="secondary"
+        >
+          {smokeSandboxLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Terminal className="h-4 w-4" />
+          )}
+          {smokeSandboxLoading ? "Starting sandbox..." : "Start smoke sandbox"}
+        </Button>
+
+        {smokeSandbox !== null && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <Row
+              label="Sandbox ready"
+              ok={smokeSandbox.ok}
+              value={smokeSandbox.ok ? "Yes" : "No"}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="shrink-0 text-muted-foreground">Run config</span>
+              <span className="break-all text-right font-mono text-xs">
+                {smokeSandbox.providerId}/{smokeSandbox.modelId}
+              </span>
+            </div>
+            {smokeSandbox.opencodeModel && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">OpenCode model</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {smokeSandbox.opencodeModel}
+                </span>
+              </div>
+            )}
+            {smokeSandbox.installedVersion && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">OpenCode version</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {smokeSandbox.installedVersion}
+                </span>
+              </div>
+            )}
+            {smokeSandbox.sandboxId && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Sandbox</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {smokeSandbox.sandboxId}
+                </span>
+              </div>
+            )}
+            {smokeSandbox.opencodeUrl && (
+              <a
+                href={smokeSandbox.opencodeUrl}
+                className="block break-all text-primary underline underline-offset-2"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {smokeSandbox.opencodeUrl}
+              </a>
+            )}
+            {smokeSandbox.error && (
+              <p className="pt-1 text-destructive">{smokeSandbox.error}</p>
+            )}
+          </div>
+        )}
+
+        <div className="grid gap-2">
+          <Label htmlFor="smoke-prompt">Test prompt</Label>
+          <Textarea
+            id="smoke-prompt"
+            value={smokePrompt}
+            onChange={(event) => setSmokePrompt(event.target.value)}
+            disabled={smokePromptLoading}
+            className="min-h-24"
+          />
+        </div>
+
+        <Button onClick={handleSendSmokePrompt} disabled={!canSendSmokePrompt}>
+          {smokePromptLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="h-4 w-4" />
+          )}
+          {smokePromptLoading ? "Sending prompt..." : "Send test prompt"}
+        </Button>
+
+        {smokePromptResult !== null && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <Row
+              label="Prompt accepted"
+              ok={smokePromptResult.ok}
+              value={smokePromptResult.ok ? "Yes" : "No"}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="shrink-0 text-muted-foreground">Session</span>
+              <span className="break-all text-right font-mono text-xs">
+                {smokePromptResult.sessionId}
+              </span>
+            </div>
+            {smokePromptResult.error && (
+              <p className="pt-1 text-destructive">{smokePromptResult.error}</p>
             )}
           </div>
         )}
