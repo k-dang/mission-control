@@ -3,6 +3,7 @@ import {
   buildOpencodeConfig,
   formatOpencodeModelId,
   getOpencodeMainModel,
+  getOpencodePullRequestMetadataModel,
 } from "./opencodeConfig";
 
 const apiKeys = {
@@ -22,6 +23,10 @@ describe("OpenCode config generation", () => {
 
   it("builds deterministic Vercel config for the selected main model", () => {
     const config = buildOpencodeConfig(
+      {
+        providerID: "vercel",
+        modelID: "moonshotai/kimi-k2.5",
+      },
       {
         providerID: "vercel",
         modelID: "moonshotai/kimi-k2.5",
@@ -52,6 +57,10 @@ describe("OpenCode config generation", () => {
     const config = buildOpencodeConfig(
       {
         providerID: "openrouter",
+        modelID: "nvidia/nemotron-3-ultra-550b-a55b:free",
+      },
+      {
+        providerID: "openrouter",
         modelID: "moonshotai/kimi-k2.6:free",
       },
       apiKeys,
@@ -64,12 +73,13 @@ describe("OpenCode config generation", () => {
         openrouter: {
           options: { apiKey: "openrouter-key" },
           models: {
+            "nvidia/nemotron-3-ultra-550b-a55b:free": {},
             "moonshotai/kimi-k2.6:free": {},
           },
         },
       },
-      model: "openrouter/moonshotai/kimi-k2.6:free",
-      small_model: "openrouter/moonshotai/kimi-k2.6:free",
+      model: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
+      small_model: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     });
   });
 
@@ -85,9 +95,35 @@ describe("OpenCode config generation", () => {
     });
   });
 
+  it("returns the provider-specific model used for PR metadata prompts", () => {
+    expect(
+      getOpencodePullRequestMetadataModel({
+        providerId: "openrouter",
+        modelId: "moonshotai/kimi-k2.6:free",
+      }),
+    ).toEqual({
+      providerID: "openrouter",
+      modelID: "nvidia/nemotron-3-ultra-550b-a55b:free",
+    });
+
+    expect(
+      getOpencodePullRequestMetadataModel({
+        providerId: "opencode",
+        modelId: "deepseek-v4-flash-free",
+      }),
+    ).toEqual({
+      providerID: "opencode",
+      modelID: "big-pickle",
+    });
+  });
+
   it("rejects mismatched credentials before config generation", () => {
     expect(() =>
       buildOpencodeConfig(
+        {
+          providerID: "openrouter",
+          modelID: "moonshotai/kimi-k2.6:free",
+        },
         {
           providerID: "openrouter",
           modelID: "moonshotai/kimi-k2.6:free",
@@ -99,6 +135,24 @@ describe("OpenCode config generation", () => {
       ),
     ).toThrow(
       "OpenCode credential provider mismatch: vercel credentials cannot configure openrouter",
+    );
+  });
+
+  it("rejects PR metadata models from a different provider", () => {
+    expect(() =>
+      buildOpencodeConfig(
+        {
+          providerID: "openrouter",
+          modelID: "moonshotai/kimi-k2.6:free",
+        },
+        {
+          providerID: "vercel",
+          modelID: "moonshotai/kimi-k2.5",
+        },
+        apiKeys,
+      ),
+    ).toThrow(
+      "OpenCode PR metadata provider mismatch: vercel cannot be configured with openrouter",
     );
   });
 

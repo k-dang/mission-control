@@ -9,6 +9,7 @@ import { action } from "./_generated/server";
 import {
   buildOpencodeConfig,
   getOpencodeMainModel,
+  getOpencodePullRequestMetadataModel,
   OPENCODE_PORT,
   OPENCODE_PROVIDER_API_KEY_ENV,
   OPENCODE_VERSION,
@@ -336,10 +337,14 @@ export const checkRunConfiguration = action({
         };
       }
 
-      const config = buildOpencodeConfig(getOpencodeMainModel(parsed.value), {
-        selectedProviderID: providerId,
-        apiKey,
-      });
+      const config = buildOpencodeConfig(
+        getOpencodeMainModel(parsed.value),
+        getOpencodePullRequestMetadataModel(parsed.value),
+        {
+          selectedProviderID: providerId,
+          apiKey,
+        },
+      );
 
       return {
         ok: true,
@@ -413,7 +418,7 @@ export const startOpencodeSmokeSandbox = action({
       });
 
       const installedVersion = await installOpencode(sandbox);
-      await writeOpencodeConfig(sandbox, selectedModel);
+      await writeOpencodeConfig(sandbox, parsed.value);
       const { publicUrl, client } = await startOpencodeServer(sandbox);
       await waitForOpencodeHealth(client);
 

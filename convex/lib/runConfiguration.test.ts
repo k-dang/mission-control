@@ -4,6 +4,7 @@ import {
   RUN_CONFIGURATION_PROVIDERS,
   UNKNOWN_RUN_CONFIGURATION_LABEL,
   describeRunConfiguration,
+  getPullRequestMetadataModel,
   isSupportedRunConfiguration,
   parseRunConfiguration,
 } from "./runConfiguration";
@@ -44,6 +45,12 @@ describe("run configuration catalog", () => {
         modelId: "deepseek-v4-flash-free",
       }),
     ).toBe(true);
+  });
+
+  it("defines a backend-only PR metadata model for each provider", () => {
+    for (const provider of RUN_CONFIGURATION_PROVIDERS) {
+      expect(provider.pullRequestMetadataModelId.trim()).not.toBe("");
+    }
   });
 
   it("rejects unsupported provider/model combinations", () => {
@@ -123,5 +130,17 @@ describe("run configuration catalog", () => {
         modelId: "legacy-model",
       }),
     ).toBe(UNKNOWN_RUN_CONFIGURATION_LABEL);
+  });
+
+  it("selects the provider-specific PR metadata model outside the visible model list", () => {
+    expect(
+      getPullRequestMetadataModel({
+        providerId: "opencode",
+        modelId: "deepseek-v4-flash-free",
+      }),
+    ).toEqual({
+      providerId: "opencode",
+      modelId: "big-pickle",
+    });
   });
 });

@@ -7,7 +7,7 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction } from "../_generated/server";
 import { createPullRequest } from "../lib/pullRequest";
-import { getOpencodeMainModel } from "../lib/opencodeConfig";
+import { getOpencodePullRequestMetadataModel } from "../lib/opencodeConfig";
 import type { RunConfiguration } from "../lib/runConfiguration";
 import { parseRunConfiguration } from "../lib/runConfiguration";
 import {
@@ -60,7 +60,7 @@ export const runTodo = internalAction({
       const { publicUrl, sessionId } = await setupOpencodeForTodo(sandbox, {
         todo,
         todoId: args.todoId,
-        selectedModel: getOpencodeMainModel(runConfiguration.value),
+        runConfiguration: runConfiguration.value,
       });
 
       await ctx.runMutation(internal.todoRuns.recordOpencodeStarted, {
@@ -276,10 +276,7 @@ async function resolveOpencodeOutcome(
       prSummary: {
         opencodeSessionId: args.opencodeSessionId,
         opencodeUrl: args.opencodeUrl,
-        model: {
-          modelID: args.runConfiguration.modelId,
-          providerID: args.runConfiguration.providerId,
-        },
+        model: getOpencodePullRequestMetadataModel(args.runConfiguration),
       },
     });
     return {

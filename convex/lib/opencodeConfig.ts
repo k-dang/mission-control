@@ -1,4 +1,5 @@
 import {
+  getPullRequestMetadataModel,
   parseRunConfiguration,
   type RunConfiguration,
   type RunConfigurationProviderId,
@@ -90,13 +91,31 @@ export function getOpencodeMainModel(
   };
 }
 
+export function getOpencodePullRequestMetadataModel(
+  configuration: RunConfiguration,
+): OpencodeModelSelection {
+  const metadataConfiguration =
+    getPullRequestMetadataModel(configuration);
+
+  return {
+    providerID: metadataConfiguration.providerId,
+    modelID: metadataConfiguration.modelId,
+  };
+}
+
 export function buildOpencodeConfig(
   mainModel: OpencodeModelSelection,
+  pullRequestMetadataModel: OpencodeModelSelection,
   apiKeys: OpencodeConfigApiKeys,
 ) {
   if (apiKeys.selectedProviderID !== mainModel.providerID) {
     throw new Error(
       `OpenCode credential provider mismatch: ${apiKeys.selectedProviderID} credentials cannot configure ${mainModel.providerID}`,
+    );
+  }
+  if (pullRequestMetadataModel.providerID !== mainModel.providerID) {
+    throw new Error(
+      `OpenCode PR metadata provider mismatch: ${pullRequestMetadataModel.providerID} cannot be configured with ${mainModel.providerID}`,
     );
   }
 
@@ -105,6 +124,7 @@ export function buildOpencodeConfig(
       options: { apiKey: apiKeys.apiKey },
       models: {
         [mainModel.modelID]: {},
+        [pullRequestMetadataModel.modelID]: {},
       },
     },
   };

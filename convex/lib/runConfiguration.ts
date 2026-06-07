@@ -7,6 +7,7 @@ export const RUN_CONFIGURATION_PROVIDERS = [
   {
     id: "vercel",
     label: "Vercel AI Gateway",
+    pullRequestMetadataModelId: "moonshotai/kimi-k2.5",
     models: [
       { id: "moonshotai/kimi-k2.5", label: "Kimi K2.5" },
     ],
@@ -14,6 +15,7 @@ export const RUN_CONFIGURATION_PROVIDERS = [
   {
     id: "openrouter",
     label: "OpenRouter",
+    pullRequestMetadataModelId: "nvidia/nemotron-3-ultra-550b-a55b:free",
     models: [
       { id: "moonshotai/kimi-k2.6:free", label: "Kimi K2.6 Free" },
       {
@@ -25,6 +27,7 @@ export const RUN_CONFIGURATION_PROVIDERS = [
   {
     id: "opencode",
     label: "OpenCode Zen",
+    pullRequestMetadataModelId: "big-pickle",
     models: [
       { id: "deepseek-v4-flash-free", label: "DeepSeek V4 Flash Free" },
     ],
@@ -32,6 +35,7 @@ export const RUN_CONFIGURATION_PROVIDERS = [
 ] as const satisfies readonly {
   id: string;
   label: string;
+  pullRequestMetadataModelId: string;
   models: readonly RunConfigurationModel[];
 }[];
 
@@ -41,6 +45,11 @@ export type RunConfigurationProvider =
 export type RunConfigurationProviderId = RunConfigurationProvider["id"];
 
 export type RunConfiguration = {
+  providerId: RunConfigurationProviderId;
+  modelId: string;
+};
+
+export type ProviderModelSelection = {
   providerId: RunConfigurationProviderId;
   modelId: string;
 };
@@ -96,6 +105,27 @@ export function parseRunConfiguration(
   return {
     ok: false,
     error: `Unsupported run configuration: ${configuration.providerId}/${configuration.modelId}`,
+  };
+}
+
+export function getPullRequestMetadataModel(
+  configuration: RunConfiguration,
+): ProviderModelSelection {
+  const parsed = parseRunConfiguration(configuration);
+  if (!parsed.ok) {
+    throw new Error(parsed.error);
+  }
+
+  const provider = findProvider(parsed.value.providerId);
+  if (!provider) {
+    throw new Error(
+      `Unsupported pull request metadata provider: ${parsed.value.providerId}`,
+    );
+  }
+
+  return {
+    providerId: parsed.value.providerId,
+    modelId: provider.pullRequestMetadataModelId,
   };
 }
 

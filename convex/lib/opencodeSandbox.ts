@@ -5,14 +5,16 @@ import type { Sandbox } from "@vercel/sandbox";
 import type { Id } from "../_generated/dataModel";
 import {
   buildOpencodeConfig,
+  getOpencodeMainModel,
+  getOpencodePullRequestMetadataModel,
   OPENCODE_BIN,
   OPENCODE_CONFIG_PATH,
   OPENCODE_PORT,
   OPENCODE_VERSION,
   readOpencodeConfigApiKeys,
-  type OpencodeModelSelection,
 } from "./opencodeConfig";
 import { waitForOpencodeHealth } from "./opencodeHealth";
+import type { RunConfiguration } from "./runConfiguration";
 
 export async function installOpencode(sandbox: Sandbox) {
   const install = await sandbox.runCommand({
@@ -64,11 +66,15 @@ function buildTodoPrompt(
 
 export async function writeOpencodeConfig(
   sandbox: Sandbox,
-  selectedModel: OpencodeModelSelection,
+  runConfiguration: RunConfiguration,
 ) {
+  const selectedModel = getOpencodeMainModel(runConfiguration);
+  const pullRequestMetadataModel =
+    getOpencodePullRequestMetadataModel(runConfiguration);
   const opencodeConfig = JSON.stringify(
     buildOpencodeConfig(
       selectedModel,
+      pullRequestMetadataModel,
       readOpencodeConfigApiKeys(selectedModel.providerID),
     ),
     null,
@@ -103,13 +109,14 @@ export async function setupOpencodeForTodo(
       githubUrl?: string;
     };
     todoId: Id<"todos">;
-    selectedModel: OpencodeModelSelection;
+    runConfiguration: RunConfiguration;
   },
 ) {
   console.info("Installing OpenCode", { todoId: args.todoId });
   const cliVersion = await installOpencode(sandbox);
 
-  await writeOpencodeConfig(sandbox, args.selectedModel);
+  await writeOpencodeConfig(sandbox, args.runConfiguration);
+  const selectedModel = getOpencodeMainModel(args.runConfiguration);
 
   console.info("Starting OpenCode server", { todoId: args.todoId });
   const { publicUrl, client } = await startOpencodeServer(sandbox);
@@ -133,7 +140,7 @@ export async function setupOpencodeForTodo(
 
   const prompt = await client.session.promptAsync({
     sessionID: session.data.id,
-    model: args.selectedModel,
+    model: selectedModel,
     parts: [
       {
         type: "text",
