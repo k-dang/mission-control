@@ -90,16 +90,16 @@ Add a reusable start dialog that appears whenever a task is about to move from T
 
 ### Acceptance Criteria
 
-- [ ] Attempting to start from the detail panel opens the run configuration dialog.
-- [ ] Dropping a TODO task onto the INPROGRESS column opens the same run configuration dialog.
-- [ ] Cancelling the dialog leaves the task in TODO.
-- [ ] Confirming the dialog starts the task with the selected provider/model.
-- [ ] Provider and model controls are populated from the curated catalog.
-- [ ] The default provider/model is preselected.
-- [ ] Model choices are clearly scoped to the selected provider.
-- [ ] Drag/drop does not visually or persistently move the task to INPROGRESS before confirmation.
-- [ ] Manual validation covers status-pill start, drag/drop start, cancel behavior, Vercel selection, and OpenRouter selection.
-- [ ] Relevant lint/typecheck commands pass for touched code.
+- [x] Attempting to start from the detail panel opens the run configuration dialog.
+- [x] Dropping a TODO task onto the INPROGRESS column opens the same run configuration dialog.
+- [x] Cancelling the dialog leaves the task in TODO.
+- [x] Confirming the dialog starts the task with the selected provider/model.
+- [x] Provider and model controls are populated from the curated catalog.
+- [x] The default provider/model is preselected.
+- [x] Model choices are clearly scoped to the selected provider.
+- [x] Drag/drop does not visually or persistently move the task to INPROGRESS before confirmation.
+- [x] Manual validation covers status-pill start, drag/drop start, cancel behavior, Vercel selection, and OpenRouter selection.
+- [x] Relevant lint/typecheck commands pass for touched code.
 
 ---
 
@@ -113,12 +113,12 @@ Display the recorded run configuration wherever execution metadata needs to be u
 
 ### Acceptance Criteria
 
-- [ ] In-progress task cards show the recorded provider/model label.
-- [ ] Completed task cards show the recorded provider/model label.
-- [ ] Failed task cards show the recorded provider/model label.
-- [ ] TODO task cards do not show run configuration data.
-- [ ] The task detail panel shows the recorded provider/model label near execution metadata.
-- [ ] Missing run configuration data displays as "Unknown run configuration."
-- [ ] UI display uses catalog labels rather than raw identifiers when the combination is known.
-- [ ] Manual validation covers in-progress, completed, failed, TODO, and historical missing-config displays.
-- [ ] Relevant lint/typecheck commands pass for touched code.
+- [x] In-progress task cards show the recorded provider/model label.
+- [x] Completed task cards show the recorded provider/model label.
+- [x] Failed task cards show the recorded provider/model label.
+- [x] TODO task cards do not show run configuration data.
+- [x] The task detail panel shows the recorded provider/model label near execution metadata.
+- [x] Missing run configuration data displays as "Unknown run configuration."
+- [x] UI display uses catalog labels rather than raw identifiers when the combination is known.
+- [x] Manual validation covers in-progress, completed, failed, TODO, and historical missing-config displays.
+- [x] Relevant lint/typecheck commands pass for touched code.
