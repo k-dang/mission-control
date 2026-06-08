@@ -80,8 +80,7 @@ async function readGithubError(response: Response): Promise<string> {
     }
 
     const detail = parsed.data.errors
-      ?.map((error) => error.message)
-      .filter(Boolean)
+      ?.flatMap((error) => (error.message ? [error.message] : []))
       .join("; ");
     return [parsed.data.message, detail].filter(Boolean).join(" — ") || response.statusText;
   } catch {

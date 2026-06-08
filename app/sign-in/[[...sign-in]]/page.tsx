@@ -1,4 +1,10 @@
+import type { Metadata } from "next";
 import { SignIn } from "@clerk/nextjs";
+
+export const metadata: Metadata = {
+  title: "Sign in · Mission Control",
+  description: "Sign in to Mission Control.",
+};
 
 export default function SignInPage() {
   return (

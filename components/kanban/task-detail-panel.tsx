@@ -93,6 +93,16 @@ const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
   FAILED: "bg-col-failed",
 };
 
+function handleKeyDownRevert(
+  e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+  revert: () => void,
+) {
+  if (e.key === "Escape") {
+    revert();
+    e.currentTarget.blur();
+  }
+}
+
 export function TaskDetailPanel({
   todo,
   sandbox,
@@ -161,16 +171,6 @@ export function TaskDetailPanel({
   const handleDelete = async () => {
     await deleteTodo({ todoId: todo._id });
     onClose();
-  };
-
-  const handleKeyDownRevert = (
-    e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>,
-    revert: () => void,
-  ) => {
-    if (e.key === "Escape") {
-      revert();
-      e.currentTarget.blur();
-    }
   };
 
   const currentStatusOption = STATUS_OPTIONS_BY_STATUS[todo.status];

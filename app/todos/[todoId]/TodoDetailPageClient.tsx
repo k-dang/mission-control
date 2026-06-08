@@ -43,7 +43,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
 
   const orderedEvents = useMemo(() => {
     if (todoEvents === undefined) return [];
-    return [...todoEvents].sort((a, b) => a._creationTime - b._creationTime);
+    return todoEvents.toSorted((a, b) => a._creationTime - b._creationTime);
   }, [todoEvents]);
   const hasTransmission = orderedEvents.length > 0;
 
