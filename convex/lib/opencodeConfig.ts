@@ -134,6 +134,5 @@ export function buildOpencodeConfig(
     enabled_providers: Object.keys(provider),
     provider,
     model: formatOpencodeModelId(mainModel),
-    small_model: formatOpencodeModelId(mainModel),
   };
 }

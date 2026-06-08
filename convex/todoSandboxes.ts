@@ -51,3 +51,31 @@ export const getSandboxForTodo = query({
   },
 });
 
+export const listForTodos = query({
+  args: { todoIds: v.array(v.id("todos")) },
+  returns: v.array(sandboxRowValidator),
+  handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+
+    const rows = await Promise.all(
+      args.todoIds.map(async (todoId) => {
+        const row = await ctx.db
+          .query("todoSandboxes")
+          .withIndex("by_todoId", (q) => q.eq("todoId", todoId))
+          .unique();
+        if (!row) return null;
+        return {
+          _id: row._id,
+          _creationTime: row._creationTime,
+          todoId: row.todoId,
+          sandboxId: row.sandboxId,
+          runConfiguration: row.runConfiguration,
+          opencode: row.opencode,
+        };
+      }),
+    );
+
+    return rows.filter((row) => row !== null);
+  },
+});
+

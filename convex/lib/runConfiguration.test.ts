@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_RUN_CONFIGURATION,
+  RUN_CONFIGURATION_PULL_REQUEST_METADATA_MODELS,
   RUN_CONFIGURATION_PROVIDERS,
   UNKNOWN_RUN_CONFIGURATION_LABEL,
   describeRunConfiguration,
@@ -49,7 +50,10 @@ describe("run configuration catalog", () => {
 
   it("defines a backend-only PR metadata model for each provider", () => {
     for (const provider of RUN_CONFIGURATION_PROVIDERS) {
-      expect(provider.pullRequestMetadataModelId.trim()).not.toBe("");
+      expect(
+        RUN_CONFIGURATION_PULL_REQUEST_METADATA_MODELS[provider.id].trim(),
+      ).not.toBe("");
+      expect("pullRequestMetadataModelId" in provider).toBe(false);
     }
   });
 
@@ -143,4 +147,5 @@ describe("run configuration catalog", () => {
       modelId: "big-pickle",
     });
   });
+
 });

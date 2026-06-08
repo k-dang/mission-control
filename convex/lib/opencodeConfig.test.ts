@@ -49,7 +49,6 @@ describe("OpenCode config generation", () => {
         },
       },
       model: "vercel/moonshotai/kimi-k2.5",
-      small_model: "vercel/moonshotai/kimi-k2.5",
     });
   });
 
@@ -79,7 +78,6 @@ describe("OpenCode config generation", () => {
         },
       },
       model: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
-      small_model: "openrouter/nvidia/nemotron-3-ultra-550b-a55b:free",
     });
   });
 

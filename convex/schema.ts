@@ -14,12 +14,11 @@ export default defineSchema({
     status: todoStatusValidator,
     githubUrl: v.optional(v.string()),
     prUrl: v.optional(v.string()),
-    runConfiguration: v.optional(runConfigurationValidator),
   }).index("by_status", ["status"]),
 
   todoSandboxes: defineTable({
     todoId: v.id("todos"),
-    sandboxId: v.string(),
+    sandboxId: v.optional(v.string()),
     runConfiguration: v.optional(runConfigurationValidator),
     opencode: opencodeStateValidator,
   }).index("by_todoId", ["todoId"]),

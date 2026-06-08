@@ -3,11 +3,10 @@ export type RunConfigurationModel = {
   label: string;
 };
 
-export const RUN_CONFIGURATION_PROVIDERS = [
+export const RUN_CONFIGURATION_PROVIDER_OPTIONS = [
   {
     id: "vercel",
     label: "Vercel AI Gateway",
-    pullRequestMetadataModelId: "moonshotai/kimi-k2.5",
     models: [
       { id: "moonshotai/kimi-k2.5", label: "Kimi K2.5" },
     ],
@@ -15,7 +14,6 @@ export const RUN_CONFIGURATION_PROVIDERS = [
   {
     id: "openrouter",
     label: "OpenRouter",
-    pullRequestMetadataModelId: "nvidia/nemotron-3-ultra-550b-a55b:free",
     models: [
       { id: "moonshotai/kimi-k2.6:free", label: "Kimi K2.6 Free" },
       {
@@ -27,7 +25,6 @@ export const RUN_CONFIGURATION_PROVIDERS = [
   {
     id: "opencode",
     label: "OpenCode Zen",
-    pullRequestMetadataModelId: "big-pickle",
     models: [
       { id: "deepseek-v4-flash-free", label: "DeepSeek V4 Flash Free" },
     ],
@@ -35,12 +32,22 @@ export const RUN_CONFIGURATION_PROVIDERS = [
 ] as const satisfies readonly {
   id: string;
   label: string;
-  pullRequestMetadataModelId: string;
   models: readonly RunConfigurationModel[];
 }[];
 
+export const RUN_CONFIGURATION_PULL_REQUEST_METADATA_MODELS = {
+  vercel: "moonshotai/kimi-k2.5",
+  openrouter: "nvidia/nemotron-3-ultra-550b-a55b:free",
+  opencode: "big-pickle",
+} as const satisfies Record<
+  (typeof RUN_CONFIGURATION_PROVIDER_OPTIONS)[number]["id"],
+  string
+>;
+
+export const RUN_CONFIGURATION_PROVIDERS = RUN_CONFIGURATION_PROVIDER_OPTIONS;
+
 export type RunConfigurationProvider =
-  (typeof RUN_CONFIGURATION_PROVIDERS)[number];
+  (typeof RUN_CONFIGURATION_PROVIDER_OPTIONS)[number];
 
 export type RunConfigurationProviderId = RunConfigurationProvider["id"];
 
@@ -74,7 +81,7 @@ export type ParseRunConfigurationResult =
   | { ok: false; error: string };
 
 function findProvider(providerId: string) {
-  return RUN_CONFIGURATION_PROVIDERS.find(
+  return RUN_CONFIGURATION_PROVIDER_OPTIONS.find(
     (provider) => provider.id === providerId,
   );
 }
@@ -116,16 +123,12 @@ export function getPullRequestMetadataModel(
     throw new Error(parsed.error);
   }
 
-  const provider = findProvider(parsed.value.providerId);
-  if (!provider) {
-    throw new Error(
-      `Unsupported pull request metadata provider: ${parsed.value.providerId}`,
-    );
-  }
-
   return {
     providerId: parsed.value.providerId,
-    modelId: provider.pullRequestMetadataModelId,
+    modelId:
+      RUN_CONFIGURATION_PULL_REQUEST_METADATA_MODELS[
+        parsed.value.providerId
+      ],
   };
 }
 

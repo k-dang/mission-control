@@ -4,6 +4,7 @@ import {
   useState,
   useRef,
   useCallback,
+  useMemo,
   type DragEvent,
   type SubmitEvent,
 } from "react";
@@ -40,6 +41,7 @@ import {
 import { TaskDetailPanel } from "@/components/kanban/task-detail-panel";
 import { StartRunDialog } from "@/components/kanban/start-run-dialog";
 import { useStartTodoRun } from "@/components/kanban/use-start-todo-run";
+import type { BoardTodo } from "@/components/kanban/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -179,16 +181,65 @@ export default function Home() {
     }
   };
 
-  const handleCardClick = useCallback((todo: Doc<"todos">) => {
+  const handleCardClick = useCallback((todo: BoardTodo) => {
     setSelectedTodoId(todo._id);
   }, []);
 
-  const todos = {
-    todo: todoPage.results,
-    inprogress: inprogressPage.results,
-    completed: completedPage.results,
-    failed: failedPage.results,
-  };
+  const rawTodos = useMemo(
+    () => ({
+      todo: todoPage.results,
+      inprogress: inprogressPage.results,
+      completed: completedPage.results,
+      failed: failedPage.results,
+    }),
+    [
+      todoPage.results,
+      inprogressPage.results,
+      completedPage.results,
+      failedPage.results,
+    ],
+  );
+  const visibleTodoIds = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          [
+            ...rawTodos.todo,
+            ...rawTodos.inprogress,
+            ...rawTodos.completed,
+            ...rawTodos.failed,
+          ].map((todo) => todo._id),
+        ),
+      ),
+    [rawTodos],
+  );
+  const visibleSandboxes = useQuery(
+    api.todoSandboxes.listForTodos,
+    isAuthenticated ? { todoIds: visibleTodoIds } : "skip",
+  );
+  const sandboxByTodoId = useMemo(() => {
+    const byTodoId = new Map<Id<"todos">, NonNullable<typeof visibleSandboxes>[number]>();
+    for (const sandbox of visibleSandboxes ?? []) {
+      byTodoId.set(sandbox.todoId, sandbox);
+    }
+    return byTodoId;
+  }, [visibleSandboxes]);
+  const attachRunConfiguration = useCallback(
+    (todo: Doc<"todos">): BoardTodo => ({
+      ...todo,
+      runConfiguration: sandboxByTodoId.get(todo._id)?.runConfiguration,
+    }),
+    [sandboxByTodoId],
+  );
+  const todos = useMemo(
+    () => ({
+      todo: rawTodos.todo.map(attachRunConfiguration),
+      inprogress: rawTodos.inprogress.map(attachRunConfiguration),
+      completed: rawTodos.completed.map(attachRunConfiguration),
+      failed: rawTodos.failed.map(attachRunConfiguration),
+    }),
+    [attachRunConfiguration, rawTodos],
+  );
 
   const selectedLoadedTodo =
     [...todos.todo, ...todos.inprogress, ...todos.completed, ...todos.failed].find(

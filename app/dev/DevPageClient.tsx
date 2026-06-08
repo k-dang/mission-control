@@ -56,7 +56,6 @@ type RunConfigurationResult = {
   providerId: string;
   modelId: string;
   opencodeModel: string | null;
-  opencodeSmallModel: string | null;
   enabledProviders: string[];
   error: string | null;
 };
@@ -438,14 +437,6 @@ export default function DevPageClient() {
                 <span className="shrink-0 text-muted-foreground">Main model</span>
                 <span className="break-all text-right font-mono text-xs">
                   {runtimeResult.opencodeModel}
-                </span>
-              </div>
-            )}
-            {runtimeResult.opencodeSmallModel && (
-              <div className="flex items-center justify-between gap-2">
-                <span className="shrink-0 text-muted-foreground">Small model</span>
-                <span className="break-all text-right font-mono text-xs">
-                  {runtimeResult.opencodeSmallModel}
                 </span>
               </div>
             )}

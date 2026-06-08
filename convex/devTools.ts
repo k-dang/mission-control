@@ -289,7 +289,6 @@ export const checkRunConfiguration = action({
     providerId: v.string(),
     modelId: v.string(),
     opencodeModel: v.union(v.string(), v.null()),
-    opencodeSmallModel: v.union(v.string(), v.null()),
     enabledProviders: v.array(v.string()),
     error: v.union(v.string(), v.null()),
   }),
@@ -303,7 +302,6 @@ export const checkRunConfiguration = action({
         providerId,
         modelId,
         opencodeModel: null,
-        opencodeSmallModel: null,
         enabledProviders: [],
         error: DEV_TOOLS_DISABLED_ERROR,
       };
@@ -317,7 +315,6 @@ export const checkRunConfiguration = action({
         providerId,
         modelId,
         opencodeModel: null,
-        opencodeSmallModel: null,
         enabledProviders: [],
         error: `${envVar} is not set in Convex environment variables.`,
       };
@@ -331,7 +328,6 @@ export const checkRunConfiguration = action({
           providerId,
           modelId,
           opencodeModel: null,
-          opencodeSmallModel: null,
           enabledProviders: [],
           error: parsed.error,
         };
@@ -351,7 +347,6 @@ export const checkRunConfiguration = action({
         providerId,
         modelId,
         opencodeModel: config.model,
-        opencodeSmallModel: config.small_model,
         enabledProviders: config.enabled_providers,
         error: null,
       };
@@ -361,7 +356,6 @@ export const checkRunConfiguration = action({
         providerId,
         modelId,
         opencodeModel: null,
-        opencodeSmallModel: null,
         enabledProviders: [],
         error: err instanceof Error ? err.message : String(err),
       };

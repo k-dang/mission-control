@@ -155,9 +155,7 @@ export function TaskDetailPanel({
     if (todo.status !== "TODO") return;
     if (status === todo.status) return;
     if (status !== "INPROGRESS") return;
-    if (status === "INPROGRESS") {
-      onRequestStart(todo);
-    }
+    onRequestStart(todo);
   };
 
   const handleDelete = async () => {
@@ -392,7 +390,7 @@ export function TaskDetailPanel({
                   RUN
                 </span>
                 <RunConfigurationLabel
-                  runConfiguration={todo.runConfiguration}
+                  runConfiguration={sandbox?.runConfiguration}
                 />
               </div>
             ) : null}

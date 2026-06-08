@@ -59,10 +59,27 @@ export const start = mutation({
       });
     }
 
-    await ctx.db.patch("todos", args.todoId, {
-      status: "INPROGRESS",
-      runConfiguration: runConfiguration.value,
-    });
+    await ctx.db.patch("todos", args.todoId, { status: "INPROGRESS" });
+
+    const sandboxRow = await ctx.db
+      .query("todoSandboxes")
+      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
+      .unique();
+
+    if (sandboxRow) {
+      await ctx.db.patch("todoSandboxes", sandboxRow._id, {
+        runConfiguration: runConfiguration.value,
+      });
+    } else {
+      await ctx.db.insert("todoSandboxes", {
+        todoId: args.todoId,
+        runConfiguration: runConfiguration.value,
+        opencode: {
+          streamState: "IDLE",
+          shutdownSafe: false,
+        },
+      });
+    }
 
     await ctx.scheduler.runAfter(
       0,
@@ -86,12 +103,7 @@ export const start = mutation({
       } as const;
     }
 
-    const sandboxRow = await ctx.db
-      .query("todoSandboxes")
-      .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
-      .unique();
-
-    if (!sandboxRow) {
+    if (!sandboxRow?.sandboxId) {
       await ctx.scheduler.runAfter(
         0,
         internal.integrations.sandbox.spawnSandboxForTodo,
@@ -101,16 +113,12 @@ export const start = mutation({
           runConfiguration: runConfiguration.value,
         },
       );
-    } else if (!sandboxRow.runConfiguration) {
-      await ctx.db.patch("todoSandboxes", sandboxRow._id, {
-        runConfiguration: runConfiguration.value,
-      });
     }
 
     return {
       todoId: args.todoId,
       status: "INPROGRESS",
-      orchestration: sandboxRow ? "alreadyStarted" : "scheduled",
+      orchestration: sandboxRow?.sandboxId ? "alreadyStarted" : "scheduled",
     } as const;
   },
 });

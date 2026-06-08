@@ -53,7 +53,6 @@ export const get = query({
       status: todo.status,
       githubUrl: todo.githubUrl,
       prUrl: todo.prUrl,
-      runConfiguration: todo.runConfiguration,
     };
   },
 });

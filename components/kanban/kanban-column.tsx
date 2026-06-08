@@ -1,5 +1,6 @@
 import type { DragEvent } from "react";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
+import type { BoardTodo } from "./types";
 import { cn } from "@/lib/utils";
 import {
   CircleDot,
@@ -83,7 +84,7 @@ export function KanbanColumn({
 }: {
   id?: string;
   status: Doc<"todos">["status"];
-  todos: Doc<"todos">[];
+  todos: BoardTodo[];
   draggable: boolean;
   layout?: "column" | "feed";
   onDragStart: (event: DragEvent<HTMLDivElement>, todoId: Id<"todos">) => void;
@@ -92,7 +93,7 @@ export function KanbanColumn({
   onDragLeave?: () => void;
   onDrop?: (event: DragEvent<HTMLDivElement>) => void;
   isDropTarget?: boolean;
-  onCardClick?: (todo: Doc<"todos">) => void;
+  onCardClick?: (todo: BoardTodo) => void;
   canLoadMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;

@@ -33,7 +33,7 @@ export const runConfigurationProviderIdValidator = v.union(
 );
 
 export const runConfigurationValidator = v.object({
-  providerId: v.string(),
+  providerId: runConfigurationProviderIdValidator,
   modelId: v.string(),
 });
 
@@ -45,7 +45,6 @@ export const todoDocValidator = v.object({
   status: todoStatusValidator,
   githubUrl: v.optional(v.string()),
   prUrl: v.optional(v.string()),
-  runConfiguration: v.optional(runConfigurationValidator),
 });
 
 export const opencodeStateValidator = v.object({
@@ -62,7 +61,7 @@ export const sandboxRowValidator = v.object({
   _id: v.id("todoSandboxes"),
   _creationTime: v.number(),
   todoId: v.id("todos"),
-  sandboxId: v.string(),
+  sandboxId: v.optional(v.string()),
   runConfiguration: v.optional(runConfigurationValidator),
   opencode: opencodeStateValidator,
 });

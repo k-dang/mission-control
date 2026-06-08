@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
 import { GripVertical, Clock } from "lucide-react";
 import { RunConfigurationLabel } from "./run-configuration-label";
+import type { BoardTodo } from "./types";
 
 const STATUS_DOT_COLOR: Record<Doc<"todos">["status"], string> = {
   TODO: "bg-col-todo",
@@ -19,11 +20,11 @@ function TodoCardComponent({
   onDragEnd,
   onClick,
 }: {
-  todo: Doc<"todos">;
+  todo: BoardTodo;
   draggable: boolean;
   onDragStart: (event: DragEvent<HTMLDivElement>, todoId: Id<"todos">) => void;
   onDragEnd?: () => void;
-  onClick?: (todo: Doc<"todos">) => void;
+  onClick?: (todo: BoardTodo) => void;
 }) {
   const isCompleted = todo.status === "COMPLETED";
   const isDragging = useRef(false);

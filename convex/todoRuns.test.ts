@@ -62,12 +62,11 @@ describe("todo run start transition", () => {
       todoId,
     });
     const todo = await authed.query(api.todos.get, { todoId });
+    const rawTodo = await t.run(async (ctx) => await ctx.db.get(todoId));
 
     expect(todo?.status).toBe("INPROGRESS");
-    expect(todo?.runConfiguration).toEqual({
-      providerId: "openrouter",
-      modelId: "moonshotai/kimi-k2.6:free",
-    });
+    expect(todo).not.toHaveProperty("runConfiguration");
+    expect(rawTodo).not.toHaveProperty("runConfiguration");
     expect(sandbox?.runConfiguration).toEqual({
       providerId: "openrouter",
       modelId: "moonshotai/kimi-k2.6:free",
@@ -98,8 +97,10 @@ describe("todo run start transition", () => {
       todoId,
     });
     const todo = await authed.query(api.todos.get, { todoId });
+    const rawTodo = await t.run(async (ctx) => await ctx.db.get(todoId));
 
     expect(todo?.status).toBe("TODO");
+    expect(rawTodo).not.toHaveProperty("runConfiguration");
     expect(sandbox?.runConfiguration).toBeUndefined();
   });
 

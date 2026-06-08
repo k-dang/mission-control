@@ -36,7 +36,7 @@ export const spawnSandboxForTodo = internalAction({
       internal.todoSandboxes.getSandboxByTodoId,
       { todoId: args.todoId },
     );
-    if (existingSandbox) {
+    if (existingSandbox?.sandboxId) {
       console.info("Sandbox already exists for todo, skipping creation", {
         todoId: args.todoId,
         sandboxId: existingSandbox.sandboxId,
