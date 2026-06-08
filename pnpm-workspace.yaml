@@ -1,0 +1,13 @@
+# Supply-chain hardening for pnpm installs. See https://pnpm.io/settings
+
+# Wait 7 days (10080 minutes) before installing a freshly published version.
+# Malware is often published and then caught & unpublished within hours, so a
+# release-age delay keeps those versions from ever landing in our tree.
+minimumReleaseAge: 10080
+
+# Refuse packages whose provenance/signature trust weakens between resolutions.
+trustPolicy: no-downgrade
+
+# Keep transitive deps coming from the registry only (no git:/file:/tarball
+# URLs that bypass it). This is the recent-pnpm default; never set it to false.
+blockExoticSubdeps: true
