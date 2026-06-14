@@ -26,15 +26,14 @@ export const runTodo = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const todo = await ctx.runQuery(internal.todos.getById, {
-      todoId: args.todoId,
-    });
-    const sandboxRow = await ctx.runQuery(
-      internal.todoSandboxes.getSandboxByTodoId,
-      {
+    const [todo, sandboxRow] = await Promise.all([
+      ctx.runQuery(internal.todos.getById, {
         todoId: args.todoId,
-      },
-    );
+      }),
+      ctx.runQuery(internal.todoSandboxes.getSandboxByTodoId, {
+        todoId: args.todoId,
+      }),
+    ]);
     if (!todo || !sandboxRow?.sandboxId) {
       console.warn("Todo or sandbox not found, skipping opencode", {
         todoId: args.todoId,

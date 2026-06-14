@@ -85,12 +85,6 @@ export const spawnSandboxForTodo = internalAction({
       throw error;
     }
 
-    await ctx.runMutation(internal.todoRuns.recordSandboxReady, {
-      todoId: args.todoId,
-      sandboxId: sandbox.sandboxId,
-      runConfiguration: args.runConfiguration,
-    });
-
     if (process.env[STOP_AFTER_SANDBOX_CREATE_ENV] === "true") {
       console.info("Stopping after sandbox creation by environment flag", {
         todoId: args.todoId,
@@ -100,6 +94,12 @@ export const spawnSandboxForTodo = internalAction({
       await sandbox.stop();
       return null;
     }
+
+    await ctx.runMutation(internal.todoRuns.recordSandboxReady, {
+      todoId: args.todoId,
+      sandboxId: sandbox.sandboxId,
+      runConfiguration: args.runConfiguration,
+    });
 
     await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
       todoId: args.todoId,
