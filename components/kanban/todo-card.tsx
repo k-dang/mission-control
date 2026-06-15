@@ -1,4 +1,4 @@
-import { memo, useRef, type DragEvent } from "react";
+import React, { memo, useRef, type DragEvent } from "react";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
@@ -30,22 +30,38 @@ function TodoCardComponent({
   const isDragging = useRef(false);
   const showRunConfiguration = todo.status !== "TODO";
 
+  function handleDragStart(event: DragEvent<HTMLDivElement>) {
+    isDragging.current = true;
+    onDragStart(event, todo._id);
+  }
+
+  function handleDragEnd() {
+    isDragging.current = false;
+    onDragEnd?.();
+  }
+
+  function handleClick() {
+    if (!isDragging.current) {
+      onClick?.(todo);
+    }
+  }
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick?.(todo);
+    }
+  }
+
   return (
     <div
       draggable={draggable}
-      onDragStart={(event) => {
-        isDragging.current = true;
-        onDragStart(event, todo._id);
-      }}
-      onDragEnd={() => {
-        isDragging.current = false;
-        onDragEnd?.();
-      }}
-      onClick={() => {
-        if (!isDragging.current && onClick) {
-          onClick(todo);
-        }
-      }}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onClick={onClick ? handleClick : undefined}
+      onKeyDown={onClick ? handleKeyDown : undefined}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
       className={cn(
         "group todo-card rounded-lg p-3",
         draggable

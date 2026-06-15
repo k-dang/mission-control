@@ -27,7 +27,7 @@ export async function createGitHubPullRequest(params: {
   title: string;
 }) {
   const response = await fetch(
-    `https://api.github.com/repos/${params.owner}/${params.repo}/pulls`,
+    `https://api.github.com/repos/${encodeURIComponent(params.owner)}/${encodeURIComponent(params.repo)}/pulls`,
     {
       method: "POST",
       headers: {

@@ -497,22 +497,16 @@ export default function Home() {
         </header>
 
         {dropError ? (
-          <div
-            className="flex items-center gap-2 text-sm text-destructive"
-            role="status"
-          >
+          <output className="flex items-center gap-2 text-sm text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <p>{dropError}</p>
-          </div>
+          </output>
         ) : null}
         {startTodoRun.error ? (
-          <div
-            className="flex items-center gap-2 text-sm text-destructive"
-            role="status"
-          >
+          <output className="flex items-center gap-2 text-sm text-destructive">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <p>{startTodoRun.error}</p>
-          </div>
+          </output>
         ) : null}
 
         <section className="flex flex-col gap-6 md:hidden">

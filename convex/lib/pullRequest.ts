@@ -139,19 +139,17 @@ async function collectStagedPullRequestContext(
     "--cached",
     "--name-only",
   ]);
-  const stagedFiles = stagedFilesOutput
-    .split("\n")
-    .map((file) => file.trim())
-    .filter(Boolean);
+  const stagedFiles = stagedFilesOutput.split("\n").flatMap((file) => {
+    const trimmed = file.trim();
+    return trimmed ? [trimmed] : [];
+  });
   if (stagedFiles.length === 0) {
     return { kind: "noChanges" as const };
   }
 
-  const diffStat = await runGitCommand(sandbox, ["diff", "--cached", "--stat"]);
-  const diffPatch = await runGitCommand(sandbox, [
-    "diff",
-    "--cached",
-    "--unified=1",
+  const [diffStat, diffPatch] = await Promise.all([
+    runGitCommand(sandbox, ["diff", "--cached", "--stat"]),
+    runGitCommand(sandbox, ["diff", "--cached", "--unified=1"]),
   ]);
 
   return {
