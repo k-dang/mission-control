@@ -7,7 +7,6 @@ import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { internalAction } from "../_generated/server";
 import { createPullRequest } from "../lib/pullRequest";
-import { getOpencodePullRequestMetadataModel } from "../lib/opencodeConfig";
 import type { RunConfiguration } from "../lib/runConfiguration";
 import { parseRunConfiguration } from "../lib/runConfiguration";
 import {
@@ -272,11 +271,6 @@ async function resolveOpencodeOutcome(
       title: args.todoTitle,
       description: args.todoDescription,
       repoUrl: args.todoGithubUrl,
-      prSummary: {
-        opencodeSessionId: args.opencodeSessionId,
-        opencodeUrl: args.opencodeUrl,
-        model: getOpencodePullRequestMetadataModel(args.runConfiguration),
-      },
     });
     return {
       todoStatus: "COMPLETED",

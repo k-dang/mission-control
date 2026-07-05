@@ -35,15 +35,6 @@ export const RUN_CONFIGURATION_PROVIDER_OPTIONS = [
   models: readonly RunConfigurationModel[];
 }[];
 
-export const RUN_CONFIGURATION_PULL_REQUEST_METADATA_MODELS = {
-  vercel: "moonshotai/kimi-k2.5",
-  openrouter: "nvidia/nemotron-3-ultra-550b-a55b:free",
-  opencode: "big-pickle",
-} as const satisfies Record<
-  (typeof RUN_CONFIGURATION_PROVIDER_OPTIONS)[number]["id"],
-  string
->;
-
 export const RUN_CONFIGURATION_PROVIDERS = RUN_CONFIGURATION_PROVIDER_OPTIONS;
 
 export type RunConfigurationProvider =
@@ -112,23 +103,6 @@ export function parseRunConfiguration(
   return {
     ok: false,
     error: `Unsupported run configuration: ${configuration.providerId}/${configuration.modelId}`,
-  };
-}
-
-export function getPullRequestMetadataModel(
-  configuration: RunConfiguration,
-): ProviderModelSelection {
-  const parsed = parseRunConfiguration(configuration);
-  if (!parsed.ok) {
-    throw new Error(parsed.error);
-  }
-
-  return {
-    providerId: parsed.value.providerId,
-    modelId:
-      RUN_CONFIGURATION_PULL_REQUEST_METADATA_MODELS[
-        parsed.value.providerId
-      ],
   };
 }
 

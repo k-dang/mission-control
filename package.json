@@ -20,6 +20,7 @@
     "@clerk/ui": "^1.6.7",
     "@opencode-ai/sdk": "1.14.48",
     "@vercel/sandbox": "^1.10.0",
+    "ai": "^7.0.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "convex": "^1.39.1",

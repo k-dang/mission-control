@@ -6,7 +6,6 @@ import type { Id } from "../_generated/dataModel";
 import {
   buildOpencodeConfig,
   getOpencodeMainModel,
-  getOpencodePullRequestMetadataModel,
   OPENCODE_BIN,
   OPENCODE_CONFIG_PATH,
   OPENCODE_PORT,
@@ -69,12 +68,9 @@ export async function writeOpencodeConfig(
   runConfiguration: RunConfiguration,
 ) {
   const selectedModel = getOpencodeMainModel(runConfiguration);
-  const pullRequestMetadataModel =
-    getOpencodePullRequestMetadataModel(runConfiguration);
   const opencodeConfig = JSON.stringify(
     buildOpencodeConfig(
       selectedModel,
-      pullRequestMetadataModel,
       readOpencodeConfigApiKeys(selectedModel.providerID),
     ),
     null,
