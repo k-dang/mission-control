@@ -11,3 +11,21 @@ trustPolicy: no-downgrade
 # Keep transitive deps coming from the registry only (no git:/file:/tarball
 # URLs that bypass it). This is the recent-pnpm default; never set it to false.
 blockExoticSubdeps: true
+
+onlyBuiltDependencies:
+  - esbuild
+  - '@tailwindcss/oxide'
+
+overrides:
+  '@types/react': 19.2.14
+  '@types/react-dom': 19.2.3
+
+allowBuilds:
+  '@clerk/shared': set this to true or false
+  bufferutil: set this to true or false
+  core-js: set this to true or false
+  esbuild: set this to true or false
+  msgpackr-extract: set this to true or false
+  sharp: set this to true or false
+  unrs-resolver: set this to true or false
+  utf-8-validate: set this to true or false

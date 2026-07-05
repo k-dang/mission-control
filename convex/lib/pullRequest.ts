@@ -1,40 +1,19 @@
 "use node";
 
-import { createOpencodeClient, type OutputFormat } from "@opencode-ai/sdk/v2";
 import type { Sandbox } from "@vercel/sandbox";
+import { generateText, Output } from "ai";
 import { z } from "zod";
 import { createGitHubPullRequest, parseGithubRepoUrl } from "./github";
 import { SANDBOX_REPO_PATH } from "./sandboxHelpers";
 
 const DEFAULT_PR_BASE_BRANCH = "main";
+const PR_METADATA_MODEL = "openai/gpt-5-mini";
 const MAX_PR_DIFF_PROMPT_CHARS = 12_000;
 
 const pullRequestMetadataSchema = z.object({
   body: z.string().trim().min(1),
   title: z.string().trim().min(1),
 });
-
-const STRUCTURED_PR_METADATA_FORMAT = {
-  type: "json_schema",
-  retryCount: 2,
-  schema: {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      title: {
-        type: "string",
-        description:
-          "A concise pull request title describing the actual completed change.",
-      },
-      body: {
-        type: "string",
-        description:
-          "A concise markdown pull request body that starts with '## Summary' and uses 1-3 bullets.",
-      },
-    },
-    required: ["title", "body"],
-  },
-} satisfies OutputFormat;
 
 function buildFallbackPullRequestMetadata(
   title: string,
@@ -49,7 +28,6 @@ function buildFallbackPullRequestMetadata(
   };
 }
 
-// This should be handled by the SDK as structured-output, but its not yet supported.
 function normalizePullRequestMetadata(
   structured: unknown,
 ) {
@@ -57,21 +35,11 @@ function normalizePullRequestMetadata(
   return metadata.success ? metadata.data : null;
 }
 
-type PrSummaryConfig = {
-  opencodeSessionId: string;
-  opencodeUrl: string;
-  model: {
-    modelID: string;
-    providerID: string;
-  };
-};
-
 type CreatePullRequestParams = {
   title: string;
   description?: string;
   repoUrl?: string;
   baseBranch?: string;
-  prSummary?: PrSummaryConfig;
 };
 
 export async function createPullRequest(
@@ -94,7 +62,6 @@ export async function createPullRequest(
   const context = stagedContextResult.context;
   const metadata = await resolvePullRequestMetadataForContext(
     context,
-    params.prSummary,
     sandbox.sandboxId,
   );
 
@@ -177,40 +144,27 @@ type StagedPullRequestContext = Extract<
 
 export async function generatePullRequestMetadataFromDiff(
   context: StagedPullRequestContext,
-  prSummary: PrSummaryConfig,
 ) {
-  const opencodeSessionId = prSummary.opencodeSessionId.trim();
-  const opencodeUrl = prSummary.opencodeUrl.trim();
-  if (!opencodeSessionId || !opencodeUrl) {
-    throw new Error("PR metadata generation requires OpenCode session details");
-  }
-
-  const client = createOpencodeClient({ baseUrl: opencodeUrl });
-  const result = await client.session.prompt({
-    format: STRUCTURED_PR_METADATA_FORMAT,
-    model: prSummary.model,
-    parts: [
-      {
-        type: "text",
-        text: buildPullRequestMetadataPrompt(context),
-      },
-    ],
-    sessionID: opencodeSessionId,
-  });
-
-  const promptError = result.error ?? result.data?.info.error;
-  if (promptError) {
+  if (!process.env.AI_GATEWAY_API_KEY?.trim()) {
     throw new Error(
-      typeof promptError.data.message === "string"
-        ? promptError.data.message
-        : JSON.stringify(promptError.data),
+      "AI_GATEWAY_API_KEY is required for PR metadata generation",
     );
   }
 
-  const metadata = normalizePullRequestMetadata(result.data?.info.structured);
+  const result = await generateText({
+    model: PR_METADATA_MODEL,
+    output: Output.object({
+      name: "pull_request_metadata",
+      description: "Pull request title and body for the staged diff.",
+      schema: pullRequestMetadataSchema,
+    }),
+    prompt: buildPullRequestMetadataPrompt(context),
+  });
+
+  const metadata = normalizePullRequestMetadata(result.output);
   if (!metadata) {
     throw new Error(
-      "OpenCode structured PR metadata response did not include a non-empty title and body",
+      "AI SDK structured PR metadata response did not include a non-empty title and body",
     );
   }
 
@@ -219,15 +173,10 @@ export async function generatePullRequestMetadataFromDiff(
 
 async function resolvePullRequestMetadataForContext(
   context: StagedPullRequestContext,
-  prSummary: PrSummaryConfig | undefined,
   sandboxId: string,
 ) {
-  if (!prSummary) {
-    return buildFallbackPullRequestMetadata(context.title, context.description);
-  }
-
   try {
-    return await generatePullRequestMetadataFromDiff(context, prSummary);
+    return await generatePullRequestMetadataFromDiff(context);
   } catch (error) {
     console.warn("Falling back to todo-based PR metadata", {
       error: error instanceof Error ? error.message : String(error),
