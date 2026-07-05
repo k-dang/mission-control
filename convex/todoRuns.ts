@@ -4,7 +4,7 @@ import { internalMutation, mutation } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
 import { parseRunConfiguration } from "./lib/runConfiguration";
 import {
-  opencodeTerminalStateValidator,
+  attemptTerminalStateValidator,
   runConfigurationValidator,
   terminalTodoStatusValidator,
 } from "./lib/todoValidators";
@@ -74,7 +74,7 @@ export const start = mutation({
       await ctx.db.insert("todoSandboxes", {
         todoId: args.todoId,
         runConfiguration: runConfiguration.value,
-        opencode: {
+        attempt: {
           streamState: "IDLE",
           shutdownSafe: false,
         },
@@ -227,7 +227,7 @@ export const recordSandboxReady = internalMutation({
     if (existing) {
       await ctx.db.patch("todoSandboxes", existing._id, {
         sandboxId: args.sandboxId,
-        opencode: {
+        attempt: {
           streamState: "IDLE",
           shutdownSafe: false,
         },
@@ -238,7 +238,7 @@ export const recordSandboxReady = internalMutation({
         todoId: args.todoId,
         sandboxId: args.sandboxId,
         runConfiguration: args.runConfiguration,
-        opencode: {
+        attempt: {
           streamState: "IDLE",
           shutdownSafe: false,
         },
@@ -269,7 +269,7 @@ export const recordOpencodeStarted = internalMutation({
     }
 
     await ctx.db.patch("todoSandboxes", existing._id, {
-      opencode: {
+      attempt: {
         url: args.opencodeUrl,
         sessionId: args.sessionId,
         streamState: "STARTED",
@@ -285,7 +285,7 @@ export const recordOpencodeStarted = internalMutation({
 export const finish = internalMutation({
   args: {
     todoId: v.id("todos"),
-    streamState: opencodeTerminalStateValidator,
+    streamState: attemptTerminalStateValidator,
     todoStatus: terminalTodoStatusValidator,
     terminalAt: v.number(),
     terminalReason: v.optional(v.string()),
@@ -304,8 +304,8 @@ export const finish = internalMutation({
     }
 
     await ctx.db.patch("todoSandboxes", sandboxRow._id, {
-      opencode: {
-        ...sandboxRow.opencode,
+      attempt: {
+        ...sandboxRow.attempt,
         streamState: args.streamState,
         terminalAt: args.terminalAt,
         terminalReason: args.terminalReason,
@@ -337,8 +337,8 @@ export const failOrchestration = internalMutation({
 
     if (sandboxRow) {
       await ctx.db.patch("todoSandboxes", sandboxRow._id, {
-        opencode: {
-          ...sandboxRow.opencode,
+        attempt: {
+          ...sandboxRow.attempt,
           streamState: "FAILED",
           terminalAt: Date.now(),
           terminalReason: args.reason,

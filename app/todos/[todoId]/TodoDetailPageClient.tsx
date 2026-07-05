@@ -36,7 +36,7 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     isAuthenticated ? { todoId } : "skip",
   );
   const toolCallCount = useQuery(
-    api.opencodeToolCallCounts.getForTodo,
+    api.toolCallCounts.getForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
   const startTodoRun = useStartTodoRun();

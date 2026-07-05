@@ -33,7 +33,7 @@ async function insertSandboxWithoutRunConfiguration(
     return await ctx.db.insert("todoSandboxes", {
       todoId,
       sandboxId: "sandbox_123",
-      opencode: {
+      attempt: {
         streamState: "IDLE",
         shutdownSafe: false,
       },
@@ -120,7 +120,7 @@ describe("todo run start transition", () => {
     expect(sandbox).toMatchObject({
       todoId,
       sandboxId: "sandbox_123",
-      opencode: {
+      attempt: {
         streamState: "IDLE",
         shutdownSafe: false,
       },

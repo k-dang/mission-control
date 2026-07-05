@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { todoEventPayloadValidator } from "./lib/todoEventValidator";
 import {
-  opencodeStateValidator,
+  attemptStateValidator,
   runConfigurationValidator,
   todoStatusValidator,
 } from "./lib/todoValidators";
@@ -20,24 +20,24 @@ export default defineSchema({
     todoId: v.id("todos"),
     sandboxId: v.optional(v.string()),
     runConfiguration: v.optional(runConfigurationValidator),
-    opencode: opencodeStateValidator,
+    attempt: attemptStateValidator,
   }).index("by_todoId", ["todoId"]),
 
   todoEvents: defineTable({
     todoId: v.id("todos"),
-    opencodeSessionId: v.string(),
+    attemptId: v.string(),
     eventKey: v.string(),
     event: todoEventPayloadValidator,
   })
     .index("by_todoId", ["todoId"])
     .index("by_todoId_and_eventKey", ["todoId", "eventKey"]),
 
-  opencodeToolCallCounts: defineTable({
+  toolCallCounts: defineTable({
     todoId: v.id("todos"),
-    opencodeSessionId: v.string(),
+    attemptId: v.string(),
     count: v.number(),
     updatedAt: v.number(),
   })
     .index("by_todoId", ["todoId"])
-    .index("by_todoId_and_opencodeSessionId", ["todoId", "opencodeSessionId"]),
+    .index("by_todoId_and_attemptId", ["todoId", "attemptId"]),
 });

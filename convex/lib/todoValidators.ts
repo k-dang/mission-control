@@ -7,7 +7,7 @@ export const todoStatusValidator = v.union(
   v.literal("FAILED"),
 );
 
-export const opencodeStreamStateValidator = v.union(
+export const attemptStreamStateValidator = v.union(
   v.literal("IDLE"),
   v.literal("STARTED"),
   v.literal("COMPLETED"),
@@ -15,7 +15,7 @@ export const opencodeStreamStateValidator = v.union(
   v.literal("CANCELLED"),
 );
 
-export const opencodeTerminalStateValidator = v.union(
+export const attemptTerminalStateValidator = v.union(
   v.literal("COMPLETED"),
   v.literal("FAILED"),
   v.literal("CANCELLED"),
@@ -47,10 +47,10 @@ export const todoDocValidator = v.object({
   prUrl: v.optional(v.string()),
 });
 
-export const opencodeStateValidator = v.object({
+export const attemptStateValidator = v.object({
   url: v.optional(v.string()),
   sessionId: v.optional(v.string()),
-  streamState: opencodeStreamStateValidator,
+  streamState: attemptStreamStateValidator,
   startedAt: v.optional(v.number()),
   terminalAt: v.optional(v.number()),
   terminalReason: v.optional(v.string()),
@@ -63,5 +63,5 @@ export const sandboxRowValidator = v.object({
   todoId: v.id("todos"),
   sandboxId: v.optional(v.string()),
   runConfiguration: v.optional(runConfigurationValidator),
-  opencode: opencodeStateValidator,
+  attempt: attemptStateValidator,
 });

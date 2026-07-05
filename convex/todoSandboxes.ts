@@ -23,7 +23,7 @@ export const getSandboxByTodoId = internalQuery({
       todoId: row.todoId,
       sandboxId: row.sandboxId,
       runConfiguration: row.runConfiguration,
-      opencode: row.opencode,
+      attempt: row.attempt,
     };
   },
 });
@@ -46,7 +46,7 @@ export const getSandboxForTodo = query({
       todoId: row.todoId,
       sandboxId: row.sandboxId,
       runConfiguration: row.runConfiguration,
-      opencode: row.opencode,
+      attempt: row.attempt,
     };
   },
 });
@@ -70,7 +70,7 @@ export const listForTodos = query({
           todoId: row.todoId,
           sandboxId: row.sandboxId,
           runConfiguration: row.runConfiguration,
-          opencode: row.opencode,
+          attempt: row.attempt,
         };
       }),
     );

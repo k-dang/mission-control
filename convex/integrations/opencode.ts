@@ -142,7 +142,7 @@ export const monitorOpencodeStream = internalAction({
           try {
             await ctx.runMutation(internal.todoEvents.append, {
               todoId: args.todoId,
-              opencodeSessionId: args.opencodeSessionId,
+              attemptId: args.opencodeSessionId,
               eventKey: e.eventKey,
               event: e.event,
             });

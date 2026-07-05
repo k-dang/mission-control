@@ -1,14 +1,14 @@
 import { v } from "convex/values";
 import { requireAuthenticated } from "./authHelpers";
 import { todoEventPayloadValidator } from "./lib/todoEventValidator";
-import { incrementToolCallCount } from "./opencodeToolCallCounts";
+import { incrementToolCallCount } from "./toolCallCounts";
 import { internalMutation, query } from "./_generated/server";
 
 const todoEventDocValidator = v.object({
   _id: v.id("todoEvents"),
   _creationTime: v.number(),
   todoId: v.id("todos"),
-  opencodeSessionId: v.string(),
+  attemptId: v.string(),
   eventKey: v.string(),
   event: todoEventPayloadValidator,
 });
@@ -16,7 +16,7 @@ const todoEventDocValidator = v.object({
 export const append = internalMutation({
   args: {
     todoId: v.id("todos"),
-    opencodeSessionId: v.string(),
+    attemptId: v.string(),
     eventKey: v.string(),
     event: todoEventPayloadValidator,
   },
@@ -34,7 +34,7 @@ export const append = internalMutation({
 
     await ctx.db.insert("todoEvents", {
       todoId: args.todoId,
-      opencodeSessionId: args.opencodeSessionId,
+      attemptId: args.attemptId,
       eventKey: args.eventKey,
       event: args.event,
     });
@@ -42,7 +42,7 @@ export const append = internalMutation({
     if (args.event.kind === "tool" && args.event.status === "running") {
       await incrementToolCallCount(ctx, {
         todoId: args.todoId,
-        opencodeSessionId: args.opencodeSessionId,
+        attemptId: args.attemptId,
       });
     }
 
