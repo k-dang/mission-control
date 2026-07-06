@@ -9,7 +9,6 @@ import { action } from "./_generated/server";
 import {
   buildOpencodeConfig,
   getOpencodeMainModel,
-  getOpencodePullRequestMetadataModel,
   OPENCODE_PORT,
   OPENCODE_PROVIDER_API_KEY_ENV,
   OPENCODE_VERSION,
@@ -334,7 +333,6 @@ export const checkRunConfiguration = action({
 
       const config = buildOpencodeConfig(
         getOpencodeMainModel(parsed.value),
-        getOpencodePullRequestMetadataModel(parsed.value),
         {
           selectedProviderID: providerId,
           apiKey,

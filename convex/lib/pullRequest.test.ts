@@ -1,17 +1,12 @@
-import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { generateText, Output } from "ai";
 import { generatePullRequestMetadataFromDiff } from "./pullRequest";
 
-const opencodeMocks = vi.hoisted(() => {
-  const prompt = vi.fn();
-  return {
-    createOpencodeClient: vi.fn(() => ({ session: { prompt } })),
-    prompt,
-  };
-});
-
-vi.mock("@opencode-ai/sdk/v2", () => ({
-  createOpencodeClient: opencodeMocks.createOpencodeClient,
+vi.mock("ai", () => ({
+  generateText: vi.fn(),
+  Output: {
+    object: vi.fn((options) => ({ kind: "object-output", ...options })),
+  },
 }));
 
 type PullRequestContext = Parameters<
@@ -20,6 +15,9 @@ type PullRequestContext = Parameters<
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.stubEnv("AI_GATEWAY_API_KEY", "ai-gateway-key");
 });
 
 function createContext(
@@ -42,54 +40,52 @@ function createContext(
 }
 
 function mockStructuredMetadata() {
-  opencodeMocks.prompt.mockResolvedValue({
-    data: {
-      info: {
-        structured: {
-          body: "  ## Summary\n- Adds PR metadata tests  ",
-          title: "  Add PR metadata tests  ",
-        },
-      },
+  vi.mocked(generateText).mockResolvedValue({
+    output: {
+      body: "  ## Summary\n- Adds PR metadata tests  ",
+      title: "  Add PR metadata tests  ",
     },
-  });
+  } as Awaited<ReturnType<typeof generateText>>);
+}
+
+function getPromptText() {
+  return vi.mocked(generateText).mock.calls[0][0].prompt as string;
 }
 
 describe("generatePullRequestMetadataFromDiff", () => {
-  it("returns normalized structured metadata from OpenCode", async () => {
+  it("returns normalized structured metadata from an AI SDK model call", async () => {
     mockStructuredMetadata();
 
     await expect(
-      generatePullRequestMetadataFromDiff(createContext(), {
-        model: { modelID: "gpt-5.5", providerID: "openai" },
-        opencodeSessionId: " session_123 ",
-        opencodeUrl: " http://localhost:4096 ",
-      }),
+      generatePullRequestMetadataFromDiff(createContext()),
     ).resolves.toEqual({
       body: "## Summary\n- Adds PR metadata tests",
       title: "Add PR metadata tests",
     });
 
-    expect(createOpencodeClient).toHaveBeenCalledWith({
-      baseUrl: "http://localhost:4096",
-    });
-    expect(opencodeMocks.prompt).toHaveBeenCalledWith(
+    expect(generateText).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: { modelID: "gpt-5.5", providerID: "openai" },
-        sessionID: "session_123",
+        model: "openai/gpt-5-mini",
+        output: expect.objectContaining({
+          kind: "object-output",
+          name: "pull_request_metadata",
+        }),
+      }),
+    );
+    expect(Output.object).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "pull_request_metadata",
+        schema: expect.any(Object),
       }),
     );
   });
 
-  it("sends task context and staged diff details to OpenCode", async () => {
+  it("sends task context and staged diff details to AI Gateway", async () => {
     mockStructuredMetadata();
 
-    await generatePullRequestMetadataFromDiff(createContext(), {
-      model: { modelID: "gpt-5.5", providerID: "openai" },
-      opencodeSessionId: "session_123",
-      opencodeUrl: "http://localhost:4096",
-    });
+    await generatePullRequestMetadataFromDiff(createContext());
 
-    const promptText = opencodeMocks.prompt.mock.calls[0][0].parts[0].text;
+    const promptText = getPromptText();
     expect(promptText).toContain(
       "Original task title: Add pull request tests\nOriginal task description: Add tests for PR metadata",
     );
@@ -99,7 +95,7 @@ describe("generatePullRequestMetadataFromDiff", () => {
     );
   });
 
-  it("truncates large staged diff patches in the OpenCode prompt", async () => {
+  it("truncates large staged diff patches in the metadata prompt", async () => {
     mockStructuredMetadata();
 
     await generatePullRequestMetadataFromDiff(
@@ -109,41 +105,40 @@ describe("generatePullRequestMetadataFromDiff", () => {
           diffStat: "large.ts | 12005 +",
         },
       }),
-      {
-        model: { modelID: "gpt-5.5", providerID: "openai" },
-        opencodeSessionId: "session_123",
-        opencodeUrl: "http://localhost:4096",
-      },
     );
 
-    const promptText = opencodeMocks.prompt.mock.calls[0][0].parts[0].text;
+    const promptText = getPromptText();
     expect(promptText).toContain("x".repeat(12_000));
     expect(promptText).toContain("[truncated 5 characters]");
   });
 
-  it("throws when OpenCode returns invalid structured metadata", async () => {
-    opencodeMocks.prompt.mockResolvedValue({
-      data: { info: { structured: { body: "", title: "Add tests" } } },
-    });
+  it("throws when AI Gateway returns invalid structured metadata", async () => {
+    vi.mocked(generateText).mockResolvedValue({
+      output: { body: "", title: "Add tests" },
+    } as Awaited<ReturnType<typeof generateText>>);
 
     await expect(
-      generatePullRequestMetadataFromDiff(createContext(), {
-        model: { modelID: "gpt-5.5", providerID: "openai" },
-        opencodeSessionId: "session_123",
-        opencodeUrl: "http://localhost:4096",
-      }),
+      generatePullRequestMetadataFromDiff(createContext()),
     ).rejects.toThrow(
-      "OpenCode structured PR metadata response did not include a non-empty title and body",
+      "AI SDK structured PR metadata response did not include a non-empty title and body",
     );
   });
 
-  it("requires OpenCode session details", async () => {
+  it("requires the deployment AI Gateway credential", async () => {
+    vi.stubEnv("AI_GATEWAY_API_KEY", "");
+
     await expect(
-      generatePullRequestMetadataFromDiff(createContext(), {
-        model: { modelID: "gpt-5.5", providerID: "openai" },
-        opencodeSessionId: " ",
-        opencodeUrl: "http://localhost:4096",
-      }),
-    ).rejects.toThrow("PR metadata generation requires OpenCode session details");
+      generatePullRequestMetadataFromDiff(createContext()),
+    ).rejects.toThrow(
+      "AI_GATEWAY_API_KEY is required for PR metadata generation",
+    );
+  });
+
+  it("surfaces AI SDK generation failures", async () => {
+    vi.mocked(generateText).mockRejectedValue(new Error("unavailable"));
+
+    await expect(
+      generatePullRequestMetadataFromDiff(createContext()),
+    ).rejects.toThrow("unavailable");
   });
 });
