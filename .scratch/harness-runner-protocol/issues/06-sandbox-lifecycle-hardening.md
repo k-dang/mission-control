@@ -8,7 +8,7 @@ Status: ready-for-agent
 
 ## What to build
 
-Two lifecycle fixes. First, Attempts must survive past the initial sandbox timeout: the existing OpenCode slice monitor extends the Sandbox's lifetime each slice — and the push-harness watchdog does the same on its ticks once it exists (ADR 0001) — up to a configurable maximum Attempt duration; hitting the maximum finalizes the Attempt as FAILED with a clear timeout reason instead of dying silently. Second, close the provisioning leak: any failure after sandbox creation (git identity, recording, host upload/launch) stops the sandbox rather than orphaning it.
+Two lifecycle fixes. First, Attempts must survive past the initial sandbox timeout: the existing OpenCode slice monitor extends the Sandbox's lifetime each slice, up to a configurable maximum Attempt duration; hitting the maximum finalizes the Attempt as FAILED with a clear timeout reason instead of dying silently. Second, close the provisioning leak: any failure after sandbox creation (git identity, recording, OpenCode setup) stops the sandbox rather than orphaning it.
 
 ## Acceptance criteria
 
@@ -20,4 +20,4 @@ Two lifecycle fixes. First, Attempts must survive past the initial sandbox timeo
 
 ## Blocked by
 
-None - can start immediately (the OpenCode-monitor extension and leak fix touch only existing code; wiring extension into the push watchdog follows issue 05 when it lands)
+None - can start immediately

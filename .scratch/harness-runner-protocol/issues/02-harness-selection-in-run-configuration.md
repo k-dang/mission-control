@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 # Harness selection in Run Configuration
 
@@ -22,3 +22,7 @@ Make the **Harness** a first-class, user-selectable part of the **Run Configurat
 ## Blocked by
 
 - .scratch/harness-runner-protocol/issues/01-rename-storage-to-attempt-vocabulary.md (shared schema/validator surface)
+
+## Comments
+
+- Delivered in PR #21 ("Add harness selection to run configuration"). The in-app verification criterion was left unchecked by the implementer — worth a quick manual pass of the selector when convenient.

@@ -1,0 +1,16 @@
+# Defer the harness transport abstraction; keep the Attempt model harness-neutral
+
+We want Attempts at Todo Tasks to eventually be executable by different agent Harnesses (OpenCode today; Pi, Cursor, Flue-style harnesses are candidates), but the candidate SDKs have radically different shapes — HTTP servers, embedded Node libraries, vendor-hosted VMs — and no second harness is concretely committed. We designed two cross-harness transport abstractions in succession and concluded both were premature. The decision: **build no transport abstraction now.** OpenCode keeps its native integration (server in the Sandbox + SSE slice monitor + orchestrator-side projector). What we keep uniform is the entity model any future harness must plug into: the **Attempt** vocabulary (CONTEXT.md), the persisted todo-event payload union the transmission log renders, terminal semantics (COMPLETED / FAILED / CANCELLED with reason), and a harness-rooted Run Configuration catalog with a stored `harnessId` (legacy rows default to OpenCode). Each future Harness's transport, monitoring, and execution environment are designed when that harness is actually prioritized, against entities that are already generic.
+
+## Considered Options
+
+- **Uniform pull-based runner protocol** — every harness wrapped by a runner server inside the Sandbox exposing one HTTP/SSE contract, so the orchestrator holds a single reattaching monitor. Chosen first, delivery skeleton built, then reversed: wrapping embedded SDKs in servers exists only to solve *reattachment* — a problem the pull model itself creates — and forced buffer/resume machinery plus a runner-bundling delivery problem onto every future harness.
+- **Uniform push-ingestion contract** — a Convex HTTP endpoint receiving normalized events and terminal reports (per-Attempt token, `eventKey`-idempotent), with per-harness host scripts pushing from the sandbox and a generic heartbeat watchdog. Better (no reattachment, no inbound sandbox surface), but still legislates *where harnesses execute* and *how they report* before any second harness exists — e.g. it quietly assumed in-sandbox execution, which vendor-hosted options like Cursor's cloud mode contradict.
+- **Committing to a specific harness #2 now to anchor the design** — rejected: none is actually scheduled, so the anchor would be arbitrary.
+
+## Consequences
+
+- Adding harness #2 later includes designing its integration then — deliberate, not an omission. The shelved push-ingestion design is the likely starting point for in-sandbox embedded SDKs; ADR history and the retired issue files hold the details.
+- The generic pieces are already landed: Attempt-vocabulary storage (no OpenCode-named fields), harness-neutral event union, harness-rooted catalog with `harnessId`, and orchestrator-owned PR metadata generation (a direct model call from the staged diff, so no harness is involved in PR creation).
+- OpenCode-specific code (stream monitor, projector, sandbox setup) is allowed to stay OpenCode-shaped; do not "generalize" it speculatively.
+- **Deliberately deferred:** the OpenCode server remains publicly exposed and unauthenticated; hardening it is a separate security effort — a choice, not an oversight.

@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: wontfix
 
 # Pi push host (harness #2)
 
@@ -24,3 +24,7 @@ The first push-transport Harness (ADR 0001), proving the embedded-SDK path the d
 
 - .scratch/harness-runner-protocol/issues/02-harness-selection-in-run-configuration.md
 - .scratch/harness-runner-protocol/issues/05-attempt-event-ingestion-and-watchdog.md
+
+## Comments
+
+- Cancelled with the transport deferral (ADR 0001): no second harness is being implemented now. When Pi (or any harness #2) is concretely prioritized, design its integration then — the entity model is already generic, and this issue plus ADR 0001's considered options are the starting context.

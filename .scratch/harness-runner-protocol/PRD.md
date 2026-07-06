@@ -8,9 +8,9 @@ Automated Attempts at Todo Tasks can only be executed by OpenCode. The orchestra
 
 ## Solution
 
-Introduce the Harness as a first-class, user-selectable part of the Run Configuration, and make the **Convex ingestion contract** the uniform abstraction: an HTTP endpoint that accepts Attempt events normalized to the persisted todo-event vocabulary, plus terminal reports, authenticated per Attempt. Transport is deliberately per-harness: OpenCode keeps its existing native pull path (server + SSE slice monitor) unchanged, while embedded-SDK harnesses run a small bespoke host script inside the Sandbox that subscribes to native SDK events and pushes them to the ingestion endpoint. Adding a new Harness then means: write a host script (projector + push loop), add a catalog entry — and nothing else.
+Introduce the Harness as a first-class part of the Run Configuration and make the **entity model** harness-neutral — the Attempt vocabulary, the persisted todo-event payload union, terminal semantics, and a harness-rooted configuration catalog — while deliberately building **no cross-harness transport abstraction**. OpenCode keeps its native integration unchanged. When a second Harness is concretely prioritized, its transport, monitoring, and execution environment are designed then, against entities that are already generic.
 
-See ADR 0001 (uniform ingestion contract, per-harness transport) and CONTEXT.md for the governing decisions and vocabulary.
+See ADR 0001 (defer harness transport, keep the Attempt model generic) and CONTEXT.md for the governing decisions and vocabulary.
 
 ## User Stories
 
@@ -37,45 +37,38 @@ See ADR 0001 (uniform ingestion contract, per-harness transport) and CONTEXT.md 
 
 ## Implementation Decisions
 
-- **Domain vocabulary** (recorded in CONTEXT.md): a **Harness** is the agent runtime installed inside a **Sandbox**; an **Attempt** is a single automated execution of a **Todo Task** by one Harness inside one Sandbox; a **Run Configuration** is the harness, provider, and model selection captured for a single Attempt. Vendor-hosted execution outside the Sandbox is not a Harness and is out of scope.
-- **Uniform ingestion contract, per-harness transport** (ADR 0001): the shared abstraction is a Convex HTTP ingestion endpoint accepting normalized Attempt events and terminal reports (COMPLETED, FAILED, CANCELLED, with an optional reason), authenticated by a per-Attempt bearer token minted at Attempt start. How events reach that endpoint is each Harness's own business.
-- **OpenCode stays on its native pull path**: the existing server, SSE slice monitor, and orchestrator-side projector are untouched. No parity rewrite.
-- **Embedded harnesses use push hosts**: each gets a small bespoke in-sandbox host script that installs/hosts its SDK, subscribes to native events, projects them to the existing persisted todo-event payload union (session status, step start/finish, tool, patch, compaction, subtask, todo-updated, error — emitting whichever subset applies), and POSTs them with retries. Delivery is at-least-once; the existing `eventKey` dedupe on event append makes it idempotent, so the transmission log stays gap-free and duplicate-free by construction.
-- **Heartbeat watchdog instead of a monitor for push harnesses**: a generic scheduled check fails an Attempt (and stops its Sandbox) when no event or heartbeat has arrived within a threshold; there is no slice monitor, reattachment, buffering, or resume machinery for push harnesses.
+- **Domain vocabulary** (recorded in CONTEXT.md): a **Harness** is the agent runtime that carries out an **Attempt**; an **Attempt** is a single automated execution of a **Todo Task** by one Harness, which may use a **Sandbox** as its execution environment; a **Run Configuration** is the harness, provider, and model selection captured for a single Attempt. Where a Harness executes is decided per harness when it is implemented.
+- **Transport deferred** (ADR 0001): no cross-harness protocol, ingestion endpoint, runner, or host machinery is built. OpenCode keeps its native integration (server + SSE slice monitor + orchestrator-side projector) unchanged, and OpenCode-specific code is allowed to stay OpenCode-shaped — no speculative generalization. Two uniform transport designs (pull runner protocol, push ingestion + watchdog) were fully designed and shelved as premature; ADR 0001's considered options record both.
+- **Harness-neutral entity model is the deliverable**: the persisted todo-event payload union (session status, step start/finish, tool, patch, compaction, subtask, todo-updated, error) is the vocabulary any future integration projects into; terminal semantics (COMPLETED, FAILED, CANCELLED with reason) and the Attempt-vocabulary storage are generic already.
 - **Run Configuration gains `harnessId`**: the provider/model catalog becomes a harness-rooted tree (harness → providers → models), extending the existing `as const satisfies` catalog idiom, with parse/validate walking the tree. A stored Run Configuration missing `harnessId` parses as the OpenCode harness (historically true for all existing rows — no backfill needed).
 - **Per-harness credentials** extend the existing provider→env-var map idiom to be harness-scoped (e.g. OpenCode's providers keep their current vars; Pi uses direct model-vendor keys; Cursor uses its own API key). Missing keys fail fast at Attempt start.
 - **PR metadata generation moves orchestrator-side**: title/body are generated from the staged diff by a direct model call using one deployment-level metadata model and the AI Gateway credential the deployment already holds. The per-provider PR-metadata-model map is deleted from the Run Configuration catalog. The existing fallback (todo title/description) is retained. The rest of the PR pipeline (staging, branch, push, GitHub API) is already harness-neutral and is unchanged.
-- **Host delivery**: push-host scripts are small (SDK subscribe + fetch), so they ship as source with the Convex deployment and are written into the Sandbox at Attempt start — no bundling pipeline, no publishing, no external fetch. Heavy harness dependencies (Pi and Cursor SDK packages — the latter has platform-native binaries) are installed *inside* the Sandbox at pinned versions by the host's install step, as the OpenCode CLI already is today.
 - **Storage rename** (widen–migrate–narrow, using the Convex migrations component): the sandbox row's `opencode` state object becomes `attempt`; the events table's `opencodeSessionId` becomes `attemptId`; the tool-call-counts table drops its OpenCode prefix. Ships as the first PR, before any behavior change.
-- **Ride-along fixes**: the sandbox's lifetime is extended periodically (from the OpenCode monitor's slices, and from watchdog ticks for push harnesses) up to a configurable maximum Attempt duration, fixing the silent ten-minute kill; sandbox provisioning stops the sandbox on any failure after creation, fixing the leak window.
-- **Delivery sequence**: storage rename and the sandbox delivery skeleton have already landed. Remaining: orchestrator-side PR metadata; `harnessId` in Run Configuration (UI shows one harness); the ingestion endpoint + watchdog; lifecycle hardening; then the Pi push host as harness #2 (chosen because its embedded-SDK shape is the case the design exists for, and its credentials are trivial to obtain). Cursor and Flue-style harnesses follow later as host + catalog additions.
-- **Security posture**: the ingestion endpoint requires a per-Attempt bearer token. The OpenCode server's public unauthenticated exposure is unchanged and remains a consciously deferred item (recorded in ADR 0001).
+- **Lifecycle fixes**: the OpenCode monitor extends the sandbox's lifetime each slice up to a configurable maximum Attempt duration, fixing the silent ten-minute kill; sandbox provisioning stops the sandbox on any failure after creation, fixing the leak window.
+- **Delivery sequence**: storage rename, orchestrator-side PR metadata, and harness selection have landed. Remaining: sandbox lifecycle hardening. Multi-harness implementation is deferred entirely (ADR 0001).
+- **Security posture**: the OpenCode server's public unauthenticated exposure is unchanged and remains a consciously deferred item (recorded in ADR 0001).
 
 ## Testing Decisions
 
-- Tests exercise external behavior at seams, never implementation details. The refactor introduces exactly **one new seam**: the ingestion contract.
-- **Ingestion contract suite (primary)**: exercises the HTTP ingestion endpoint's external behavior with convex-test — token acceptance/rejection, event append with `eventKey` dedupe under duplicate delivery, terminal reports driving the finish/fail mutations, and watchdog behavior for silent Attempts. Each push host is proven against the same contract by running its projector + push loop against a fake ingestion target. Prior art: the current stream-monitor tests' structural-fake style, and the existing todo-runs convex-test coverage.
-- **Projector tests (existing pattern)**: each push host's harness-events → todo-event-payload projector is a pure module tested with scripted native events, exactly as the OpenCode projector is tested today. The OpenCode projector and monitor tests are untouched, since that path doesn't change.
+- Tests exercise external behavior at seams, never implementation details. With transport deferred, **no new seams are introduced** — the existing ones cover the delivered scope: the structural fake client for the stream monitor, the pure OpenCode projector, catalog functions, and convex-test for mutations.
 - **Catalog/parse tests (existing pattern)**: harness-rooted catalog validation, legacy-row defaulting to the OpenCode harness, and unsupported-combination rejection extend the existing run-configuration test file's style.
 - **Mutation tests (existing pattern)**: the rename migration and the terminal-state mutations are covered with convex-test, per the existing todo-runs tests.
 - **Real-sandbox behavior is not unit-tested**: Vercel sandbox provisioning, actual harness installs, and end-to-end Attempts are verified empirically with a real run before each PR merges, with the existing OpenCode stream smoke script as the precedent for scripted probes.
 
 ## Out of Scope
 
-- Execution outside the Sandbox (e.g. Cursor's cloud mode, any vendor-hosted VM). By definition not a Harness.
-- Authentication of the OpenCode server's public endpoint and network-policy hardening (consciously deferred; see ADR 0001 — the *ingestion* endpoint does carry a per-Attempt token).
-- Cursor and Flue hosts (follow-ups after the Pi host proves the embedded-SDK path).
-- Migrating OpenCode from its native pull path onto push ingestion (possible later unification; not needed now).
+- Implementing any second Harness (Pi, Cursor, Flue-style) and, with it, any cross-harness transport abstraction — both a uniform pull runner protocol and a uniform push ingestion contract were designed and shelved as premature (see ADR 0001). Each harness's integration, including where it executes, is designed when it is concretely prioritized.
+- Authentication of the OpenCode server's public endpoint and network-policy hardening (consciously deferred; see ADR 0001).
 - Sandbox snapshotting to pre-bake harness installs (a later startup-time optimization).
 - Any transmission-log UI redesign beyond rendering the existing event kinds; any board/lifecycle changes beyond the harness selector in run configuration.
 - Multi-Attempt history per Todo Task (the current one-active-Attempt model is unchanged).
 
 ## Further Notes
 
-- The event payload union is already harness-neutral; harness-specific kinds simply won't be emitted by hosts whose harnesses lack the concept. New kinds may be added to the union later without breaking existing hosts (they just never emit them).
-- Push harnesses expose no inbound port at all; only outbound HTTPS from the Sandbox to the Convex deployment is required.
-- CONTEXT.md's glossary and ADR 0001 were written during the design sessions that produced this PRD; treat them as the source of truth for vocabulary and the transport decision respectively.
+- The event payload union is already harness-neutral; a future harness integration projects its native events into that union, emitting whichever subset applies. New kinds may be added later without breaking existing integrations.
+- CONTEXT.md's glossary and ADR 0001 were written during the design sessions that produced this PRD; treat them as the source of truth for vocabulary and the deferral decision respectively.
 
 ## Comments
 
-- Revised after the delivery-skeleton work landed: the uniform *pull* runner protocol was replaced by a uniform *ingestion* contract with per-harness transport (decision and rejected pull approach both recorded in ADR 0001). OpenCode's native path is retained unchanged; embedded harnesses push events to Convex. Solution, implementation, testing, and scope sections updated accordingly; user stories unchanged.
+- Revised after the delivery-skeleton work landed: the uniform *pull* runner protocol was replaced by a uniform *ingestion* contract with per-harness transport. OpenCode's native path retained; embedded harnesses were to push events to Convex.
+- Revised again after harness selection landed: the ingestion contract was also shelved — harnesses are too varied to standardize transport before a concrete second harness is prioritized (ADR 0001 now records the deferral, with both shelved designs as considered options). Surviving scope: the harness-neutral entity model (delivered) and sandbox lifecycle hardening (open). User stories about running non-OpenCode harnesses are deferred with the transport work.

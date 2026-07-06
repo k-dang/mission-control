@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: wontfix
 
 # Attempt event ingestion endpoint + heartbeat watchdog
 
@@ -23,3 +23,7 @@ The uniform Convex-side contract for push harnesses (ADR 0001). An HTTP ingestio
 ## Blocked by
 
 - .scratch/harness-runner-protocol/issues/01-rename-storage-to-attempt-vocabulary.md
+
+## Comments
+
+- Cancelled before starting: the cross-harness transport abstraction (push ingestion + watchdog) was deferred entirely — harness shapes are too varied to standardize before a concrete second harness is prioritized. See ADR 0001 (defer harness transport). The generic entity model (event union, Attempt vocabulary, harness-rooted catalog) is the part we kept.
