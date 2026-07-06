@@ -53,6 +53,7 @@ describe("todo run start transition", () => {
     await authed.mutation(api.todoRuns.start, {
       todoId,
       runConfiguration: {
+        harnessId: "opencode",
         providerId: "openrouter",
         modelId: "moonshotai/kimi-k2.6:free",
       },
@@ -68,6 +69,7 @@ describe("todo run start transition", () => {
     expect(todo).not.toHaveProperty("runConfiguration");
     expect(rawTodo).not.toHaveProperty("runConfiguration");
     expect(sandbox?.runConfiguration).toEqual({
+      harnessId: "opencode",
       providerId: "openrouter",
       modelId: "moonshotai/kimi-k2.6:free",
     });
@@ -90,7 +92,7 @@ describe("todo run start transition", () => {
         },
       }),
     ).rejects.toThrow(
-      "Unsupported run configuration: openrouter/moonshotai/kimi-k2.5",
+      "Unsupported run configuration: opencode/openrouter/moonshotai/kimi-k2.5",
     );
 
     const sandbox = await authed.query(api.todoSandboxes.getSandboxForTodo, {

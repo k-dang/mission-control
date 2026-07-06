@@ -74,6 +74,7 @@ describe("OpenCode config generation", () => {
   it("returns the selected model object used by OpenCode prompts", () => {
     expect(
       getOpencodeMainModel({
+        harnessId: "opencode",
         providerId: "openrouter",
         modelId: "moonshotai/kimi-k2.6:free",
       }),
@@ -103,9 +104,12 @@ describe("OpenCode config generation", () => {
   it("rejects unsupported run configuration values before model selection", () => {
     expect(() =>
       getOpencodeMainModel({
+        harnessId: "opencode",
         providerId: "openrouter",
         modelId: "moonshotai/kimi-k2.5",
       }),
-    ).toThrow("Unsupported run configuration: openrouter/moonshotai/kimi-k2.5");
+    ).toThrow(
+      "Unsupported run configuration: opencode/openrouter/moonshotai/kimi-k2.5",
+    );
   });
 });

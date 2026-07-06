@@ -32,7 +32,10 @@ export const runConfigurationProviderIdValidator = v.union(
   v.literal("opencode"),
 );
 
+export const runConfigurationHarnessIdValidator = v.literal("opencode");
+
 export const runConfigurationValidator = v.object({
+  harnessId: v.optional(runConfigurationHarnessIdValidator),
   providerId: runConfigurationProviderIdValidator,
   modelId: v.string(),
 });

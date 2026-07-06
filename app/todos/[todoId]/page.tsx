@@ -7,9 +7,9 @@ export const metadata: Metadata = {
   description: "Task detail and live run transmission log.",
 };
 
-export default async function TodoDetailPage(
-  props: PageProps<"/todos/[todoId]">,
-) {
+export default async function TodoDetailPage(props: {
+  params: Promise<{ todoId: string }>;
+}) {
   const { todoId } = await props.params;
 
   return <TodoDetailPageClient todoId={todoId as Id<"todos">} />;

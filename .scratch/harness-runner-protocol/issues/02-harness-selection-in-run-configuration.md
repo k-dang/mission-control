@@ -12,12 +12,12 @@ Make the **Harness** a first-class, user-selectable part of the **Run Configurat
 
 ## Acceptance criteria
 
-- [ ] User picks a Harness when starting a Todo Task; provider/model choices are constrained to that Harness's subtree; invalid combinations are rejected server-side
-- [ ] `harnessId` is captured on the Attempt at start and frozen thereafter, like the rest of the Run Configuration
-- [ ] Rows without `harnessId` parse and display as OpenCode runs; the "Unknown run configuration" fallback still covers retired entries
-- [ ] Catalog walking, legacy defaulting, and rejection paths are unit-tested in the existing run-configuration test style
+- [x] User picks a Harness when starting a Todo Task; provider/model choices are constrained to that Harness's subtree; invalid combinations are rejected server-side
+- [x] `harnessId` is captured on the Attempt at start and frozen thereafter, like the rest of the Run Configuration
+- [x] Rows without `harnessId` parse and display as OpenCode runs; the "Unknown run configuration" fallback still covers retired entries
+- [x] Catalog walking, legacy defaulting, and rejection paths are unit-tested in the existing run-configuration test style
 - [ ] Verified in the running app: harness selector renders, selection persists, history shows harness · provider · model
-- [ ] `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass
+- [x] `pnpm lint`, `pnpm typecheck`, and `pnpm test` pass
 
 ## Blocked by
 

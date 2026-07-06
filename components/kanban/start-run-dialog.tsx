@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import {
   DEFAULT_RUN_CONFIGURATION,
-  RUN_CONFIGURATION_PROVIDERS,
+  RUN_CONFIGURATION_HARNESSES,
   type RunConfiguration,
+  type RunConfigurationHarnessId,
   type RunConfigurationProviderId,
 } from "@/convex/lib/runConfiguration";
 import { AlertCircle, Loader2, Play } from "lucide-react";
@@ -44,21 +45,41 @@ export function StartRunDialog({
   error,
   todoTitle,
 }: StartRunDialogProps) {
+  const [harnessId, setHarnessId] = useState<RunConfigurationHarnessId>(
+    DEFAULT_RUN_CONFIGURATION.harnessId,
+  );
   const [providerId, setProviderId] = useState<RunConfigurationProviderId>(
     DEFAULT_RUN_CONFIGURATION.providerId,
   );
+  const selectedHarness = useMemo(
+    () =>
+      RUN_CONFIGURATION_HARNESSES.find((harness) => harness.id === harnessId) ??
+      RUN_CONFIGURATION_HARNESSES[0],
+    [harnessId],
+  );
   const selectedProvider = useMemo(
     () =>
-      RUN_CONFIGURATION_PROVIDERS.find((provider) => provider.id === providerId) ??
-      RUN_CONFIGURATION_PROVIDERS[0],
-    [providerId],
+      selectedHarness.providers.find((provider) => provider.id === providerId) ??
+      selectedHarness.providers[0],
+    [providerId, selectedHarness],
   );
   const [modelId, setModelId] = useState<string>(
     DEFAULT_RUN_CONFIGURATION.modelId,
   );
 
+  const handleHarnessChange = (nextHarnessId: string) => {
+    const harness = RUN_CONFIGURATION_HARNESSES.find(
+      (candidate) => candidate.id === nextHarnessId,
+    );
+    if (!harness) return;
+    const provider = harness.providers[0];
+    setHarnessId(harness.id);
+    setProviderId(provider.id);
+    setModelId(provider.models[0]?.id ?? "");
+  };
+
   const handleProviderChange = (nextProviderId: string) => {
-    const provider = RUN_CONFIGURATION_PROVIDERS.find(
+    const provider = selectedHarness.providers.find(
       (candidate) => candidate.id === nextProviderId,
     );
     if (!provider) return;
@@ -76,6 +97,7 @@ export function StartRunDialog({
     if (isStarting) return;
     onOpenChange(nextOpen);
     if (!nextOpen) {
+      setHarnessId(DEFAULT_RUN_CONFIGURATION.harnessId);
       setProviderId(DEFAULT_RUN_CONFIGURATION.providerId);
       setModelId(DEFAULT_RUN_CONFIGURATION.modelId);
     }
@@ -87,7 +109,7 @@ export function StartRunDialog({
         <DialogHeader>
           <DialogTitle>Start task</DialogTitle>
           <DialogDescription>
-            Choose the provider and main model for this run.
+            Choose the harness, provider, and main model for this run.
           </DialogDescription>
         </DialogHeader>
 
@@ -100,6 +122,34 @@ export function StartRunDialog({
         ) : null}
 
         <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label
+              htmlFor="start-run-harness"
+              className="font-mono text-[10px] font-medium uppercase tracking-[0.15em] text-muted-foreground"
+            >
+              Harness
+            </Label>
+            <Select
+              value={harnessId}
+              disabled={isStarting}
+              onValueChange={handleHarnessChange}
+            >
+              <SelectTrigger
+                id="start-run-harness"
+                className="h-10 border-border/50 bg-background/50"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="border-border/50 bg-card">
+                {RUN_CONFIGURATION_HARNESSES.map((harness) => (
+                  <SelectItem key={harness.id} value={harness.id}>
+                    {harness.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid gap-2">
             <Label
               htmlFor="start-run-provider"
@@ -119,7 +169,7 @@ export function StartRunDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="border-border/50 bg-card">
-                {RUN_CONFIGURATION_PROVIDERS.map((provider) => (
+                {selectedHarness.providers.map((provider) => (
                   <SelectItem key={provider.id} value={provider.id}>
                     {provider.label}
                   </SelectItem>
@@ -176,7 +226,9 @@ export function StartRunDialog({
           <Button
             type="button"
             disabled={!canConfirm}
-            onClick={() => onConfirm({ providerId, modelId: activeModelId })}
+            onClick={() =>
+              onConfirm({ harnessId, providerId, modelId: activeModelId })
+            }
           >
             {isStarting ? (
               <Loader2 className="h-4 w-4 animate-spin" />

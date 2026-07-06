@@ -3,6 +3,20 @@ export type RunConfigurationModel = {
   label: string;
 };
 
+export type RunConfigurationProviderCatalogEntry = {
+  id: string;
+  label: string;
+  models: readonly RunConfigurationModel[];
+};
+
+export type RunConfigurationHarnessCatalogEntry = {
+  id: string;
+  label: string;
+  providers: readonly RunConfigurationProviderCatalogEntry[];
+};
+
+export const OPENCODE_HARNESS_ID = "opencode";
+
 export const RUN_CONFIGURATION_PROVIDER_OPTIONS = [
   {
     id: "vercel",
@@ -35,7 +49,20 @@ export const RUN_CONFIGURATION_PROVIDER_OPTIONS = [
   models: readonly RunConfigurationModel[];
 }[];
 
+export const RUN_CONFIGURATION_HARNESSES = [
+  {
+    id: OPENCODE_HARNESS_ID,
+    label: "OpenCode",
+    providers: RUN_CONFIGURATION_PROVIDER_OPTIONS,
+  },
+] as const satisfies readonly RunConfigurationHarnessCatalogEntry[];
+
 export const RUN_CONFIGURATION_PROVIDERS = RUN_CONFIGURATION_PROVIDER_OPTIONS;
+
+export type RunConfigurationHarness =
+  (typeof RUN_CONFIGURATION_HARNESSES)[number];
+
+export type RunConfigurationHarnessId = RunConfigurationHarness["id"];
 
 export type RunConfigurationProvider =
   (typeof RUN_CONFIGURATION_PROVIDER_OPTIONS)[number];
@@ -43,6 +70,7 @@ export type RunConfigurationProvider =
 export type RunConfigurationProviderId = RunConfigurationProvider["id"];
 
 export type RunConfiguration = {
+  harnessId: RunConfigurationHarnessId;
   providerId: RunConfigurationProviderId;
   modelId: string;
 };
@@ -58,11 +86,13 @@ export type ProviderModelSelection = {
  * {@link RunConfiguration} for values known to be supported.
  */
 export type RunConfigurationInput = {
+  harnessId?: string;
   providerId: string;
   modelId: string;
 };
 
 export const DEFAULT_RUN_CONFIGURATION = {
+  harnessId: OPENCODE_HARNESS_ID,
   providerId: "vercel",
   modelId: "moonshotai/kimi-k2.5",
 } as const satisfies RunConfiguration;
@@ -71,45 +101,80 @@ export type ParseRunConfigurationResult =
   | { ok: true; value: RunConfiguration }
   | { ok: false; error: string };
 
-function findProvider(providerId: string) {
-  return RUN_CONFIGURATION_PROVIDER_OPTIONS.find(
+function normalizeHarnessId(harnessId: string | undefined) {
+  return harnessId ?? OPENCODE_HARNESS_ID;
+}
+
+function findHarness(harnessId: string | undefined) {
+  const normalizedHarnessId = normalizeHarnessId(harnessId);
+  return RUN_CONFIGURATION_HARNESSES.find(
+    (harness) => harness.id === normalizedHarnessId,
+  );
+}
+
+function findProvider(harnessId: string | undefined, providerId: string) {
+  return findHarness(harnessId)?.providers.find(
     (provider) => provider.id === providerId,
   );
 }
 
-function findModel(providerId: string, modelId: string) {
-  return findProvider(providerId)?.models.find((model) => model.id === modelId);
+function findModel(
+  harnessId: string | undefined,
+  providerId: string,
+  modelId: string,
+) {
+  return findProvider(harnessId, providerId)?.models.find(
+    (model) => model.id === modelId,
+  );
 }
 
 export function isSupportedRunConfiguration(
   configuration: RunConfigurationInput,
-): configuration is RunConfiguration {
-  return Boolean(findModel(configuration.providerId, configuration.modelId));
+): boolean {
+  return Boolean(
+    findModel(
+      configuration.harnessId,
+      configuration.providerId,
+      configuration.modelId,
+    ),
+  );
 }
 
 export function parseRunConfiguration(
   configuration: RunConfigurationInput,
 ): ParseRunConfigurationResult {
-  if (isSupportedRunConfiguration(configuration)) {
+  const harness = findHarness(configuration.harnessId);
+  const provider = findProvider(
+    configuration.harnessId,
+    configuration.providerId,
+  );
+  const model = findModel(
+    configuration.harnessId,
+    configuration.providerId,
+    configuration.modelId,
+  );
+
+  if (harness && provider && model) {
     return {
       ok: true,
       value: {
-        providerId: configuration.providerId,
-        modelId: configuration.modelId,
+        providerId: provider.id,
+        modelId: model.id,
+        harnessId: harness.id,
       },
     };
   }
 
   return {
     ok: false,
-    error: `Unsupported run configuration: ${configuration.providerId}/${configuration.modelId}`,
+    error: `Unsupported run configuration: ${normalizeHarnessId(configuration.harnessId)}/${configuration.providerId}/${configuration.modelId}`,
   };
 }
 
 export const UNKNOWN_RUN_CONFIGURATION_LABEL = "Unknown run configuration";
 
 /**
- * Human-readable "Provider · Model" label for a stored or loosely-typed run
+ * Human-readable "Harness · Provider · Model" label for a stored or loosely-typed run
  * configuration, falling back to {@link UNKNOWN_RUN_CONFIGURATION_LABEL} when it
  * is absent or no longer in the catalog (e.g. a model retired after the run).
  */
@@ -120,11 +185,19 @@ export function describeRunConfiguration(
     return UNKNOWN_RUN_CONFIGURATION_LABEL;
   }
 
-  const provider = findProvider(runConfiguration.providerId);
-  const model = findModel(runConfiguration.providerId, runConfiguration.modelId);
-  if (!provider || !model) {
+  const harness = findHarness(runConfiguration.harnessId);
+  const provider = findProvider(
+    runConfiguration.harnessId,
+    runConfiguration.providerId,
+  );
+  const model = findModel(
+    runConfiguration.harnessId,
+    runConfiguration.providerId,
+    runConfiguration.modelId,
+  );
+  if (!harness || !provider || !model) {
     return UNKNOWN_RUN_CONFIGURATION_LABEL;
   }
 
-  return `${provider.label} · ${model.label}`;
+  return `${harness.label} · ${provider.label} · ${model.label}`;
 }

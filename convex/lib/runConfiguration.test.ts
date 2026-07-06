@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_RUN_CONFIGURATION,
+  RUN_CONFIGURATION_HARNESSES,
   RUN_CONFIGURATION_PROVIDERS,
   UNKNOWN_RUN_CONFIGURATION_LABEL,
   describeRunConfiguration,
@@ -9,6 +10,12 @@ import {
 } from "./runConfiguration";
 
 describe("run configuration catalog", () => {
+  it("includes OpenCode as the initial harness", () => {
+    expect(RUN_CONFIGURATION_HARNESSES.map((harness) => harness.id)).toEqual([
+      "opencode",
+    ]);
+  });
+
   it("includes Vercel AI Gateway, OpenRouter, and OpenCode Zen providers", () => {
     expect(RUN_CONFIGURATION_PROVIDERS.map((provider) => provider.id)).toEqual([
       "vercel",
@@ -19,6 +26,7 @@ describe("run configuration catalog", () => {
 
   it("exposes a supported default run configuration", () => {
     expect(DEFAULT_RUN_CONFIGURATION).toEqual({
+      harnessId: "opencode",
       providerId: "vercel",
       modelId: "moonshotai/kimi-k2.5",
     });
@@ -64,12 +72,14 @@ describe("run configuration catalog", () => {
   it("parses supported configurations and reports unsupported ones", () => {
     expect(
       parseRunConfiguration({
+        harnessId: "opencode",
         providerId: "openrouter",
         modelId: "moonshotai/kimi-k2.6:free",
       }),
     ).toEqual({
       ok: true,
       value: {
+        harnessId: "opencode",
         providerId: "openrouter",
         modelId: "moonshotai/kimi-k2.6:free",
       },
@@ -81,7 +91,38 @@ describe("run configuration catalog", () => {
         modelId: "moonshotai/kimi-k2.5",
       }),
     ).toEqual({
-      error: "Unsupported run configuration: openrouter/moonshotai/kimi-k2.5",
+      error:
+        "Unsupported run configuration: opencode/openrouter/moonshotai/kimi-k2.5",
+      ok: false,
+    });
+  });
+
+  it("parses legacy rows without a harness as OpenCode runs", () => {
+    expect(
+      parseRunConfiguration({
+        providerId: "openrouter",
+        modelId: "moonshotai/kimi-k2.6:free",
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        harnessId: "opencode",
+        providerId: "openrouter",
+        modelId: "moonshotai/kimi-k2.6:free",
+      },
+    });
+  });
+
+  it("rejects unsupported harness/provider/model combinations", () => {
+    expect(
+      parseRunConfiguration({
+        harnessId: "pi",
+        providerId: "openrouter",
+        modelId: "moonshotai/kimi-k2.6:free",
+      }),
+    ).toEqual({
+      error:
+        "Unsupported run configuration: pi/openrouter/moonshotai/kimi-k2.6:free",
       ok: false,
     });
   });
@@ -89,17 +130,18 @@ describe("run configuration catalog", () => {
   it("describes known, missing, and stale run configuration for display", () => {
     expect(
       describeRunConfiguration({
+        harnessId: "opencode",
         providerId: "vercel",
         modelId: "moonshotai/kimi-k2.5",
       }),
-    ).toBe("Vercel AI Gateway · Kimi K2.5");
+    ).toBe("OpenCode · Vercel AI Gateway · Kimi K2.5");
 
     expect(
       describeRunConfiguration({
         providerId: "openrouter",
         modelId: "nvidia/nemotron-3-ultra-550b-a55b:free",
       }),
-    ).toBe("OpenRouter · NVIDIA Nemotron 3 Ultra 550B Free");
+    ).toBe("OpenCode · OpenRouter · NVIDIA Nemotron 3 Ultra 550B Free");
 
     expect(describeRunConfiguration(undefined)).toBe(
       UNKNOWN_RUN_CONFIGURATION_LABEL,
@@ -119,6 +161,7 @@ describe("run configuration catalog", () => {
     // Entirely unknown provider.
     expect(
       describeRunConfiguration({
+        harnessId: "retired-harness",
         providerId: "legacy-provider",
         modelId: "legacy-model",
       }),
