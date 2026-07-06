@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 
 # Orchestrator-side PR metadata generation
 
@@ -23,3 +23,7 @@ Move pull-request title/body generation out of the Harness and into the orchestr
 ## Blocked by
 
 None - can start immediately
+
+## Comments
+
+- Delivered in PR #20 ("Use AI SDK for PR metadata generation"): metadata is generated orchestrator-side via the AI SDK, and the per-provider metadata-model map was removed from the run-configuration catalog.

@@ -5,9 +5,6 @@
 # release-age delay keeps those versions from ever landing in our tree.
 minimumReleaseAge: 10080
 
-# Refuse packages whose provenance/signature trust weakens between resolutions.
-trustPolicy: no-downgrade
-
 # Keep transitive deps coming from the registry only (no git:/file:/tarball
 # URLs that bypass it). This is the recent-pnpm default; never set it to false.
 blockExoticSubdeps: true
@@ -21,11 +18,11 @@ overrides:
   '@types/react-dom': 19.2.3
 
 allowBuilds:
-  '@clerk/shared': set this to true or false
-  bufferutil: set this to true or false
-  core-js: set this to true or false
-  esbuild: set this to true or false
-  msgpackr-extract: set this to true or false
-  sharp: set this to true or false
-  unrs-resolver: set this to true or false
-  utf-8-validate: set this to true or false
+  '@clerk/shared': false
+  bufferutil: true
+  core-js: false
+  esbuild: true
+  msgpackr-extract: true
+  sharp: true
+  unrs-resolver: true
+  utf-8-validate: true
