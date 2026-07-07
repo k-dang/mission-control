@@ -10,6 +10,8 @@ import { createPullRequest } from "../lib/pullRequest";
 import type { RunConfiguration } from "../lib/runConfiguration";
 import { parseRunConfiguration } from "../lib/runConfiguration";
 import {
+  decideAttemptLifetime,
+  resolveMaxAttemptDurationMs,
   type TerminalResult,
   waitForOpencodeTerminalState,
 } from "../lib/opencodeStreamMonitor";
@@ -61,16 +63,18 @@ export const runTodo = internalAction({
         runConfiguration: runConfiguration.value,
       });
 
+      const startedAt = Date.now();
       await ctx.runMutation(internal.todoRuns.recordOpencodeStarted, {
         todoId: args.todoId,
         opencodeUrl: publicUrl,
         sessionId,
-        startedAt: Date.now(),
+        startedAt,
       });
       await ctx.scheduler.runAfter(
         0,
         internal.integrations.opencode.monitorOpencodeStream,
         {
+          attemptStartedAt: startedAt,
           opencodeSessionId: sessionId,
           opencodeUrl: publicUrl,
           sandboxId: sandboxRow.sandboxId,
@@ -118,6 +122,7 @@ export const runTodo = internalAction({
 
 export const monitorOpencodeStream = internalAction({
   args: {
+    attemptStartedAt: v.number(),
     opencodeSessionId: v.string(),
     opencodeUrl: v.string(),
     sandboxId: v.string(),
@@ -132,6 +137,44 @@ export const monitorOpencodeStream = internalAction({
     const sandbox = await getSandbox(args.sandboxId);
 
     try {
+      const maxAttemptDurationMs = resolveMaxAttemptDurationMs(
+        process.env.MAX_ATTEMPT_DURATION_MS,
+      );
+      const lifetime = decideAttemptLifetime({
+        startedAt: args.attemptStartedAt,
+        now: Date.now(),
+        maxAttemptDurationMs,
+        sandboxDeadlineAt: sandbox.createdAt.getTime() + sandbox.timeout,
+      });
+      if (lifetime.kind === "timedOut") {
+        console.warn("Attempt exceeded maximum duration, finalizing", {
+          todoId: args.todoId,
+          sandboxId: args.sandboxId,
+          attemptStartedAt: args.attemptStartedAt,
+        });
+        await ctx.runMutation(internal.todoRuns.failOrchestration, {
+          todoId: args.todoId,
+          reason: `Attempt exceeded the maximum duration of ${Math.round(maxAttemptDurationMs / 60_000)} minutes`,
+        });
+        await stopSandboxSafely({
+          todoId: args.todoId,
+          sandboxId: args.sandboxId,
+          sandbox,
+        });
+        return null;
+      }
+      if (lifetime.extendByMs > 0) {
+        try {
+          await sandbox.extendTimeout(lifetime.extendByMs);
+        } catch (error) {
+          console.warn("Failed to extend sandbox timeout", {
+            todoId: args.todoId,
+            sandboxId: args.sandboxId,
+            error,
+          });
+        }
+      }
+
       const client = createOpencodeClient({ baseUrl: args.opencodeUrl });
       const outcome = await waitForOpencodeTerminalState(
         client,
@@ -159,6 +202,7 @@ export const monitorOpencodeStream = internalAction({
           OPENCODE_MONITOR_RETRY_DELAY_MS,
           internal.integrations.opencode.monitorOpencodeStream,
           {
+            attemptStartedAt: args.attemptStartedAt,
             opencodeSessionId: args.opencodeSessionId,
             opencodeUrl: args.opencodeUrl,
             sandboxId: args.sandboxId,

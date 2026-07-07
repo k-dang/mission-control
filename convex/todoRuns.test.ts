@@ -2,7 +2,7 @@
 
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, it } from "vitest";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
@@ -128,5 +128,36 @@ describe("todo run start transition", () => {
       },
     });
     expect(sandbox?.runConfiguration).toBeUndefined();
+  });
+});
+
+describe("failing a timed-out attempt", () => {
+  it("marks the todo FAILED and records the timeout as the terminal reason", async () => {
+    const t = convexTest(schema, modules);
+    const authed = t.withIdentity(identity);
+    const todoId = await insertTodo(t, {
+      status: "INPROGRESS",
+      githubUrl: "https://github.com/example/repo",
+    });
+    await insertSandboxWithoutRunConfiguration(t, todoId);
+
+    await t.mutation(internal.todoRuns.failOrchestration, {
+      todoId,
+      reason: "Attempt exceeded the maximum duration of 30 minutes",
+    });
+
+    const sandbox = await authed.query(api.todoSandboxes.getSandboxForTodo, {
+      todoId,
+    });
+    const todo = await authed.query(api.todos.get, { todoId });
+
+    expect(todo?.status).toBe("FAILED");
+    expect(todo?.prUrl).toBeUndefined();
+    expect(sandbox?.attempt).toMatchObject({
+      streamState: "FAILED",
+      terminalAt: expect.any(Number),
+      terminalReason: "Attempt exceeded the maximum duration of 30 minutes",
+      shutdownSafe: true,
+    });
   });
 });

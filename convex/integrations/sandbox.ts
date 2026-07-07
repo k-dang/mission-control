@@ -10,6 +10,7 @@ import {
   requireSandboxAccessConfig,
   SANDBOX_GIT_USER_EMAIL,
   SANDBOX_GIT_USER_NAME,
+  stopSandboxSafely,
 } from "../lib/sandboxHelpers";
 import { runConfigurationValidator } from "../lib/todoValidators";
 
@@ -44,66 +45,81 @@ export const spawnSandboxForTodo = internalAction({
       return null;
     }
 
-    const { projectId, teamId, token } = requireSandboxAccessConfig();
-    const githubToken = process.env.GITHUB_TOKEN;
-    if (!githubToken) {
-      throw new Error(
-        "GITHUB_TOKEN is not set; sandbox git clone will 403 on private repos",
-      );
-    }
-    let sandbox: Sandbox;
+    let sandbox: Sandbox | undefined;
     try {
-      sandbox = await Sandbox.create({
-        source: { type: "git", url: args.githubUrl },
-        ports: [OPENCODE_PORT],
-        runtime: "node24",
-        timeout: 10 * 60 * 1000,
-        env: {
-          GITHUB_TOKEN: githubToken,
-        },
-        teamId,
-        projectId,
-        token,
-      });
-    } catch (error) {
-      if (error instanceof APIError) {
+      const { projectId, teamId, token } = requireSandboxAccessConfig();
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (!githubToken) {
         throw new Error(
-          `Sandbox.create failed (${error.response.status}): ${error.text || JSON.stringify(error.json)}`,
+          "GITHUB_TOKEN is not set; sandbox git clone will 403 on private repos",
         );
       }
-      throw error;
-    }
+      try {
+        sandbox = await Sandbox.create({
+          source: { type: "git", url: args.githubUrl },
+          ports: [OPENCODE_PORT],
+          runtime: "node24",
+          timeout: 10 * 60 * 1000,
+          env: {
+            GITHUB_TOKEN: githubToken,
+          },
+          teamId,
+          projectId,
+          token,
+        });
+      } catch (error) {
+        if (error instanceof APIError) {
+          throw new Error(
+            `Sandbox.create failed (${error.response.status}): ${error.text || JSON.stringify(error.json)}`,
+          );
+        }
+        throw error;
+      }
 
-    try {
       await configureGitIdentity(
         sandbox,
         SANDBOX_GIT_USER_NAME,
         SANDBOX_GIT_USER_EMAIL,
       );
-    } catch (error) {
-      await sandbox.stop();
-      throw error;
-    }
 
-    await ctx.runMutation(internal.todoRuns.recordSandboxReady, {
-      todoId: args.todoId,
-      sandboxId: sandbox.sandboxId,
-      runConfiguration: args.runConfiguration,
-    });
-
-    if (process.env[STOP_AFTER_SANDBOX_CREATE_ENV] === "true") {
-      console.info("Stopping after sandbox creation by environment flag", {
+      await ctx.runMutation(internal.todoRuns.recordSandboxReady, {
         todoId: args.todoId,
         sandboxId: sandbox.sandboxId,
-        env: STOP_AFTER_SANDBOX_CREATE_ENV,
+        runConfiguration: args.runConfiguration,
       });
-      await sandbox.stop();
-      return null;
-    }
 
-    await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
-      todoId: args.todoId,
-    });
+      if (process.env[STOP_AFTER_SANDBOX_CREATE_ENV] === "true") {
+        console.info("Stopping after sandbox creation by environment flag", {
+          todoId: args.todoId,
+          sandboxId: sandbox.sandboxId,
+          env: STOP_AFTER_SANDBOX_CREATE_ENV,
+        });
+        await sandbox.stop();
+        return null;
+      }
+
+      await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
+        todoId: args.todoId,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      console.error("Sandbox provisioning failed", {
+        todoId: args.todoId,
+        error: message,
+      });
+      await ctx.runMutation(internal.todoRuns.failOrchestration, {
+        todoId: args.todoId,
+        reason: message,
+      });
+      if (sandbox) {
+        await stopSandboxSafely({
+          todoId: args.todoId,
+          sandboxId: sandbox.sandboxId,
+          sandbox,
+        });
+      }
+      throw error;
+    }
 
     return null;
   },
