@@ -107,10 +107,6 @@ export const spawnSandboxForTodo = internalAction({
         todoId: args.todoId,
         error: message,
       });
-      await ctx.runMutation(internal.todoRuns.failOrchestration, {
-        todoId: args.todoId,
-        reason: message,
-      });
       if (sandbox) {
         await stopSandboxSafely({
           todoId: args.todoId,
@@ -118,6 +114,10 @@ export const spawnSandboxForTodo = internalAction({
           sandbox,
         });
       }
+      await ctx.runMutation(internal.todoRuns.failOrchestration, {
+        todoId: args.todoId,
+        reason: message,
+      });
       throw error;
     }
 
