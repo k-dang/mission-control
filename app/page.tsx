@@ -443,7 +443,7 @@ export default function Home() {
                         onChange={(event) => setDescription(event.target.value)}
                         placeholder="Add details"
                         rows={3}
-                        className="resize-none bg-background/50 border-border/50"
+                        className="h-[86px] resize-none field-sizing-fixed bg-background/50 border-border/50"
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">

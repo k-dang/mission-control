@@ -9,6 +9,7 @@
  */
 
 import type * as authHelpers from "../authHelpers.js";
+import type * as devDatabase from "../devDatabase.js";
 import type * as devTools from "../devTools.js";
 import type * as integrations_notifications from "../integrations/notifications.js";
 import type * as integrations_opencode from "../integrations/opencode.js";
@@ -38,6 +39,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   authHelpers: typeof authHelpers;
+  devDatabase: typeof devDatabase;
   devTools: typeof devTools;
   "integrations/notifications": typeof integrations_notifications;
   "integrations/opencode": typeof integrations_opencode;
