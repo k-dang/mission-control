@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import Link from "next/link";
 import {
   CheckCircle,
@@ -12,6 +12,7 @@ import {
   Terminal,
   Send,
   Square,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -86,6 +87,17 @@ type StopSmokeSandboxResult = {
   error: string | null;
 };
 
+type ClearRecordsResult = {
+  deleted: {
+    todos: number;
+    todoSandboxes: number;
+    todoEvents: number;
+    toolCallCounts: number;
+  };
+  complete: boolean;
+  error: string | null;
+};
+
 export default function DevPageClient() {
   const checkGithubToken = useAction(api.devTools.checkGithubToken);
   const createTestPr = useAction(api.devTools.createMissionControlTestPullRequest);
@@ -98,6 +110,7 @@ export default function DevPageClient() {
   const startSmokeSandbox = useAction(api.devTools.startOpencodeSmokeSandbox);
   const sendSmokePrompt = useAction(api.devTools.sendOpencodeSmokePrompt);
   const stopSmokeSandbox = useAction(api.devTools.stopOpencodeSmokeSandbox);
+  const clearRecords = useMutation(api.devDatabase.clearRecords);
   const [result, setResult] = useState<CheckResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [prResult, setPrResult] = useState<PrResult | null>(null);
@@ -122,6 +135,9 @@ export default function DevPageClient() {
   const [smokeSandboxLoading, setSmokeSandboxLoading] = useState(false);
   const [smokePromptLoading, setSmokePromptLoading] = useState(false);
   const [stopSmokeSandboxLoading, setStopSmokeSandboxLoading] = useState(false);
+  const [clearRecordsLoading, setClearRecordsLoading] = useState(false);
+  const [clearRecordsResult, setClearRecordsResult] =
+    useState<ClearRecordsResult | null>(null);
   const [smokePrompt, setSmokePrompt] = useState(
     "Reply with the active model and say whether this OpenCode session is healthy.",
   );
@@ -223,6 +239,54 @@ export default function DevPageClient() {
     }
   };
 
+  const handleClearRecords = async () => {
+    if (
+      !window.confirm(
+        "Clear all todos, sandbox rows, todo events, and tool call counts?",
+      )
+    ) {
+      return;
+    }
+
+    setClearRecordsLoading(true);
+    setClearRecordsResult(null);
+    try {
+      const total: ClearRecordsResult = {
+        deleted: {
+          todos: 0,
+          todoSandboxes: 0,
+          todoEvents: 0,
+          toolCallCounts: 0,
+        },
+        complete: false,
+        error: null,
+      };
+
+      while (!total.complete) {
+        const res = await clearRecords({});
+        total.deleted.todos += res.deleted.todos;
+        total.deleted.todoSandboxes += res.deleted.todoSandboxes;
+        total.deleted.todoEvents += res.deleted.todoEvents;
+        total.deleted.toolCallCounts += res.deleted.toolCallCounts;
+        total.complete = res.complete;
+        setClearRecordsResult({ ...total, deleted: { ...total.deleted } });
+      }
+    } catch (err) {
+      setClearRecordsResult({
+        deleted: {
+          todos: 0,
+          todoSandboxes: 0,
+          todoEvents: 0,
+          toolCallCounts: 0,
+        },
+        complete: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setClearRecordsLoading(false);
+    }
+  };
+
   const canSendSmokePrompt =
     smokeSandbox?.ok === true &&
     Boolean(smokeSandbox.sandboxId) &&
@@ -250,6 +314,52 @@ export default function DevPageClient() {
         Home
       </Link>
       <h1 className="text-2xl font-bold">Dev Tools</h1>
+
+      <section className="max-w-md space-y-4 rounded-lg border border-destructive/40 p-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Database Records</h2>
+          <p className="text-sm text-muted-foreground">
+            Clears app-owned records from todos, sandboxes, events, and tool
+            call count tables. Requires Convex dev tools to be enabled.
+          </p>
+        </div>
+
+        <Button
+          onClick={handleClearRecords}
+          disabled={clearRecordsLoading}
+          variant="destructive"
+        >
+          {clearRecordsLoading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          )}
+          {clearRecordsLoading ? "Clearing records..." : "Clear database records"}
+        </Button>
+
+        {clearRecordsResult !== null && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <Row
+              label="Clear complete"
+              ok={clearRecordsResult.complete && !clearRecordsResult.error}
+              value={clearRecordsResult.complete ? "Yes" : "Clearing"}
+            />
+            <CountRow label="Todos" value={clearRecordsResult.deleted.todos} />
+            <CountRow
+              label="Sandboxes"
+              value={clearRecordsResult.deleted.todoSandboxes}
+            />
+            <CountRow label="Events" value={clearRecordsResult.deleted.todoEvents} />
+            <CountRow
+              label="Tool calls"
+              value={clearRecordsResult.deleted.toolCallCounts}
+            />
+            {clearRecordsResult.error && (
+              <p className="pt-1 text-destructive">{clearRecordsResult.error}</p>
+            )}
+          </div>
+        )}
+      </section>
 
       <section className="max-w-md space-y-4">
         <h2 className="text-lg font-semibold">GitHub Token</h2>
@@ -624,6 +734,15 @@ export default function DevPageClient() {
         )}
       </section>
     </main>
+  );
+}
+
+function CountRow({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-mono font-medium">{value}</span>
+    </div>
   );
 }
 
