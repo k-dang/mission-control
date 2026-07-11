@@ -1,4 +1,4 @@
-Status: needs-validation
+Status: validated
 
 # Retryable Attempts
 
@@ -19,7 +19,14 @@ Make failed Todo Tasks editable and retryable without changing their historical 
 All mechanics already existed from issue 01; this issue landed as contract-test
 coverage only (convex/todoRuns.test.ts). The start-dialog default is proven at the
 query seam (`todoAttempts.getLatestForTodo`) the UI reads from — the repo has no
-component-test harness, so the React wiring itself is untested.
+component-test harness, so the React wiring itself is untested by the suite.
+
+Live-validated in the running app (2026-07-11): a task failed at sandbox
+provisioning became editable (title, description, githubUrl), the retry dialog
+preselected the failed Attempt's configuration (OpenCode Zen / DeepSeek V4 Flash
+Free) rather than the fresh-task default, the override to OpenRouter / Kimi K2.6
+Free was accepted, and the backend retained both Attempts with their own configs
+and terminal reasons.
 
 ## Blocked by
 
