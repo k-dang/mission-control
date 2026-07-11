@@ -130,6 +130,145 @@ describe("todo run start transition", () => {
   });
 });
 
+describe("Retryable Attempts", () => {
+  it("blocks draft edits while a Todo Task is active or terminally completed", async () => {
+    const t = convexTest(schema, modules);
+    const authed = t.withIdentity(identity);
+    const todoId = await insertTodo(t);
+    const started = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
+
+    await expect(
+      authed.mutation(api.todoRuns.updateDraft, { todoId, title: "Edit while running" }),
+    ).rejects.toThrow("Todo fields can only be edited before an Attempt starts or after it fails.");
+
+    await t.mutation(internal.todoRuns.finish, {
+      attemptId: started.attemptId,
+      streamState: "COMPLETED",
+      todoStatus: "COMPLETED",
+      terminalAt: 1234,
+    });
+
+    await expect(
+      authed.mutation(api.todoRuns.updateDraft, { todoId, title: "Edit after completion" }),
+    ).rejects.toThrow("Todo fields can only be edited before an Attempt starts or after it fails.");
+
+    expect(await authed.query(api.todos.get, { todoId })).toMatchObject({
+      title: "Implement attempt history",
+      status: "COMPLETED",
+    });
+  });
+
+  it("retries a failed Todo Task with a distinct Attempt while leaving the prior Attempt's context, Run Configuration, events, and terminal reason unchanged", async () => {
+    const t = convexTest(schema, modules);
+    const authed = t.withIdentity(identity);
+    const todoId = await insertTodo(t);
+    const first = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
+
+    await t.mutation(internal.todoEvents.append, {
+      todoId,
+      attemptId: first.attemptId,
+      eventKey: "tool:call_1:running",
+      event: { kind: "tool", tool: "bash", status: "running" },
+    });
+    await t.mutation(internal.todoRuns.failOrchestration, {
+      attemptId: first.attemptId,
+      reason: "Sandbox provisioning failed",
+    });
+
+    // The start dialog reads the latest (failed) Attempt's Run Configuration
+    // to preselect it before the user confirms a retry.
+    expect(await authed.query(api.todoAttempts.getLatestForTodo, { todoId })).toMatchObject({
+      _id: first.attemptId,
+      runConfiguration: OPENROUTER_CONFIGURATION,
+    });
+
+    await authed.mutation(api.todoRuns.updateDraft, {
+      todoId,
+      title: "Retry with clarified scope",
+      description: "Clarified after failure",
+      githubUrl: "https://github.com/example/other-repo",
+    });
+
+    const NEW_CONFIGURATION = {
+      harnessId: "opencode" as const,
+      providerId: "opencode" as const,
+      modelId: "deepseek-v4-flash-free",
+    };
+    const second = await authed.mutation(api.todoRuns.start, {
+      todoId,
+      runConfiguration: NEW_CONFIGURATION,
+    });
+
+    expect(second.attemptId).not.toBe(first.attemptId);
+
+    const [rawFirst, rawSecond, firstEvents] = await t.run(async (ctx) => [
+      await ctx.db.get("todoAttempts", first.attemptId),
+      await ctx.db.get("todoAttempts", second.attemptId),
+      await ctx.db
+        .query("todoEvents")
+        .withIndex("by_attemptId", (q) => q.eq("attemptId", first.attemptId))
+        .collect(),
+    ]);
+
+    // The prior Attempt keeps its own captured Run Configuration and terminal reason.
+    expect(rawFirst).toMatchObject({
+      streamState: "FAILED",
+      runConfiguration: OPENROUTER_CONFIGURATION,
+      terminalReason: "Sandbox provisioning failed",
+    });
+    // Its events remain attached to it rather than being reassigned to the retry.
+    expect(firstEvents).toHaveLength(1);
+    expect(firstEvents[0]).toMatchObject({ attemptId: first.attemptId });
+
+    // The retry is a genuinely new Attempt with the newly-selected configuration.
+    expect(rawSecond).toMatchObject({
+      streamState: "IDLE",
+      runConfiguration: NEW_CONFIGURATION,
+    });
+
+    const todo = await authed.query(api.todos.get, { todoId });
+    expect(todo).toMatchObject({
+      status: "INPROGRESS",
+      title: "Retry with clarified scope",
+      description: "Clarified after failure",
+      githubUrl: "https://github.com/example/other-repo",
+    });
+  });
+
+  it("returns a cancelled Attempt to FAILED, keeps it visible as cancelled, and allows the Todo Task to be edited and retried afterward", async () => {
+    const t = convexTest(schema, modules);
+    const authed = t.withIdentity(identity);
+    const todoId = await insertTodo(t);
+    const first = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
+
+    await t.mutation(internal.todoRuns.finish, {
+      attemptId: first.attemptId,
+      streamState: "CANCELLED",
+      todoStatus: "FAILED",
+      terminalAt: 1234,
+      terminalReason: "Operator cancelled the Attempt",
+    });
+
+    // No dedicated board status is introduced for cancellation; the Todo Task
+    // simply lands in FAILED, editable and retriable like any other failure.
+    expect(await authed.query(api.todos.get, { todoId })).toMatchObject({ status: "FAILED" });
+
+    await authed.mutation(api.todoRuns.updateDraft, { todoId, title: "Retry after cancellation" });
+    const second = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
+
+    expect(second.attemptId).not.toBe(first.attemptId);
+    const rawFirst = await t.run(async (ctx) => await ctx.db.get("todoAttempts", first.attemptId));
+    expect(rawFirst).toMatchObject({
+      streamState: "CANCELLED",
+      terminalReason: "Operator cancelled the Attempt",
+    });
+    expect(await authed.query(api.todos.get, { todoId })).toMatchObject({
+      status: "INPROGRESS",
+      title: "Retry after cancellation",
+    });
+  });
+});
+
 describe("Attempt terminal states", () => {
   it("stores projected events and tool-call counts against the app-owned Attempt", async () => {
     const t = convexTest(schema, modules);
