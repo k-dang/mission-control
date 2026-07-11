@@ -63,6 +63,7 @@ export async function configureGitIdentity(
 
 export async function stopSandboxSafely(args: {
   todoId: Id<"todos">;
+  attemptId: Id<"todoAttempts">;
   sandboxId: string;
   sandbox?: Sandbox;
 }) {
@@ -71,11 +72,13 @@ export async function stopSandboxSafely(args: {
     await target.stop();
     console.info("Sandbox stopped for todo", {
       todoId: args.todoId,
+      attemptId: args.attemptId,
       sandboxId: args.sandboxId,
     });
   } catch (error) {
     console.warn("Failed to stop sandbox", {
       todoId: args.todoId,
+      attemptId: args.attemptId,
       sandboxId: args.sandboxId,
       error,
     });

@@ -35,6 +35,10 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
     api.todoEvents.listRecentForTodo,
     isAuthenticated ? { todoId } : "skip",
   );
+  const latestAttempt = useQuery(
+    api.todoAttempts.getLatestForTodo,
+    isAuthenticated ? { todoId } : "skip",
+  );
   const toolCallCount = useQuery(
     api.toolCallCounts.getForTodo,
     isAuthenticated ? { todoId } : "skip",
@@ -353,7 +357,12 @@ export function TodoDetailPageClient({ todoId }: { todoId: Id<"todos"> }) {
                         <Button
                           type="button"
                           size="sm"
-                          onClick={() => startTodoRun.requestStart(todo)}
+                          onClick={() =>
+                            startTodoRun.requestStart({
+                              ...todo,
+                              runConfiguration: latestAttempt?.runConfiguration,
+                            })
+                          }
                           disabled={startTodoRun.isStarting}
                           className="w-full border border-col-inprogress/30 bg-col-inprogress/15 font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-col-inprogress hover:bg-col-inprogress/20"
                         >

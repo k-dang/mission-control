@@ -3,9 +3,22 @@ import {
   paginationResultValidator,
 } from "convex/server";
 import { ConvexError, v } from "convex/values";
+import type { Doc } from "./_generated/dataModel";
 import { internalQuery, mutation, query } from "./_generated/server";
 import { requireAuthenticated } from "./authHelpers";
 import { todoDocValidator, todoStatusValidator } from "./lib/todoValidators";
+
+function projectTodo(todo: Doc<"todos">) {
+  return {
+    _id: todo._id,
+    _creationTime: todo._creationTime,
+    title: todo.title,
+    description: todo.description,
+    status: todo.status,
+    githubUrl: todo.githubUrl,
+    prUrl: todo.prUrl,
+  };
+}
 
 export const getById = internalQuery({
   args: { todoId: v.id("todos") },
@@ -24,15 +37,7 @@ export const getById = internalQuery({
   handler: async (ctx, args) => {
     const todo = await ctx.db.get("todos", args.todoId);
     if (!todo) return null;
-    return {
-      _id: todo._id,
-      _creationTime: todo._creationTime,
-      title: todo.title,
-      description: todo.description,
-      status: todo.status,
-      githubUrl: todo.githubUrl,
-      prUrl: todo.prUrl,
-    };
+    return projectTodo(todo);
   },
 });
 
@@ -45,15 +50,7 @@ export const get = query({
     const todo = await ctx.db.get("todos", args.todoId);
     if (!todo) return null;
 
-    return {
-      _id: todo._id,
-      _creationTime: todo._creationTime,
-      title: todo.title,
-      description: todo.description,
-      status: todo.status,
-      githubUrl: todo.githubUrl,
-      prUrl: todo.prUrl,
-    };
+    return projectTodo(todo);
   },
 });
 
@@ -66,11 +63,15 @@ export const listByStatusPage = query({
   handler: async (ctx, args) => {
     await requireAuthenticated(ctx);
 
-    return await ctx.db
+    const result = await ctx.db
       .query("todos")
       .withIndex("by_status", (q) => q.eq("status", args.status))
       .order("desc")
       .paginate(args.paginationOpts);
+    return {
+      ...result,
+      page: result.page.map(projectTodo),
+    };
   },
 });
 

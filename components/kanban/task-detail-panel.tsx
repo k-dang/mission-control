@@ -105,12 +105,12 @@ function handleKeyDownRevert(
 
 export function TaskDetailPanel({
   todo,
-  sandbox,
+  attempt,
   onClose,
   onRequestStart,
 }: {
   todo: Doc<"todos">;
-  sandbox: Doc<"todoSandboxes"> | null;
+  attempt: Doc<"todoAttempts"> | null;
   onClose: () => void;
   onRequestStart: (todo: Pick<Doc<"todos">, "_id" | "title">) => void;
 }) {
@@ -129,7 +129,7 @@ export function TaskDetailPanel({
   const descriptionFieldId = useId();
   const githubUrlFieldId = useId();
 
-  const isEditable = todo.status === "TODO";
+  const isEditable = todo.status === "TODO" || todo.status === "FAILED";
   const showRunConfiguration = todo.status !== "TODO";
 
   const commitTitle = () => {
@@ -162,7 +162,7 @@ export function TaskDetailPanel({
   };
 
   const handleStatusChange = (status: Doc<"todos">["status"]) => {
-    if (todo.status !== "TODO") return;
+    if (!isEditable) return;
     if (status === todo.status) return;
     if (status !== "INPROGRESS") return;
     onRequestStart(todo);
@@ -239,11 +239,11 @@ export function TaskDetailPanel({
               const isActive = opt.value === todo.status;
               const meta = STATUS_META[opt.value];
               const Icon = opt.icon;
-              const statusLocked = todo.status !== "TODO";
+              const statusLocked = !isEditable;
               const pillDisabled =
                 statusLocked ||
-                (todo.status === "TODO" &&
-                  (opt.value === "COMPLETED" || opt.value === "FAILED"));
+                opt.value === "COMPLETED" ||
+                opt.value === "FAILED";
               return (
                 <Button
                   key={opt.value}
@@ -368,18 +368,18 @@ export function TaskDetailPanel({
                 </Link>
               </div>
             )}
-            {sandbox?.attempt?.url ? (
+            {attempt?.harnessUrl ? (
               <div className="flex items-center gap-2">
                 <span className="font-mono text-[10px] text-muted-foreground/60">
                   OPENCODE
                 </span>
                 <Link
-                  href={sandbox.attempt.url}
+                  href={attempt.harnessUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1 truncate text-sm text-[--col-inprogress] hover:opacity-80"
                 >
-                  {sandbox.attempt.url}
+                  {attempt.harnessUrl}
                   <ExternalLink className="h-3 w-3 shrink-0" />
                 </Link>
               </div>
@@ -390,7 +390,7 @@ export function TaskDetailPanel({
                   RUN
                 </span>
                 <RunConfigurationLabel
-                  runConfiguration={sandbox?.runConfiguration}
+                  runConfiguration={attempt?.runConfiguration}
                 />
               </div>
             ) : null}

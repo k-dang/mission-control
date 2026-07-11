@@ -13,6 +13,7 @@ import {
   useMutation,
   usePaginatedQuery,
   useQuery,
+  useQueries,
 } from "convex/react";
 import { api } from "../convex/_generated/api";
 import type { Doc, Id } from "../convex/_generated/dataModel";
@@ -60,6 +61,7 @@ const STAT_COLORS = {
 };
 
 const KANBAN_PAGE_SIZE = 25;
+const ATTEMPT_QUERY_BATCH_SIZE = 100;
 
 export default function Home() {
   const { isLoading, isAuthenticated } = useConvexAuth();
@@ -103,8 +105,8 @@ export default function Home() {
     api.todos.get,
     isAuthenticated && selectedTodoId ? { todoId: selectedTodoId } : "skip",
   );
-  const selectedSandbox = useQuery(
-    api.todoSandboxes.getSandboxForTodo,
+  const selectedAttempt = useQuery(
+    api.todoAttempts.getLatestForTodo,
     isAuthenticated && selectedTodoId ? { todoId: selectedTodoId } : "skip",
   );
   const titleInputRef = useRef<HTMLInputElement>(null);
@@ -213,23 +215,55 @@ export default function Home() {
       ),
     [rawTodos],
   );
-  const visibleSandboxes = useQuery(
-    api.todoSandboxes.listForTodos,
-    isAuthenticated ? { todoIds: visibleTodoIds } : "skip",
+  const visibleAttemptQueries = useMemo(
+    () =>
+      isAuthenticated
+        ? Object.fromEntries(
+            Array.from(
+              {
+                length: Math.ceil(
+                  visibleTodoIds.length / ATTEMPT_QUERY_BATCH_SIZE,
+                ),
+              },
+              (_, index) => {
+                const todoIds = visibleTodoIds.slice(
+                  index * ATTEMPT_QUERY_BATCH_SIZE,
+                  (index + 1) * ATTEMPT_QUERY_BATCH_SIZE,
+                );
+                return [
+                  `attempts-${index}`,
+                  {
+                    query: api.todoAttempts.listLatestForTodos,
+                    args: { todoIds },
+                  },
+                ];
+              },
+            ),
+          )
+        : {},
+    [isAuthenticated, visibleTodoIds],
   );
-  const sandboxByTodoId = useMemo(() => {
-    const byTodoId = new Map<Id<"todos">, NonNullable<typeof visibleSandboxes>[number]>();
-    for (const sandbox of visibleSandboxes ?? []) {
-      byTodoId.set(sandbox.todoId, sandbox);
+  const visibleAttemptQueryResults = useQueries(visibleAttemptQueries);
+  const visibleAttempts = useMemo(
+    () =>
+      Object.values(visibleAttemptQueryResults).flatMap((result) =>
+        Array.isArray(result) ? result : [],
+      ),
+    [visibleAttemptQueryResults],
+  );
+  const attemptByTodoId = useMemo(() => {
+    const byTodoId = new Map<Id<"todos">, (typeof visibleAttempts)[number]>();
+    for (const attempt of visibleAttempts) {
+      byTodoId.set(attempt.todoId, attempt);
     }
     return byTodoId;
-  }, [visibleSandboxes]);
+  }, [visibleAttempts]);
   const attachRunConfiguration = useCallback(
     (todo: Doc<"todos">): BoardTodo => ({
       ...todo,
-      runConfiguration: sandboxByTodoId.get(todo._id)?.runConfiguration,
+      runConfiguration: attemptByTodoId.get(todo._id)?.runConfiguration,
     }),
-    [sandboxByTodoId],
+    [attemptByTodoId],
   );
   const todos = useMemo(
     () => ({
@@ -254,8 +288,8 @@ export default function Home() {
 
   // Auto-close sheet if the selected todo was deleted
   const sheetOpen = selectedTodoId !== null && resolvedTodo !== null;
-  const isSelectedSandboxLoading =
-    selectedTodoId !== null && selectedSandbox === undefined;
+  const isSelectedAttemptLoading =
+    selectedTodoId !== null && selectedAttempt === undefined;
 
   if (isLoading) {
     return (
@@ -630,13 +664,18 @@ export default function Home() {
           <SheetDescription className="sr-only">
             View and edit task details, status, and activity.
           </SheetDescription>
-          {resolvedTodo && !isSelectedSandboxLoading && (
+          {resolvedTodo && !isSelectedAttemptLoading && (
             <TaskDetailPanel
               key={resolvedTodo._id}
               todo={resolvedTodo}
-              sandbox={selectedSandbox ?? null}
+              attempt={selectedAttempt ?? null}
               onClose={() => setSelectedTodoId(null)}
-              onRequestStart={startTodoRun.requestStart}
+              onRequestStart={(todo) =>
+                startTodoRun.requestStart({
+                  ...todo,
+                  runConfiguration: selectedAttempt?.runConfiguration,
+                })
+              }
             />
           )}
         </SheetContent>

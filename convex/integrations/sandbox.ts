@@ -12,35 +12,26 @@ import {
   SANDBOX_GIT_USER_NAME,
   stopSandboxSafely,
 } from "../lib/sandboxHelpers";
-import { runConfigurationValidator } from "../lib/todoValidators";
 
 const STOP_AFTER_SANDBOX_CREATE_ENV = "STOP_AFTER_SANDBOX_CREATE";
 
 export const spawnSandboxForTodo = internalAction({
   args: {
     todoId: v.id("todos"),
+    attemptId: v.id("todoAttempts"),
     githubUrl: v.string(),
-    runConfiguration: runConfigurationValidator,
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const todo = await ctx.runQuery(internal.todos.getById, {
-      todoId: args.todoId,
-    });
-    if (!todo) {
-      console.warn("Todo not found, skipping sandbox creation", {
+    const [todo, attempt] = await Promise.all([
+      ctx.runQuery(internal.todos.getById, { todoId: args.todoId }),
+      ctx.runQuery(internal.todoAttempts.getById, { attemptId: args.attemptId }),
+    ]);
+    if (!todo || !attempt?.isActive || attempt.todoId !== args.todoId) return null;
+    if (attempt.sandboxId) {
+      await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
         todoId: args.todoId,
-      });
-      return null;
-    }
-    const existingSandbox = await ctx.runQuery(
-      internal.todoSandboxes.getSandboxByTodoId,
-      { todoId: args.todoId },
-    );
-    if (existingSandbox?.sandboxId) {
-      console.info("Sandbox already exists for todo, skipping creation", {
-        todoId: args.todoId,
-        sandboxId: existingSandbox.sandboxId,
+        attemptId: args.attemptId,
       });
       return null;
     }
@@ -50,9 +41,7 @@ export const spawnSandboxForTodo = internalAction({
       const { projectId, teamId, token } = requireSandboxAccessConfig();
       const githubToken = process.env.GITHUB_TOKEN;
       if (!githubToken) {
-        throw new Error(
-          "GITHUB_TOKEN is not set; sandbox git clone will 403 on private repos",
-        );
+        throw new Error("GITHUB_TOKEN is not set; sandbox git clone will 403 on private repos");
       }
       try {
         sandbox = await Sandbox.create({
@@ -60,9 +49,7 @@ export const spawnSandboxForTodo = internalAction({
           ports: [OPENCODE_PORT],
           runtime: "node24",
           timeout: 10 * 60 * 1000,
-          env: {
-            GITHUB_TOKEN: githubToken,
-          },
+          env: { GITHUB_TOKEN: githubToken },
           teamId,
           projectId,
           token,
@@ -76,51 +63,58 @@ export const spawnSandboxForTodo = internalAction({
         throw error;
       }
 
-      await configureGitIdentity(
-        sandbox,
-        SANDBOX_GIT_USER_NAME,
-        SANDBOX_GIT_USER_EMAIL,
-      );
-
-      await ctx.runMutation(internal.todoRuns.recordSandboxReady, {
-        todoId: args.todoId,
+      await configureGitIdentity(sandbox, SANDBOX_GIT_USER_NAME, SANDBOX_GIT_USER_EMAIL);
+      const recorded: boolean = await ctx.runMutation(internal.todoRuns.recordSandboxReady, {
+        attemptId: args.attemptId,
         sandboxId: sandbox.sandboxId,
-        runConfiguration: args.runConfiguration,
       });
-
-      if (process.env[STOP_AFTER_SANDBOX_CREATE_ENV] === "true") {
-        console.info("Stopping after sandbox creation by environment flag", {
+      if (!recorded) {
+        await stopSandboxSafely({
           todoId: args.todoId,
+          attemptId: args.attemptId,
           sandboxId: sandbox.sandboxId,
-          env: STOP_AFTER_SANDBOX_CREATE_ENV,
+          sandbox,
         });
-        await sandbox.stop();
         return null;
       }
 
+      if (process.env[STOP_AFTER_SANDBOX_CREATE_ENV] === "true") {
+        await sandbox.stop();
+        return null;
+      }
       await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
         todoId: args.todoId,
+        attemptId: args.attemptId,
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      console.error("Sandbox provisioning failed", {
-        todoId: args.todoId,
-        error: message,
-      });
+      const reason = error instanceof Error ? error.message : "Unknown error";
       if (sandbox) {
         await stopSandboxSafely({
           todoId: args.todoId,
+          attemptId: args.attemptId,
           sandboxId: sandbox.sandboxId,
           sandbox,
         });
       }
       await ctx.runMutation(internal.todoRuns.failOrchestration, {
-        todoId: args.todoId,
-        reason: message,
+        attemptId: args.attemptId,
+        reason,
       });
       throw error;
     }
+    return null;
+  },
+});
 
+export const stopSandboxForAttempt = internalAction({
+  args: {
+    todoId: v.id("todos"),
+    attemptId: v.id("todoAttempts"),
+    sandboxId: v.string(),
+  },
+  returns: v.null(),
+  handler: async (_ctx, args) => {
+    await stopSandboxSafely(args);
     return null;
   },
 });

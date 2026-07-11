@@ -4,15 +4,23 @@ import { useCallback, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc, Id } from "@/convex/_generated/dataModel";
-import type { RunConfiguration } from "@/convex/lib/runConfiguration";
+import {
+  DEFAULT_RUN_CONFIGURATION,
+  parseRunConfiguration,
+  type RunConfiguration,
+  type RunConfigurationInput,
+} from "@/convex/lib/runConfiguration";
 import { getErrorMessage } from "@/lib/errors";
 
 type StartTodoRequest = {
   todoId: Id<"todos">;
   title: string;
+  runConfiguration: RunConfiguration;
 };
 
-type StartableTodo = Pick<Doc<"todos">, "_id" | "title">;
+type StartableTodo = Pick<Doc<"todos">, "_id" | "title"> & {
+  runConfiguration?: RunConfigurationInput;
+};
 
 export function useStartTodoRun() {
   const startTodo = useMutation(api.todoRuns.start);
@@ -23,7 +31,17 @@ export function useStartTodoRun() {
 
   const requestStart = useCallback((todo: StartableTodo) => {
     setError(null);
-    setRequest({ todoId: todo._id, title: todo.title });
+    const parsedRunConfiguration = todo.runConfiguration
+      ? parseRunConfiguration(todo.runConfiguration)
+      : null;
+    setRequest({
+      todoId: todo._id,
+      title: todo.title,
+      runConfiguration:
+        parsedRunConfiguration?.ok
+          ? parsedRunConfiguration.value
+          : DEFAULT_RUN_CONFIGURATION,
+    });
     setRequestKey((key) => key + 1);
   }, []);
 
@@ -63,6 +81,7 @@ export function useStartTodoRun() {
       isStarting,
       error,
       todoTitle: request?.title,
+      initialRunConfiguration: request?.runConfiguration,
     },
     error,
     isStarting,

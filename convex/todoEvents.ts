@@ -8,7 +8,7 @@ const todoEventDocValidator = v.object({
   _id: v.id("todoEvents"),
   _creationTime: v.number(),
   todoId: v.id("todos"),
-  attemptId: v.string(),
+  attemptId: v.id("todoAttempts"),
   eventKey: v.string(),
   event: todoEventPayloadValidator,
 });
@@ -16,7 +16,7 @@ const todoEventDocValidator = v.object({
 export const append = internalMutation({
   args: {
     todoId: v.id("todos"),
-    attemptId: v.string(),
+    attemptId: v.id("todoAttempts"),
     eventKey: v.string(),
     event: todoEventPayloadValidator,
   },
@@ -24,8 +24,8 @@ export const append = internalMutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("todoEvents")
-      .withIndex("by_todoId_and_eventKey", (q) =>
-        q.eq("todoId", args.todoId).eq("eventKey", args.eventKey),
+      .withIndex("by_attemptId_and_eventKey", (q) =>
+        q.eq("attemptId", args.attemptId).eq("eventKey", args.eventKey),
       )
       .unique();
     if (existing) {
@@ -58,10 +58,18 @@ export const listRecentForTodo = query({
   handler: async (ctx, args) => {
     await requireAuthenticated(ctx);
 
-    return await ctx.db
-      .query("todoEvents")
+    const attempt = await ctx.db
+      .query("todoAttempts")
       .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
       .order("desc")
+      .first();
+    if (!attempt) return [];
+
+    const events = await ctx.db
+      .query("todoEvents")
+      .withIndex("by_attemptId", (q) => q.eq("attemptId", attempt._id))
+      .order("desc")
       .take(LIST_TAKE);
+    return events.map((event) => ({ ...event, attemptId: attempt._id }));
   },
 });

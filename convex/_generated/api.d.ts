@@ -25,9 +25,9 @@ import type * as lib_runConfiguration from "../lib/runConfiguration.js";
 import type * as lib_sandboxHelpers from "../lib/sandboxHelpers.js";
 import type * as lib_todoEventValidator from "../lib/todoEventValidator.js";
 import type * as lib_todoValidators from "../lib/todoValidators.js";
+import type * as todoAttempts from "../todoAttempts.js";
 import type * as todoEvents from "../todoEvents.js";
 import type * as todoRuns from "../todoRuns.js";
-import type * as todoSandboxes from "../todoSandboxes.js";
 import type * as todos from "../todos.js";
 import type * as toolCallCounts from "../toolCallCounts.js";
 
@@ -55,9 +55,9 @@ declare const fullApi: ApiFromModules<{
   "lib/sandboxHelpers": typeof lib_sandboxHelpers;
   "lib/todoEventValidator": typeof lib_todoEventValidator;
   "lib/todoValidators": typeof lib_todoValidators;
+  todoAttempts: typeof todoAttempts;
   todoEvents: typeof todoEvents;
   todoRuns: typeof todoRuns;
-  todoSandboxes: typeof todoSandboxes;
   todos: typeof todos;
   toolCallCounts: typeof toolCallCounts;
 }>;

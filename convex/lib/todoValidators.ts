@@ -50,21 +50,18 @@ export const todoDocValidator = v.object({
   prUrl: v.optional(v.string()),
 });
 
-export const attemptStateValidator = v.object({
-  url: v.optional(v.string()),
-  sessionId: v.optional(v.string()),
+export const todoAttemptDocValidator = v.object({
+  _id: v.id("todoAttempts"),
+  _creationTime: v.number(),
+  todoId: v.id("todos"),
+  harnessId: runConfigurationHarnessIdValidator,
+  runConfiguration: v.optional(runConfigurationValidator),
+  sandboxId: v.optional(v.string()),
+  harnessRunId: v.optional(v.string()),
+  harnessUrl: v.optional(v.string()),
   streamState: attemptStreamStateValidator,
   startedAt: v.optional(v.number()),
   terminalAt: v.optional(v.number()),
   terminalReason: v.optional(v.string()),
-  shutdownSafe: v.boolean(),
-});
-
-export const sandboxRowValidator = v.object({
-  _id: v.id("todoSandboxes"),
-  _creationTime: v.number(),
-  todoId: v.id("todos"),
-  sandboxId: v.optional(v.string()),
-  runConfiguration: v.optional(runConfigurationValidator),
-  attempt: attemptStateValidator,
+  isActive: v.boolean(),
 });

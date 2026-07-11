@@ -35,6 +35,7 @@ type StartRunDialogProps = {
   isStarting: boolean;
   error?: string | null;
   todoTitle?: string;
+  initialRunConfiguration?: RunConfiguration;
 };
 
 export function StartRunDialog({
@@ -44,12 +45,13 @@ export function StartRunDialog({
   isStarting,
   error,
   todoTitle,
+  initialRunConfiguration = DEFAULT_RUN_CONFIGURATION,
 }: StartRunDialogProps) {
   const [harnessId, setHarnessId] = useState<RunConfigurationHarnessId>(
-    DEFAULT_RUN_CONFIGURATION.harnessId,
+    initialRunConfiguration.harnessId,
   );
   const [providerId, setProviderId] = useState<RunConfigurationProviderId>(
-    DEFAULT_RUN_CONFIGURATION.providerId,
+    initialRunConfiguration.providerId,
   );
   const selectedHarness = useMemo(
     () =>
@@ -64,7 +66,7 @@ export function StartRunDialog({
     [providerId, selectedHarness],
   );
   const [modelId, setModelId] = useState<string>(
-    DEFAULT_RUN_CONFIGURATION.modelId,
+    initialRunConfiguration.modelId,
   );
 
   const handleHarnessChange = (nextHarnessId: string) => {
@@ -97,9 +99,9 @@ export function StartRunDialog({
     if (isStarting) return;
     onOpenChange(nextOpen);
     if (!nextOpen) {
-      setHarnessId(DEFAULT_RUN_CONFIGURATION.harnessId);
-      setProviderId(DEFAULT_RUN_CONFIGURATION.providerId);
-      setModelId(DEFAULT_RUN_CONFIGURATION.modelId);
+      setHarnessId(initialRunConfiguration.harnessId);
+      setProviderId(initialRunConfiguration.providerId);
+      setModelId(initialRunConfiguration.modelId);
     }
   };
 

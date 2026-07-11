@@ -28,13 +28,28 @@ _Avoid_: Task, todo
 The agent runtime that carries out an automated **Attempt** at a **Todo Task**.
 _Avoid_: Agent (ambiguous with the model), SDK, runner
 
+**Attempt Event**:
+A recorded progress signal observed during an **Attempt**.
+_Avoid_: OpenCode event, Pi event, raw SDK event
+
+**Harness Run ID**:
+An opaque identifier that a **Harness** uses to reconnect to the external execution for an **Attempt**.
+_Avoid_: Attempt ID, session ID (unless naming a Harness-specific upstream value)
+
 ## Relationships
 
-- A **Todo Task** may have at most one active **Attempt**, and retains that Attempt's **Run Configuration** after it ends.
+- A **Todo Task** may have many **Attempts** over time, but may have at most one active **Attempt** at once.
+- A **Todo Task** status summarizes its active **Attempt** when one exists, otherwise its latest terminal **Attempt**.
+- A failed **Todo Task** may be edited before starting a new **Attempt**.
+- Each **Attempt** retains its own **Run Configuration** after it ends.
+- An **Attempt** may retain one **Harness Run ID**, which only its selected **Harness** interprets.
+- An **Attempt Event** belongs to exactly one **Attempt**.
 - A **Run Configuration** belongs to exactly one **Attempt**.
 - A **Run Configuration** selects exactly one **Harness**.
 - A **Run Configuration** uses exactly one **Provider**; the **Providers** available to choose from are determined by the selected **Harness**.
+- A **Provider** identifier is scoped to its **Harness**. Different Harnesses may display the same Provider label while storing different provider identifiers when their upstream tools use different names.
 - A **Run Configuration** governs only what the **Harness** does during an **Attempt**; work the system performs around the Attempt (such as writing pull-request metadata) is not governed by it.
+- Pull request creation is product orchestration after a successful **Attempt**, not a responsibility of the **Harness**.
 - A **Sandbox** belongs to exactly one **Attempt**.
 - An **Attempt** is executed by exactly one **Harness** and may use a **Sandbox** as its execution environment.
 
@@ -48,5 +63,6 @@ _Avoid_: Agent (ambiguous with the model), SDK, runner
 - "Provider/model for a todo" could mean a saved task preference or a per-attempt choice — resolved: use **Run Configuration** for the per-attempt choice captured at start.
 - "Provider" could mean the company that created the model or the service account that routes the request — resolved: use **Provider** as the routing and account boundary.
 - Historical attempts may not have a recorded **Run Configuration** — resolved: display them as "Unknown run configuration."
+- "Attempt storage" could mean only the current runtime row or durable history — resolved: store one row per **Attempt** so historical executions remain addressable.
 - "Harness" could include vendor-hosted execution (e.g. Cursor cloud mode) — reopened: whether a **Harness** must execute inside a **Sandbox** is decided per harness when it is implemented. OpenCode, the only implemented **Harness**, runs inside the **Sandbox** today.
 - "OpenCode" names two different things — resolved: unqualified **OpenCode** always means the **Harness**; the **Provider** operated by the same company is always written **OpenCode Zen**, never shortened.

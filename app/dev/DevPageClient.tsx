@@ -90,7 +90,7 @@ type StopSmokeSandboxResult = {
 type ClearRecordsResult = {
   deleted: {
     todos: number;
-    todoSandboxes: number;
+    todoAttempts: number;
     todoEvents: number;
     toolCallCounts: number;
   };
@@ -254,7 +254,7 @@ export default function DevPageClient() {
       const total: ClearRecordsResult = {
         deleted: {
           todos: 0,
-          todoSandboxes: 0,
+          todoAttempts: 0,
           todoEvents: 0,
           toolCallCounts: 0,
         },
@@ -265,7 +265,7 @@ export default function DevPageClient() {
       while (!total.complete) {
         const res = await clearRecords({});
         total.deleted.todos += res.deleted.todos;
-        total.deleted.todoSandboxes += res.deleted.todoSandboxes;
+        total.deleted.todoAttempts += res.deleted.todoAttempts;
         total.deleted.todoEvents += res.deleted.todoEvents;
         total.deleted.toolCallCounts += res.deleted.toolCallCounts;
         total.complete = res.complete;
@@ -275,7 +275,7 @@ export default function DevPageClient() {
       setClearRecordsResult({
         deleted: {
           todos: 0,
-          todoSandboxes: 0,
+          todoAttempts: 0,
           todoEvents: 0,
           toolCallCounts: 0,
         },
@@ -319,7 +319,7 @@ export default function DevPageClient() {
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Database Records</h2>
           <p className="text-sm text-muted-foreground">
-            Clears app-owned records from todos, sandboxes, events, and tool
+            Clears app-owned records from todos, attempts, events, and tool
             call count tables. Requires Convex dev tools to be enabled.
           </p>
         </div>
@@ -345,10 +345,7 @@ export default function DevPageClient() {
               value={clearRecordsResult.complete ? "Yes" : "Clearing"}
             />
             <CountRow label="Todos" value={clearRecordsResult.deleted.todos} />
-            <CountRow
-              label="Sandboxes"
-              value={clearRecordsResult.deleted.todoSandboxes}
-            />
+            <CountRow label="Attempts" value={clearRecordsResult.deleted.todoAttempts} />
             <CountRow label="Events" value={clearRecordsResult.deleted.todoEvents} />
             <CountRow
               label="Tool calls"

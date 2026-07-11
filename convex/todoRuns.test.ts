@@ -3,161 +3,201 @@
 import { convexTest, type TestConvex } from "convex-test";
 import { describe, expect, it } from "vitest";
 import { api, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 
 const modules = import.meta.glob("./**/*.ts");
 const identity = { subject: "user_1" };
+const OPENROUTER_CONFIGURATION = {
+  harnessId: "opencode" as const,
+  providerId: "openrouter" as const,
+  modelId: "moonshotai/kimi-k2.6:free",
+};
 
 async function insertTodo(
   t: TestConvex<typeof schema>,
   fields: {
     status?: "TODO" | "INPROGRESS" | "COMPLETED" | "FAILED";
     githubUrl?: string;
+    title?: string;
   } = {},
 ) {
-  return await t.run(async (ctx) => {
-    return await ctx.db.insert("todos", {
-      title: "Implement run configuration",
+  return await t.run(async (ctx) =>
+    await ctx.db.insert("todos", {
+      title: fields.title ?? "Implement attempt history",
       status: fields.status ?? "TODO",
       githubUrl: fields.githubUrl,
-    });
-  });
-}
-
-async function insertSandboxWithoutRunConfiguration(
-  t: TestConvex<typeof schema>,
-  todoId: Id<"todos">,
-) {
-  return await t.run(async (ctx) => {
-    return await ctx.db.insert("todoSandboxes", {
-      todoId,
-      sandboxId: "sandbox_123",
-      attempt: {
-        streamState: "IDLE",
-        shutdownSafe: false,
-      },
-    });
-  });
+    }),
+  );
 }
 
 describe("todo run start transition", () => {
-  it("records a supported run configuration on the active execution state", async () => {
+  it("creates one active Attempt and returns it when the Todo Task is started again", async () => {
     const t = convexTest(schema, modules);
     const authed = t.withIdentity(identity);
-    const todoId = await insertTodo(t, {
-      githubUrl: "https://github.com/example/repo",
-    });
-    await insertSandboxWithoutRunConfiguration(t, todoId);
+    const todoId = await insertTodo(t, { githubUrl: "https://github.com/example/repo" });
 
-    await authed.mutation(api.todoRuns.start, {
+    const first = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
+    const second = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
+    const attempt = await authed.query(api.todoAttempts.getLatestForTodo, { todoId });
+
+    expect(first).toMatchObject({ todoId, status: "INPROGRESS", orchestration: "scheduled" });
+    expect(second).toMatchObject({ attemptId: first.attemptId, orchestration: "alreadyStarted" });
+    expect(attempt).toMatchObject({
+      _id: first.attemptId,
       todoId,
-      runConfiguration: {
-        harnessId: "opencode",
-        providerId: "openrouter",
-        modelId: "moonshotai/kimi-k2.6:free",
-      },
-    });
-
-    const sandbox = await authed.query(api.todoSandboxes.getSandboxForTodo, {
-      todoId,
-    });
-    const todo = await authed.query(api.todos.get, { todoId });
-    const rawTodo = await t.run(async (ctx) => await ctx.db.get(todoId));
-
-    expect(todo?.status).toBe("INPROGRESS");
-    expect(todo).not.toHaveProperty("runConfiguration");
-    expect(rawTodo).not.toHaveProperty("runConfiguration");
-    expect(sandbox?.runConfiguration).toEqual({
-      harnessId: "opencode",
-      providerId: "openrouter",
-      modelId: "moonshotai/kimi-k2.6:free",
+      isActive: true,
+      streamState: "IDLE",
+      runConfiguration: OPENROUTER_CONFIGURATION,
     });
   });
 
-  it("rejects an unsupported run configuration before changing state", async () => {
+  it("rejects an unsupported Run Configuration before creating an Attempt", async () => {
     const t = convexTest(schema, modules);
     const authed = t.withIdentity(identity);
-    const todoId = await insertTodo(t, {
-      githubUrl: "https://github.com/example/repo",
-    });
-    await insertSandboxWithoutRunConfiguration(t, todoId);
+    const todoId = await insertTodo(t);
 
     await expect(
       authed.mutation(api.todoRuns.start, {
         todoId,
-        runConfiguration: {
-          providerId: "openrouter",
-          modelId: "moonshotai/kimi-k2.5",
-        },
+        runConfiguration: { providerId: "openrouter", modelId: "moonshotai/kimi-k2.5" },
       }),
-    ).rejects.toThrow(
-      "Unsupported run configuration: opencode/openrouter/moonshotai/kimi-k2.5",
-    );
+    ).rejects.toThrow("Unsupported run configuration: opencode/openrouter/moonshotai/kimi-k2.5");
 
-    const sandbox = await authed.query(api.todoSandboxes.getSandboxForTodo, {
-      todoId,
-    });
-    const todo = await authed.query(api.todos.get, { todoId });
-    const rawTodo = await t.run(async (ctx) => await ctx.db.get(todoId));
-
-    expect(todo?.status).toBe("TODO");
-    expect(rawTodo).not.toHaveProperty("runConfiguration");
-    expect(sandbox?.runConfiguration).toBeUndefined();
+    expect(await authed.query(api.todoAttempts.getLatestForTodo, { todoId })).toBeNull();
+    expect((await authed.query(api.todos.get, { todoId }))?.status).toBe("TODO");
   });
 
-  it("returns historical execution rows that do not have run configuration data", async () => {
+  it("allows a failed Todo Task to be edited and creates a new Attempt on retry", async () => {
     const t = convexTest(schema, modules);
     const authed = t.withIdentity(identity);
-    const todoId = await insertTodo(t, {
-      status: "INPROGRESS",
-      githubUrl: "https://github.com/example/repo",
-    });
-    await insertSandboxWithoutRunConfiguration(t, todoId);
+    const todoId = await insertTodo(t);
+    const first = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
 
-    const sandbox = await authed.query(api.todoSandboxes.getSandboxForTodo, {
-      todoId,
+    await t.mutation(internal.todoRuns.failOrchestration, {
+      attemptId: first.attemptId,
+      reason: "Sandbox provisioning failed",
     });
-
-    expect(sandbox).toMatchObject({
+    await authed.mutation(api.todoRuns.updateDraft, { todoId, title: "Retry with clarified scope" });
+    const second = await authed.mutation(api.todoRuns.start, {
       todoId,
-      sandboxId: "sandbox_123",
-      attempt: {
-        streamState: "IDLE",
-        shutdownSafe: false,
+      runConfiguration: {
+        harnessId: "opencode",
+        providerId: "vercel",
+        modelId: "moonshotai/kimi-k2.5",
       },
     });
-    expect(sandbox?.runConfiguration).toBeUndefined();
+
+    const raw = await t.run(async (ctx) =>
+      await ctx.db.query("todoAttempts").withIndex("by_todoId", (q) => q.eq("todoId", todoId)).collect(),
+    );
+    const todo = await authed.query(api.todos.get, { todoId });
+    expect(second.attemptId).not.toBe(first.attemptId);
+    expect(raw).toHaveLength(2);
+    expect(raw.find((attempt) => attempt._id === first.attemptId)).toMatchObject({ isActive: false, streamState: "FAILED" });
+    expect(todo).toMatchObject({ status: "INPROGRESS", title: "Retry with clarified scope" });
   });
 });
 
-describe("failing a timed-out attempt", () => {
-  it("marks the todo FAILED and records the timeout as the terminal reason", async () => {
+describe("Attempt terminal states", () => {
+  it("stores projected events and tool-call counts against the app-owned Attempt", async () => {
     const t = convexTest(schema, modules);
     const authed = t.withIdentity(identity);
-    const todoId = await insertTodo(t, {
-      status: "INPROGRESS",
-      githubUrl: "https://github.com/example/repo",
-    });
-    await insertSandboxWithoutRunConfiguration(t, todoId);
+    const todoId = await insertTodo(t);
+    const started = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
 
-    await t.mutation(internal.todoRuns.failOrchestration, {
+    await t.mutation(internal.todoEvents.append, {
       todoId,
-      reason: "Attempt exceeded the maximum duration of 30 minutes",
+      attemptId: started.attemptId,
+      eventKey: "tool:call_1:running",
+      event: { kind: "tool", tool: "bash", status: "running" },
     });
 
-    const sandbox = await authed.query(api.todoSandboxes.getSandboxForTodo, {
-      todoId,
-    });
-    const todo = await authed.query(api.todos.get, { todoId });
+    const events = await authed.query(api.todoEvents.listRecentForTodo, { todoId });
+    const count = await authed.query(api.toolCallCounts.getForTodo, { todoId });
+    expect(events).toMatchObject([{ attemptId: started.attemptId }]);
+    expect(count).toMatchObject({ attemptId: started.attemptId, count: 1 });
+  });
 
-    expect(todo?.status).toBe("FAILED");
-    expect(todo?.prUrl).toBeUndefined();
-    expect(sandbox?.attempt).toMatchObject({
-      streamState: "FAILED",
-      terminalAt: expect.any(Number),
-      terminalReason: "Attempt exceeded the maximum duration of 30 minutes",
-      shutdownSafe: true,
+  it("maps a cancelled Attempt to a failed Todo Task while retaining the cancellation", async () => {
+    const t = convexTest(schema, modules);
+    const authed = t.withIdentity(identity);
+    const todoId = await insertTodo(t);
+    const started = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
+
+    await t.mutation(internal.todoRuns.finish, {
+      attemptId: started.attemptId,
+      streamState: "CANCELLED",
+      todoStatus: "FAILED",
+      terminalAt: 1234,
+      terminalReason: "Operator cancelled the Attempt",
     });
+
+    expect(await authed.query(api.todoAttempts.getLatestForTodo, { todoId })).toMatchObject({
+      streamState: "CANCELLED",
+      isActive: false,
+      terminalReason: "Operator cancelled the Attempt",
+    });
+    expect((await authed.query(api.todos.get, { todoId }))?.status).toBe("FAILED");
+  });
+});
+
+describe("deleting Todo Tasks", () => {
+  it("blocks lifecycle changes while deletion is in progress", async () => {
+    const t = convexTest(schema, modules);
+    const authed = t.withIdentity(identity);
+    const todoId = await t.run(async (ctx) =>
+      await ctx.db.insert("todos", {
+        title: "Deleting task",
+        status: "FAILED",
+        deleting: true,
+      }),
+    );
+
+    await expect(
+      authed.mutation(api.todoRuns.start, {
+        todoId,
+        runConfiguration: OPENROUTER_CONFIGURATION,
+      }),
+    ).rejects.toThrow("Todo is being deleted.");
+    await expect(
+      authed.mutation(api.todoRuns.updateDraft, {
+        todoId,
+        title: "Do not update",
+      }),
+    ).rejects.toThrow("Todo is being deleted.");
+  });
+
+  it("rejects late Sandbox and OpenCode registration after deletion begins", async () => {
+    const t = convexTest(schema, modules);
+    const todoId = await t.run(async (ctx) => {
+      const todoId = await ctx.db.insert("todos", {
+        title: "Deleting task",
+        status: "INPROGRESS",
+        deleting: true,
+      });
+      const attemptId = await ctx.db.insert("todoAttempts", {
+        todoId,
+        harnessId: "opencode",
+        runConfiguration: OPENROUTER_CONFIGURATION,
+        streamState: "IDLE",
+        isActive: true,
+      });
+      return { todoId, attemptId };
+    });
+
+    await expect(
+      t.mutation(internal.todoRuns.recordSandboxReady, {
+        attemptId: todoId.attemptId,
+        sandboxId: "sandbox_late",
+      }),
+    ).resolves.toBe(false);
+    await expect(
+      t.mutation(internal.todoRuns.recordOpencodeStarted, {
+        attemptId: todoId.attemptId,
+        opencodeUrl: "https://opencode.example",
+        sessionId: "session_late",
+        startedAt: 1234,
+      }),
+    ).resolves.toBe(false);
   });
 });

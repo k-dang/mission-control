@@ -7,7 +7,7 @@ const countDocValidator = v.object({
   _id: v.id("toolCallCounts"),
   _creationTime: v.number(),
   todoId: v.id("todos"),
-  attemptId: v.string(),
+  attemptId: v.id("todoAttempts"),
   count: v.number(),
   updatedAt: v.number(),
 });
@@ -16,7 +16,7 @@ export async function incrementToolCallCount(
   ctx: MutationCtx,
   args: {
     todoId: Id<"todos">;
-    attemptId: string;
+    attemptId: Id<"todoAttempts">;
   },
 ) {
   const existing = await ctx.db
@@ -49,10 +49,20 @@ export const getForTodo = query({
   handler: async (ctx, args) => {
     await requireAuthenticated(ctx);
 
-    return await ctx.db
-      .query("toolCallCounts")
+    const attempt = await ctx.db
+      .query("todoAttempts")
       .withIndex("by_todoId", (q) => q.eq("todoId", args.todoId))
       .order("desc")
       .first();
+    if (!attempt) return null;
+
+    const count = await ctx.db
+      .query("toolCallCounts")
+      .withIndex("by_todoId_and_attemptId", (q) =>
+        q.eq("todoId", args.todoId).eq("attemptId", attempt._id),
+      )
+      .order("desc")
+      .first();
+    return count ? { ...count, attemptId: attempt._id } : null;
   },
 });
