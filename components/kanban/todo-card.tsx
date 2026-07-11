@@ -2,7 +2,7 @@ import React, { memo, useRef, type DragEvent } from "react";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { cn } from "@/lib/utils";
 import { formatRelativeTime } from "@/lib/utils";
-import { GripVertical, Clock } from "lucide-react";
+import { GripVertical, Clock, GitPullRequest } from "lucide-react";
 import { RunConfigurationLabel } from "./run-configuration-label";
 import type { BoardTodo } from "./types";
 
@@ -29,6 +29,10 @@ function TodoCardComponent({
   const isCompleted = todo.status === "COMPLETED";
   const isDragging = useRef(false);
   const showRunConfiguration = todo.status !== "TODO";
+
+  const prNumber = todo.prUrl
+    ? todo.prUrl.match(/\/pull\/(\d+)/)?.[1]
+    : undefined;
 
   function handleDragStart(event: DragEvent<HTMLDivElement>) {
     isDragging.current = true;
@@ -111,6 +115,21 @@ function TodoCardComponent({
             <RunConfigurationLabel
               runConfiguration={todo.runConfiguration}
             />
+          </>
+        ) : null}
+        {isCompleted && todo.prUrl ? (
+          <>
+            <span className="text-muted-foreground/30">·</span>
+            <a
+              href={todo.prUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 text-[10px] text-col-completed hover:opacity-80"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <GitPullRequest className="h-3 w-3" />
+              <span>#{prNumber}</span>
+            </a>
           </>
         ) : null}
       </div>
