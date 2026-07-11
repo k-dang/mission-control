@@ -24,9 +24,9 @@ export const runTodo = internalAction({
   handler: async (ctx, args) => {
     const [todo, attempt] = await Promise.all([
       ctx.runQuery(internal.todos.getById, { todoId: args.todoId }),
-      ctx.runQuery(internal.todoAttempts.getById, { attemptId: args.attemptId }),
+      ctx.runQuery(internal.todoAttempts.getRunnableById, { attemptId: args.attemptId }),
     ]);
-    if (!todo || !attempt?.isActive || attempt.todoId !== args.todoId || !attempt.sandboxId) {
+    if (!todo || !attempt || attempt.todoId !== args.todoId || !attempt.sandboxId) {
       return null;
     }
 
@@ -79,8 +79,8 @@ export const monitorOpencodeStream = internalAction({
   args: { attemptId: v.id("todoAttempts") },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const attempt = await ctx.runQuery(internal.todoAttempts.getById, { attemptId: args.attemptId });
-    if (!attempt?.isActive || !attempt.sandboxId || !attempt.harnessUrl || !attempt.harnessRunId) {
+    const attempt = await ctx.runQuery(internal.todoAttempts.getRunnableById, { attemptId: args.attemptId });
+    if (!attempt?.sandboxId || !attempt.harnessUrl || !attempt.harnessRunId) {
       return null;
     }
     const todo = await ctx.runQuery(internal.todos.getById, { todoId: attempt.todoId });

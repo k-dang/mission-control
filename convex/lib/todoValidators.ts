@@ -63,5 +63,4 @@ export const todoAttemptDocValidator = v.object({
   startedAt: v.optional(v.number()),
   terminalAt: v.optional(v.number()),
   terminalReason: v.optional(v.string()),
-  isActive: v.boolean(),
 });

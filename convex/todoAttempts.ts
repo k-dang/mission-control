@@ -20,16 +20,17 @@ function projectAttempt(attempt: Doc<"todoAttempts">) {
     startedAt: attempt.startedAt,
     terminalAt: attempt.terminalAt,
     terminalReason: attempt.terminalReason,
-    isActive: attempt.isActive,
   };
 }
 
-export const getById = internalQuery({
+export const getRunnableById = internalQuery({
   args: { attemptId: v.id("todoAttempts") },
   returns: v.union(todoAttemptDocValidator, v.null()),
   handler: async (ctx, args) => {
     const attempt = await ctx.db.get("todoAttempts", args.attemptId);
     if (!attempt) return null;
+    const todo = await ctx.db.get("todos", attempt.todoId);
+    if (!todo || todo.activeAttemptId !== attempt._id || todo.deleting) return null;
     return projectAttempt(attempt);
   },
 });

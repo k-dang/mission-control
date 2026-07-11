@@ -26,14 +26,28 @@ const DELETE_BATCH_SIZE = 100;
 
 async function getActiveAttempt(
   ctx: MutationCtx,
-  todoId: Id<"todos">,
+  todo: { _id: Id<"todos">; activeAttemptId?: Id<"todoAttempts"> },
 ) {
-  return await ctx.db
-    .query("todoAttempts")
-    .withIndex("by_todoId_and_isActive", (q) =>
-      q.eq("todoId", todoId).eq("isActive", true),
-    )
-    .unique();
+  if (!todo.activeAttemptId) return null;
+  const attempt = await ctx.db.get("todoAttempts", todo.activeAttemptId);
+  if (!attempt || attempt.todoId !== todo._id) {
+    throw new ConvexError({
+      code: "INVALID_ACTIVE_ATTEMPT",
+      message: "Todo Task points to an invalid active Attempt.",
+    });
+  }
+  return attempt;
+}
+
+async function getAttemptInActiveSlot(
+  ctx: MutationCtx,
+  attemptId: Id<"todoAttempts">,
+) {
+  const attempt = await ctx.db.get("todoAttempts", attemptId);
+  if (!attempt) return null;
+  const todo = await ctx.db.get("todos", attempt.todoId);
+  if (!todo || todo.deleting || todo.activeAttemptId !== attempt._id) return null;
+  return { attempt, todo };
 }
 
 export const start = mutation({
@@ -64,7 +78,7 @@ export const start = mutation({
       });
     }
 
-    const activeAttempt = await getActiveAttempt(ctx, args.todoId);
+    const activeAttempt = await getActiveAttempt(ctx, todo);
     if (activeAttempt) {
       if (todo.status !== "INPROGRESS") {
         await ctx.db.patch("todos", args.todoId, { status: "INPROGRESS" });
@@ -89,11 +103,11 @@ export const start = mutation({
       harnessId: runConfiguration.value.harnessId,
       runConfiguration: runConfiguration.value,
       streamState: "IDLE",
-      isActive: true,
     });
     await ctx.db.patch("todos", args.todoId, {
       status: "INPROGRESS",
       prUrl: undefined,
+      activeAttemptId: attemptId,
     });
 
     await ctx.scheduler.runAfter(
@@ -176,12 +190,13 @@ export const remove = mutation({
     if (!todo) throw new ConvexError({ code: "NOT_FOUND", message: "Todo not found" });
 
     if (todo.deleting) return null;
-    await ctx.db.patch("todos", args.todoId, { deleting: true });
-
-    const activeAttempt = await getActiveAttempt(ctx, args.todoId);
+    const activeAttempt = await getActiveAttempt(ctx, todo);
+    await ctx.db.patch("todos", args.todoId, {
+      deleting: true,
+      activeAttemptId: undefined,
+    });
     if (activeAttempt) {
       await ctx.db.patch("todoAttempts", activeAttempt._id, {
-        isActive: false,
         streamState: "CANCELLED",
         terminalAt: Date.now(),
         terminalReason: "Todo deleted",
@@ -257,9 +272,8 @@ export const recordSandboxReady = internalMutation({
   args: { attemptId: v.id("todoAttempts"), sandboxId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const attempt = await ctx.db.get("todoAttempts", args.attemptId);
-    const todo = attempt ? await ctx.db.get("todos", attempt.todoId) : null;
-    if (!attempt || !attempt.isActive || !todo || todo.deleting) return false;
+    const active = await getAttemptInActiveSlot(ctx, args.attemptId);
+    if (!active) return false;
     await ctx.db.patch("todoAttempts", args.attemptId, { sandboxId: args.sandboxId });
     return true;
   },
@@ -274,9 +288,8 @@ export const recordOpencodeStarted = internalMutation({
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
-    const attempt = await ctx.db.get("todoAttempts", args.attemptId);
-    const todo = attempt ? await ctx.db.get("todos", attempt.todoId) : null;
-    if (!attempt || !attempt.isActive || !todo || todo.deleting) return false;
+    const active = await getAttemptInActiveSlot(ctx, args.attemptId);
+    if (!active) return false;
     await ctx.db.patch("todoAttempts", args.attemptId, {
       harnessUrl: args.opencodeUrl,
       harnessRunId: args.sessionId,
@@ -298,18 +311,19 @@ export const finish = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const attempt = await ctx.db.get("todoAttempts", args.attemptId);
-    if (!attempt || !attempt.isActive) return null;
+    const active = await getAttemptInActiveSlot(ctx, args.attemptId);
+    if (!active) return null;
+    const { attempt } = active;
     await ctx.db.patch("todoAttempts", args.attemptId, {
       streamState: args.streamState,
       terminalAt: args.terminalAt,
       terminalReason: args.terminalReason,
-      isActive: false,
     });
     const prUrl = args.prUrl?.trim();
     await ctx.db.patch("todos", attempt.todoId, {
       status: args.todoStatus,
       prUrl: prUrl || undefined,
+      activeAttemptId: undefined,
     });
     return null;
   },
@@ -319,15 +333,19 @@ export const failOrchestration = internalMutation({
   args: { attemptId: v.id("todoAttempts"), reason: v.string() },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const attempt = await ctx.db.get("todoAttempts", args.attemptId);
-    if (!attempt || !attempt.isActive) return null;
+    const active = await getAttemptInActiveSlot(ctx, args.attemptId);
+    if (!active) return null;
+    const { attempt } = active;
     await ctx.db.patch("todoAttempts", args.attemptId, {
       streamState: "FAILED",
       terminalAt: Date.now(),
       terminalReason: args.reason,
-      isActive: false,
     });
-    await ctx.db.patch("todos", attempt.todoId, { prUrl: undefined, status: "FAILED" });
+    await ctx.db.patch("todos", attempt.todoId, {
+      prUrl: undefined,
+      status: "FAILED",
+      activeAttemptId: undefined,
+    });
     return null;
   },
 });

@@ -39,16 +39,17 @@ describe("todo run start transition", () => {
     const first = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
     const second = await authed.mutation(api.todoRuns.start, { todoId, runConfiguration: OPENROUTER_CONFIGURATION });
     const attempt = await authed.query(api.todoAttempts.getLatestForTodo, { todoId });
+    const rawTodo = await t.run(async (ctx) => await ctx.db.get("todos", todoId));
 
     expect(first).toMatchObject({ todoId, status: "INPROGRESS", orchestration: "scheduled" });
     expect(second).toMatchObject({ attemptId: first.attemptId, orchestration: "alreadyStarted" });
     expect(attempt).toMatchObject({
       _id: first.attemptId,
       todoId,
-      isActive: true,
       streamState: "IDLE",
       runConfiguration: OPENROUTER_CONFIGURATION,
     });
+    expect(rawTodo?.activeAttemptId).toBe(first.attemptId);
   });
 
   it("rejects an unsupported Run Configuration before creating an Attempt", async () => {
@@ -93,8 +94,39 @@ describe("todo run start transition", () => {
     const todo = await authed.query(api.todos.get, { todoId });
     expect(second.attemptId).not.toBe(first.attemptId);
     expect(raw).toHaveLength(2);
-    expect(raw.find((attempt) => attempt._id === first.attemptId)).toMatchObject({ isActive: false, streamState: "FAILED" });
+    expect(raw.find((attempt) => attempt._id === first.attemptId)).toMatchObject({ streamState: "FAILED" });
     expect(todo).toMatchObject({ status: "INPROGRESS", title: "Retry with clarified scope" });
+  });
+
+  it("rejects callbacks from an older Attempt after a retry owns the active slot", async () => {
+    const t = convexTest(schema, modules);
+    const authed = t.withIdentity(identity);
+    const todoId = await insertTodo(t);
+    const first = await authed.mutation(api.todoRuns.start, {
+      todoId,
+      runConfiguration: OPENROUTER_CONFIGURATION,
+    });
+    await t.mutation(internal.todoRuns.failOrchestration, {
+      attemptId: first.attemptId,
+      reason: "Provisioning failed",
+    });
+    const retry = await authed.mutation(api.todoRuns.start, {
+      todoId,
+      runConfiguration: OPENROUTER_CONFIGURATION,
+    });
+
+    await expect(
+      t.mutation(internal.todoRuns.recordSandboxReady, {
+        attemptId: first.attemptId,
+        sandboxId: "sandbox_stale",
+      }),
+    ).resolves.toBe(false);
+    const rawTodo = await t.run(async (ctx) => await ctx.db.get("todos", todoId));
+    const oldAttempt = await t.run(async (ctx) =>
+      await ctx.db.get("todoAttempts", first.attemptId),
+    );
+    expect(rawTodo?.activeAttemptId).toBe(retry.attemptId);
+    expect(oldAttempt?.sandboxId).toBeUndefined();
   });
 });
 
@@ -134,14 +166,52 @@ describe("Attempt terminal states", () => {
 
     expect(await authed.query(api.todoAttempts.getLatestForTodo, { todoId })).toMatchObject({
       streamState: "CANCELLED",
-      isActive: false,
       terminalReason: "Operator cancelled the Attempt",
     });
     expect((await authed.query(api.todos.get, { todoId }))?.status).toBe("FAILED");
+    const rawTodo = await t.run(async (ctx) => await ctx.db.get("todos", todoId));
+    expect(rawTodo?.activeAttemptId).toBeUndefined();
   });
 });
 
 describe("deleting Todo Tasks", () => {
+  it("releases the active slot and cancels its Attempt before batched deletion", async () => {
+    const t = convexTest(schema, modules);
+    const authed = t.withIdentity(identity);
+    const todoId = await insertTodo(t);
+    const started = await authed.mutation(api.todoRuns.start, {
+      todoId,
+      runConfiguration: OPENROUTER_CONFIGURATION,
+    });
+    await t.mutation(internal.todoRuns.recordSandboxReady, {
+      attemptId: started.attemptId,
+      sandboxId: "sandbox_to_stop",
+    });
+    await t.run(async (ctx) => {
+      for (let index = 0; index <= 100; index += 1) {
+        await ctx.db.insert("todoEvents", {
+          todoId,
+          attemptId: started.attemptId,
+          eventKey: `event:${index}`,
+          event: { kind: "session_compacted" },
+        });
+      }
+    });
+
+    await authed.mutation(api.todoRuns.remove, { todoId });
+
+    const result = await t.run(async (ctx) => ({
+      todo: await ctx.db.get("todos", todoId),
+      attempt: await ctx.db.get("todoAttempts", started.attemptId),
+    }));
+    expect(result.todo).toMatchObject({ deleting: true });
+    expect(result.todo?.activeAttemptId).toBeUndefined();
+    expect(result.attempt).toMatchObject({
+      streamState: "CANCELLED",
+      terminalReason: "Todo deleted",
+    });
+  });
+
   it("blocks lifecycle changes while deletion is in progress", async () => {
     const t = convexTest(schema, modules);
     const authed = t.withIdentity(identity);
@@ -180,7 +250,6 @@ describe("deleting Todo Tasks", () => {
         harnessId: "opencode",
         runConfiguration: OPENROUTER_CONFIGURATION,
         streamState: "IDLE",
-        isActive: true,
       });
       return { todoId, attemptId };
     });

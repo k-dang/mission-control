@@ -15,6 +15,7 @@ export default defineSchema({
     githubUrl: v.optional(v.string()),
     prUrl: v.optional(v.string()),
     deleting: v.optional(v.boolean()),
+    activeAttemptId: v.optional(v.id("todoAttempts")),
   }).index("by_status", ["status"]),
 
   todoAttempts: defineTable({
@@ -28,10 +29,8 @@ export default defineSchema({
     startedAt: v.optional(v.number()),
     terminalAt: v.optional(v.number()),
     terminalReason: v.optional(v.string()),
-    isActive: v.boolean(),
   })
-    .index("by_todoId", ["todoId"])
-    .index("by_todoId_and_isActive", ["todoId", "isActive"]),
+    .index("by_todoId", ["todoId"]),
 
   todoEvents: defineTable({
     todoId: v.id("todos"),

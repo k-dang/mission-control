@@ -12,9 +12,9 @@ Attempt Events belong to the app-owned Attempt row, not to upstream session iden
 
 ## Consequences
 
-The migration can be breaking, but it should still follow Convex's widen-migrate-narrow shape: introduce new storage/read paths, migrate existing rows, then remove the old compatibility path once OpenCode behavior is equivalent on `todoAttempts`.
+This is an explicit breaking replacement. Legacy runtime rows, events, and counters are deprecated and purged before deploying the strict Attempt-only schema; no compatibility storage, fallback reads, or backfill are retained.
 
-The "one active Attempt per Todo Task" invariant is enforced in the `todoRuns.start` mutation transaction. The mutation should read active Attempts through an index, return the existing active Attempt when one exists, and otherwise insert the new Attempt while patching the Todo Task to `INPROGRESS` in the same transaction.
+The "one active Attempt per Todo Task" invariant is enforced in the `todoRuns.start` mutation transaction. The Todo Task owns an optional `activeAttemptId` slot: start returns the referenced Attempt when the slot is occupied, otherwise it inserts a new Attempt and assigns the slot while patching the Todo Task to `INPROGRESS` in the same transaction. Terminal transitions clear the slot transactionally. This keeps active ownership authoritative in one place instead of mirroring it with a boolean on every Attempt.
 
 The initial UI after the refactor should keep current behavior by showing the latest Attempt for a Todo Task by default. Historical Attempt browsing can be added after the storage model exists.
 

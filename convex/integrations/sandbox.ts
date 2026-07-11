@@ -25,9 +25,9 @@ export const spawnSandboxForTodo = internalAction({
   handler: async (ctx, args) => {
     const [todo, attempt] = await Promise.all([
       ctx.runQuery(internal.todos.getById, { todoId: args.todoId }),
-      ctx.runQuery(internal.todoAttempts.getById, { attemptId: args.attemptId }),
+      ctx.runQuery(internal.todoAttempts.getRunnableById, { attemptId: args.attemptId }),
     ]);
-    if (!todo || !attempt?.isActive || attempt.todoId !== args.todoId) return null;
+    if (!todo || !attempt || attempt.todoId !== args.todoId) return null;
     if (attempt.sandboxId) {
       await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
         todoId: args.todoId,

@@ -27,7 +27,7 @@ Deliver one harness-neutral Attempt foundation and add Pi as the second sandboxe
 13. As a board user, I want full assistant text, tool arguments, and tool results omitted from durable Pi history, so that sensitive and high-volume data is not retained unnecessarily.
 14. As a board user, I want Pi failures, timeouts, protocol failures, and post-run pull-request failures to be explained as failed outcomes, so that the board is trustworthy.
 15. As a maintainer, I want each Attempt to retain a Run Configuration and opaque Harness Run ID, so that historic executions are attributable and an adapter can reconnect without shared storage knowing upstream transport details.
-16. As a maintainer, I want existing OpenCode history migrated to Attempts, so that the refactor preserves operational data.
+16. As a maintainer, I want legacy OpenCode runtime data explicitly deprecated and purged, so that the Attempt model has no compatibility path or ambiguous historical shapes.
 17. As a maintainer, I want Pi installed at a pinned version inside each Sandbox and upgraded deliberately, so that the adapter contract is reproducible.
 18. As a maintainer, I want replayed Pi command logs to be idempotent, so that monitor handoffs cannot duplicate Attempt Events.
 19. As an operator, I want sandboxed Attempts to use one 30-minute bounded lifetime and terminal cleanup, so that longer work can finish without leaked compute or credentials.
@@ -37,8 +37,8 @@ Deliver one harness-neutral Attempt foundation and add Pi as the second sandboxe
 ## Implementation Decisions
 
 - Use the domain glossary exactly: an **Attempt** is one execution of a **Todo Task** by a **Harness**; a **Run Configuration** is the captured Harness, Provider, and model selection; a **Harness Run ID** is an opaque adapter-only upstream reconnect identifier; an **Attempt Event** belongs to an app-owned Attempt.
-- Replace the legacy one-row-per-Todo-Task runtime storage with one `todoAttempts` row per Attempt. Store lifecycle timestamps/reason, captured Run Configuration when known, optional Sandbox reference, and optional Harness Run ID. Index for Todo Task history and active Attempt lookup.
-- Migrate with Convex widen-migrate-narrow. Backfill one Attempt for each legacy runtime row, preserve events and counters where possible, preserve unknown historical Run Configurations as unknown, switch all reads/writes, then remove compatibility storage.
+- Replace the legacy one-row-per-Todo-Task runtime storage with one `todoAttempts` row per Attempt. Store lifecycle timestamps/reason, captured Run Configuration when known, optional Sandbox reference, and optional Harness Run ID. Index Attempts for Todo Task history, and keep the Todo Task's optional `activeAttemptId` as the authoritative active ownership slot.
+- Treat the Attempt model as a breaking replacement: purge legacy runtime rows, events, and counters, then deploy the strict Attempt-only schema without compatibility fields or backfills.
 - Enforce one active Attempt transactionally in the start mutation. Starting from `TODO` or `FAILED` creates a new Attempt and marks the Todo Task `INPROGRESS`; an existing active Attempt is returned. Failed Todo Tasks may be edited before retrying.
 - Todo Task status is derived from Attempt state. An active Attempt is `INPROGRESS`; otherwise the latest terminal Attempt determines `COMPLETED` or `FAILED`. Attempt-level `CANCELLED` maps to Todo Task `FAILED` with its terminal reason.
 - Move OpenCode lifecycle, event append, tool-call counting, query/UI projection, and pull-request handoff to app-owned Attempt IDs while retaining OpenCode's native server and SSE monitor behavior.
@@ -57,7 +57,7 @@ Deliver one harness-neutral Attempt foundation and add Pi as the second sandboxe
 
 - Test externally observable state transitions, catalog visibility, normalized Attempt Events, terminal outcomes, and user-visible retry behavior rather than storage or parser internals.
 - Extend the existing Convex mutation contract-test seam for creating an Attempt, excluding concurrent starts, editing/retrying failed Todo Tasks, terminal transitions, cancellation, and preserved historic Attempt data.
-- Add migration tests for representative legacy rows with and without Run Configuration, events, counters, and terminal states.
+- Verify the strict schema and code contain no legacy runtime table, compatibility fields, or fallback read/write paths.
 - Extend the existing OpenCode monitor test style to cover the Attempt-backed lifecycle, event deduplication, pull-request handoff, Sandbox renewal, and cleanup.
 - Add Pi projector/monitor tests with a fake Sandbox command for split JSON chunks, milestone projection, unknown-event ignoring, deterministic replay, malformed stdout, stderr diagnostics, nonzero exits, timeout, stream loss, and process termination.
 - Test Pi catalog availability with configured and absent credentials, including rejection of forged or stale Run Configurations at start.
