@@ -1,0 +1,1 @@
+This repository implements Mission Control, an AI-powered task board where dragging cards to "In Progress" autonomously spawns sandboxed coding agents to complete development tasks on cloned repos and open pull requests when finished.
