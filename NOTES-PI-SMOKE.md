@@ -1,0 +1,1 @@
+This repository is an AI-powered task board (Mission Control) that automates coding tasks by spawning sandboxed agents when cards are moved to "In Progress." It serves as a dev-tools smoke test for the Pi Harness adapter integration with Convex, OpenCode, and Vercel Sandbox.
