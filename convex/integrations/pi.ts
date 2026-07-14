@@ -1,6 +1,5 @@
 "use node";
 
-import { createOpencodeClient } from "@opencode-ai/sdk/v2";
 import type { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
@@ -11,15 +10,16 @@ import {
   decideAttemptLifetime,
   resolveMaxAttemptDurationMs,
 } from "../lib/attemptLifetime";
+import { installPi, startPiHarnessCommand } from "../lib/piSandbox";
 import {
-  OPENCODE_MONITOR_SLICE_MS,
-  type TerminalResult,
-  waitForOpencodeTerminalState,
-} from "../lib/opencodeStreamMonitor";
-import { setupOpencodeForTodo } from "../lib/opencodeSandbox";
+  failPiAttemptForBudgetExhaustion,
+  PI_MONITOR_SLICE_MS,
+  type PiTerminalResult,
+  waitForPiTerminalState,
+} from "../lib/piStreamMonitor";
 import { getSandbox, stopSandboxSafely } from "../lib/sandboxHelpers";
 
-const OPENCODE_MONITOR_RETRY_DELAY_MS = 1_000;
+const PI_MONITOR_RETRY_DELAY_MS = 1_000;
 
 export const runTodo = internalAction({
   args: { todoId: v.id("todos"), attemptId: v.id("todoAttempts") },
@@ -39,16 +39,16 @@ export const runTodo = internalAction({
       const runConfiguration = parseRunConfiguration(attempt.runConfiguration);
       if (!runConfiguration.ok) throw new Error(runConfiguration.error);
       sandbox = await getSandbox(attempt.sandboxId);
-      const { publicUrl, sessionId } = await setupOpencodeForTodo(sandbox, {
+      await installPi(sandbox);
+      const command = await startPiHarnessCommand(sandbox, {
         todo,
         todoId: args.todoId,
         runConfiguration: runConfiguration.value,
       });
       const startedAt = Date.now();
-      const recorded = await ctx.runMutation(internal.todoRuns.recordOpencodeStarted, {
+      const recorded = await ctx.runMutation(internal.todoRuns.recordPiStarted, {
         attemptId: args.attemptId,
-        opencodeUrl: publicUrl,
-        sessionId,
+        commandId: command.cmdId,
         startedAt,
       });
       if (!recorded) {
@@ -60,7 +60,7 @@ export const runTodo = internalAction({
         });
         return null;
       }
-      await ctx.scheduler.runAfter(0, internal.integrations.opencode.monitorOpencodeStream, {
+      await ctx.scheduler.runAfter(0, internal.integrations.pi.monitorPiStream, {
         attemptId: args.attemptId,
       });
     } catch (error) {
@@ -78,33 +78,36 @@ export const runTodo = internalAction({
   },
 });
 
-export const monitorOpencodeStream = internalAction({
+export const monitorPiStream = internalAction({
   args: { attemptId: v.id("todoAttempts") },
   returns: v.null(),
   handler: async (ctx, args) => {
     const attempt = await ctx.runQuery(internal.todoAttempts.getRunnableById, { attemptId: args.attemptId });
-    if (!attempt?.sandboxId || !attempt.harnessUrl || !attempt.harnessRunId) {
+    if (!attempt?.sandboxId || !attempt.harnessRunId) {
       return null;
     }
     const todo = await ctx.runQuery(internal.todos.getById, { todoId: attempt.todoId });
     if (!todo) return null;
-    const sandbox = await getSandbox(attempt.sandboxId);
+    let sandbox: Sandbox | undefined;
 
     try {
+      sandbox = await getSandbox(attempt.sandboxId);
+      const command = await sandbox.getCommand(attempt.harnessRunId);
       const maxAttemptDurationMs = resolveMaxAttemptDurationMs(process.env.MAX_ATTEMPT_DURATION_MS);
       const lifetime = decideAttemptLifetime({
-        // The 30-minute lifetime covers provisioning and OpenCode setup too,
-        // not merely the time after the upstream session starts streaming.
+        // The 30-minute lifetime covers provisioning and Pi install too, not
+        // merely the time after the harness command starts streaming.
         startedAt: attempt._creationTime,
         now: Date.now(),
         maxAttemptDurationMs,
         sandboxDeadlineAt: sandbox.createdAt.getTime() + sandbox.timeout,
-        monitorSliceMs: OPENCODE_MONITOR_SLICE_MS,
+        monitorSliceMs: PI_MONITOR_SLICE_MS,
       });
       if (lifetime.kind === "timedOut") {
+        const terminal = await failPiAttemptForBudgetExhaustion(command, todo._id, maxAttemptDurationMs);
         await ctx.runMutation(internal.todoRuns.failOrchestration, {
           attemptId: args.attemptId,
-          reason: `Attempt exceeded the maximum duration of ${Math.round(maxAttemptDurationMs / 60_000)} minutes`,
+          reason: terminal.terminalReason ?? "Attempt exceeded the maximum duration",
         });
         await stopSandboxSafely({ todoId: todo._id, attemptId: args.attemptId, sandboxId: attempt.sandboxId, sandbox });
         return null;
@@ -117,48 +120,35 @@ export const monitorOpencodeStream = internalAction({
         }
       }
 
-      const outcome = await waitForOpencodeTerminalState(
-        createOpencodeClient({ baseUrl: attempt.harnessUrl }),
-        attempt.harnessRunId,
+      let outcome = await waitForPiTerminalState(
+        command,
         todo._id,
         async (event) => {
-          try {
-            await ctx.runMutation(internal.todoEvents.append, {
-              todoId: todo._id,
-              attemptId: args.attemptId,
-              eventKey: event.eventKey,
-              event: event.event,
-            });
-          } catch (error) {
-            console.warn("Failed to append Attempt Event", {
-              attemptId: args.attemptId,
-              error,
-            });
-          }
+          await ctx.runMutation(internal.todoEvents.append, {
+            todoId: todo._id,
+            attemptId: args.attemptId,
+            eventKey: event.eventKey,
+            event: event.event,
+          });
         },
         lifetime.monitorForMs,
       );
       if (outcome.kind === "retry") {
-        await ctx.scheduler.runAfter(OPENCODE_MONITOR_RETRY_DELAY_MS, internal.integrations.opencode.monitorOpencodeStream, {
+        await ctx.scheduler.runAfter(PI_MONITOR_RETRY_DELAY_MS, internal.integrations.pi.monitorPiStream, {
           attemptId: args.attemptId,
         });
         return null;
       }
       if (outcome.terminalAt >= lifetime.attemptDeadlineAt) {
-        await ctx.runMutation(internal.todoRuns.failOrchestration, {
-          attemptId: args.attemptId,
-          reason: `Attempt exceeded the maximum duration of ${Math.round(maxAttemptDurationMs / 60_000)} minutes`,
-        });
-        await stopSandboxSafely({
-          todoId: todo._id,
-          attemptId: args.attemptId,
-          sandboxId: attempt.sandboxId,
-          sandbox,
-        });
-        return null;
+        const terminal = await failPiAttemptForBudgetExhaustion(
+          command,
+          todo._id,
+          maxAttemptDurationMs,
+        );
+        outcome = { kind: "terminal", ...terminal };
       }
 
-      const resolved = await resolveOpencodeOutcome(sandbox, todo, outcome);
+      const resolved = await resolvePiOutcome(sandbox, todo, outcome);
       await ctx.runMutation(internal.todoRuns.finish, {
         attemptId: args.attemptId,
         streamState: outcome.terminalState,
@@ -184,17 +174,17 @@ export const monitorOpencodeStream = internalAction({
   },
 });
 
-type ResolvedOpencodeOutcome = {
+type ResolvedPiOutcome = {
   todoStatus: "COMPLETED" | "FAILED";
   terminalReason: string | undefined;
   prUrl: string | undefined;
 };
 
-async function resolveOpencodeOutcome(
+async function resolvePiOutcome(
   sandbox: Sandbox,
   todo: { title: string; description?: string; githubUrl?: string },
-  terminal: TerminalResult,
-): Promise<ResolvedOpencodeOutcome> {
+  terminal: PiTerminalResult,
+): Promise<ResolvedPiOutcome> {
   if (terminal.terminalState !== "COMPLETED") {
     return { todoStatus: "FAILED", terminalReason: terminal.terminalReason, prUrl: undefined };
   }

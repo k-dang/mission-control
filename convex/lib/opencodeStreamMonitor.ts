@@ -4,7 +4,7 @@ import { OpencodeTodoEventProjector } from "./opencodeEventProjector";
 import type { TodoEventInput } from "./todoEventValidator";
 
 const OPENCODE_EVENT_MAX_RETRY_ATTEMPTS = 5;
-const OPENCODE_MONITOR_SLICE_MS = 120_000;
+export const OPENCODE_MONITOR_SLICE_MS = 120_000;
 
 type TerminalState = "COMPLETED" | "FAILED" | "CANCELLED";
 
@@ -17,42 +17,6 @@ export type TerminalResult = {
 export type OpencodeWaitOutcome =
   | ({ kind: "terminal" } & TerminalResult)
   | { kind: "retry" };
-
-export type AttemptLifetimeDecision =
-  | { kind: "extend"; extendByMs: number }
-  | { kind: "timedOut" };
-
-const DEFAULT_MAX_ATTEMPT_DURATION_MS = 30 * 60_000;
-
-export function resolveMaxAttemptDurationMs(raw: string | undefined): number {
-  const parsed = Number(raw);
-  if (!Number.isFinite(parsed) || parsed <= 0) {
-    return DEFAULT_MAX_ATTEMPT_DURATION_MS;
-  }
-  return parsed;
-}
-
-/**
- * Runs at the start of each monitor slice. The extension is deadline-based
- * (stay two slices ahead of now) rather than a fixed per-slice amount —
- * slices consume slightly more wall clock than their nominal length, so a
- * fixed extension would erode the buffer.
- */
-export function decideAttemptLifetime(args: {
-  startedAt: number;
-  now: number;
-  maxAttemptDurationMs: number;
-  sandboxDeadlineAt: number;
-}): AttemptLifetimeDecision {
-  if (args.now - args.startedAt >= args.maxAttemptDurationMs) {
-    return { kind: "timedOut" };
-  }
-  const desiredDeadlineAt = args.now + 2 * OPENCODE_MONITOR_SLICE_MS;
-  return {
-    kind: "extend",
-    extendByMs: Math.max(0, desiredDeadlineAt - args.sandboxDeadlineAt),
-  };
-}
 
 type OpencodeEventClient = {
   global: {
@@ -147,11 +111,12 @@ export async function waitForOpencodeTerminalState(
   sessionId: string,
   todoId: string,
   onAppendTodoEvent: AppendTodoEventCallback = defaultAppendTodoEvent,
+  monitorForMs: number = OPENCODE_MONITOR_SLICE_MS,
 ): Promise<OpencodeWaitOutcome> {
   const abortController = new AbortController();
   const timeoutId = setTimeout(
     () => abortController.abort(),
-    OPENCODE_MONITOR_SLICE_MS,
+    Math.max(1, monitorForMs),
   );
 
   let lastSseErrorMessage: string | undefined;

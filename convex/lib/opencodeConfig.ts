@@ -1,7 +1,7 @@
 import {
   parseRunConfiguration,
+  type OpencodeRunConfigurationProviderId,
   type RunConfiguration,
-  type RunConfigurationProviderId,
 } from "./runConfiguration";
 
 export const OPENCODE_PORT = 4096;
@@ -25,13 +25,13 @@ export type OpencodeModelSelection = {
 };
 
 export type OpencodeConfigApiKeys = {
-  selectedProviderID: RunConfigurationProviderId;
+  selectedProviderID: OpencodeRunConfigurationProviderId;
   apiKey: string;
 };
 
 /**
  * Canonical map from a run-configuration provider to the Convex env var holding
- * its OpenCode credential. `satisfies Record<RunConfigurationProviderId, …>`
+ * its OpenCode credential. `satisfies Record<OpencodeRunConfigurationProviderId, …>`
  * makes adding a provider to the catalog a compile error here until its
  * credential env var is declared — so the provider/credential knowledge lives
  * in exactly one place.
@@ -40,11 +40,11 @@ export const OPENCODE_PROVIDER_API_KEY_ENV = {
   vercel: "AI_GATEWAY_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
   opencode: "OPENCODE_ZEN_API_KEY",
-} as const satisfies Record<RunConfigurationProviderId, string>;
+} as const satisfies Record<OpencodeRunConfigurationProviderId, string>;
 
 function isRunConfigurationProviderId(
   providerID: string,
-): providerID is RunConfigurationProviderId {
+): providerID is OpencodeRunConfigurationProviderId {
   return providerID in OPENCODE_PROVIDER_API_KEY_ENV;
 }
 

@@ -300,6 +300,25 @@ export const recordOpencodeStarted = internalMutation({
   },
 });
 
+export const recordPiStarted = internalMutation({
+  args: {
+    attemptId: v.id("todoAttempts"),
+    commandId: v.string(),
+    startedAt: v.number(),
+  },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const active = await getAttemptInActiveSlot(ctx, args.attemptId);
+    if (!active) return false;
+    await ctx.db.patch("todoAttempts", args.attemptId, {
+      harnessRunId: args.commandId,
+      startedAt: args.startedAt,
+      streamState: "STARTED",
+    });
+    return true;
+  },
+});
+
 export const finish = internalMutation({
   args: {
     attemptId: v.id("todoAttempts"),

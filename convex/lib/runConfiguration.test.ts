@@ -4,16 +4,24 @@ import {
   RUN_CONFIGURATION_HARNESSES,
   RUN_CONFIGURATION_PROVIDERS,
   UNKNOWN_RUN_CONFIGURATION_LABEL,
+  VISIBLE_RUN_CONFIGURATION_HARNESSES,
   describeRunConfiguration,
   isSupportedRunConfiguration,
   parseRunConfiguration,
 } from "./runConfiguration";
 
 describe("run configuration catalog", () => {
-  it("includes OpenCode as the initial harness", () => {
+  it("includes OpenCode and Pi as known harnesses", () => {
     expect(RUN_CONFIGURATION_HARNESSES.map((harness) => harness.id)).toEqual([
       "opencode",
+      "pi",
     ]);
+  });
+
+  it("keeps Pi out of the visible (UI-facing) harness catalog", () => {
+    expect(
+      VISIBLE_RUN_CONFIGURATION_HARNESSES.map((harness) => harness.id),
+    ).toEqual(["opencode"]);
   });
 
   it("includes Vercel AI Gateway, OpenRouter, and OpenCode Zen providers", () => {
@@ -116,6 +124,20 @@ describe("run configuration catalog", () => {
   it("rejects unsupported harness/provider/model combinations", () => {
     expect(
       parseRunConfiguration({
+        harnessId: "retired-harness",
+        providerId: "openrouter",
+        modelId: "moonshotai/kimi-k2.6:free",
+      }),
+    ).toEqual({
+      error:
+        "Unsupported run configuration: retired-harness/openrouter/moonshotai/kimi-k2.6:free",
+      ok: false,
+    });
+  });
+
+  it("rejects a Pi harness with a model outside Pi's curated catalog", () => {
+    expect(
+      parseRunConfiguration({
         harnessId: "pi",
         providerId: "openrouter",
         modelId: "moonshotai/kimi-k2.6:free",
@@ -124,6 +146,38 @@ describe("run configuration catalog", () => {
       error:
         "Unsupported run configuration: pi/openrouter/moonshotai/kimi-k2.6:free",
       ok: false,
+    });
+  });
+
+  it("parses Pi's curated OpenRouter and Vercel AI Gateway configurations", () => {
+    expect(
+      parseRunConfiguration({
+        harnessId: "pi",
+        providerId: "openrouter",
+        modelId: "cohere/north-mini-code:free",
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        harnessId: "pi",
+        providerId: "openrouter",
+        modelId: "cohere/north-mini-code:free",
+      },
+    });
+
+    expect(
+      parseRunConfiguration({
+        harnessId: "pi",
+        providerId: "vercel-ai-gateway",
+        modelId: "moonshotai/kimi-k2.5",
+      }),
+    ).toEqual({
+      ok: true,
+      value: {
+        harnessId: "pi",
+        providerId: "vercel-ai-gateway",
+        modelId: "moonshotai/kimi-k2.5",
+      },
     });
   });
 

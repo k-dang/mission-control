@@ -14,6 +14,7 @@ import {
 } from "./opencodeConfig";
 import { waitForOpencodeHealth } from "./opencodeHealth";
 import type { RunConfiguration } from "./runConfiguration";
+import { buildTodoPrompt } from "./todoPrompt";
 
 export async function installOpencode(sandbox: Sandbox) {
   const install = await sandbox.runCommand({
@@ -34,33 +35,6 @@ export async function installOpencode(sandbox: Sandbox) {
   const versionText = (await version.output()).toString().trim();
   console.log("OpenCode version:", versionText);
   return versionText;
-}
-
-function buildTodoPrompt(
-  title: string,
-  description?: string,
-  githubUrl?: string,
-) {
-  const lines = ["Task:", title.trim()];
-
-  const trimmedDescription = description?.trim();
-  if (trimmedDescription) {
-    lines.push("", "Additional context:", trimmedDescription);
-  }
-
-  if (githubUrl?.trim()) {
-    lines.push("", "Repository:", githubUrl.trim());
-  }
-
-  lines.push(
-    "",
-    "Expected workflow:",
-    "1. Understand the codebase before editing.",
-    "2. Make the code changes needed to complete the task.",
-    "3. Run the most relevant validation for the files you change.",
-  );
-
-  return lines.join("\n");
 }
 
 export async function writeOpencodeConfig(

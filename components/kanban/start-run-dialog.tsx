@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   DEFAULT_RUN_CONFIGURATION,
-  RUN_CONFIGURATION_HARNESSES,
+  VISIBLE_RUN_CONFIGURATION_HARNESSES,
   type RunConfiguration,
   type RunConfigurationHarnessId,
   type RunConfigurationProviderId,
@@ -55,8 +55,9 @@ export function StartRunDialog({
   );
   const selectedHarness = useMemo(
     () =>
-      RUN_CONFIGURATION_HARNESSES.find((harness) => harness.id === harnessId) ??
-      RUN_CONFIGURATION_HARNESSES[0],
+      VISIBLE_RUN_CONFIGURATION_HARNESSES.find(
+        (harness) => harness.id === harnessId,
+      ) ?? VISIBLE_RUN_CONFIGURATION_HARNESSES[0],
     [harnessId],
   );
   const selectedProvider = useMemo(
@@ -70,7 +71,7 @@ export function StartRunDialog({
   );
 
   const handleHarnessChange = (nextHarnessId: string) => {
-    const harness = RUN_CONFIGURATION_HARNESSES.find(
+    const harness = VISIBLE_RUN_CONFIGURATION_HARNESSES.find(
       (candidate) => candidate.id === nextHarnessId,
     );
     if (!harness) return;
@@ -143,7 +144,7 @@ export function StartRunDialog({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent className="border-border/50 bg-card">
-                {RUN_CONFIGURATION_HARNESSES.map((harness) => (
+                {VISIBLE_RUN_CONFIGURATION_HARNESSES.map((harness) => (
                   <SelectItem key={harness.id} value={harness.id}>
                     {harness.label}
                   </SelectItem>

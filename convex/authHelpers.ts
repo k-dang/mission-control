@@ -1,7 +1,9 @@
 import { ConvexError } from "convex/values";
-import type { MutationCtx, QueryCtx } from "./_generated/server";
+import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
 
-export async function requireAuthenticated(ctx: QueryCtx | MutationCtx) {
+export async function requireAuthenticated(
+  ctx: QueryCtx | MutationCtx | ActionCtx,
+) {
   const identity = await ctx.auth.getUserIdentity();
 
   if (!identity) {

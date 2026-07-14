@@ -6,6 +6,7 @@ import { Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { z } from "zod";
 import { action } from "./_generated/server";
+import { requireAuthenticated } from "./authHelpers";
 import {
   buildOpencodeConfig,
   getOpencodeMainModel,
@@ -19,9 +20,22 @@ import {
   writeOpencodeConfig,
 } from "./lib/opencodeSandbox";
 import { waitForOpencodeHealth } from "./lib/opencodeHealth";
+import { installPi, startPiHarnessCommand } from "./lib/piSandbox";
+import { waitForPiTerminalState } from "./lib/piStreamMonitor";
+import { buildPiModelReference } from "./lib/piConfig";
+import { createPullRequest } from "./lib/pullRequest";
 import { parseRunConfiguration } from "./lib/runConfiguration";
-import { runConfigurationProviderIdValidator } from "./lib/todoValidators";
-import { getSandbox, requireSandboxAccessConfig } from "./lib/sandboxHelpers";
+import {
+  opencodeRunConfigurationProviderIdValidator,
+  piRunConfigurationProviderIdValidator,
+} from "./lib/todoValidators";
+import {
+  configureGitIdentity,
+  getSandbox,
+  requireSandboxAccessConfig,
+  SANDBOX_GIT_USER_EMAIL,
+  SANDBOX_GIT_USER_NAME,
+} from "./lib/sandboxHelpers";
 
 const MISSION_CONTROL = { owner: "k-dang", repo: "mission-control" } as const;
 const DEV_TOOLS_DISABLED_ERROR =
@@ -280,7 +294,7 @@ const devRunConfigurations = {
 
 export const checkRunConfiguration = action({
   args: {
-    providerId: runConfigurationProviderIdValidator,
+    providerId: opencodeRunConfigurationProviderIdValidator,
   },
   returns: v.object({
     ok: v.boolean(),
@@ -362,7 +376,7 @@ export const checkRunConfiguration = action({
 
 export const startOpencodeSmokeSandbox = action({
   args: {
-    providerId: runConfigurationProviderIdValidator,
+    providerId: opencodeRunConfigurationProviderIdValidator,
   },
   returns: v.object({
     ok: v.boolean(),
@@ -463,7 +477,7 @@ export const startOpencodeSmokeSandbox = action({
 
 export const sendOpencodeSmokePrompt = action({
   args: {
-    providerId: runConfigurationProviderIdValidator,
+    providerId: opencodeRunConfigurationProviderIdValidator,
     sandboxId: v.string(),
     opencodeUrl: v.string(),
     sessionId: v.string(),
@@ -578,6 +592,239 @@ export const stopOpencodeSmokeSandbox = action({
       return {
         ok: false,
         sandboxId: args.sandboxId,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    }
+  },
+});
+
+const devPiRunConfigurations = {
+  "vercel-ai-gateway": {
+    providerId: "vercel-ai-gateway",
+    modelId: "moonshotai/kimi-k2.5",
+  },
+  openrouter: {
+    providerId: "openrouter",
+    modelId: "cohere/north-mini-code:free",
+  },
+} as const;
+
+const DEFAULT_PI_SMOKE_GITHUB_URL = `https://github.com/${MISSION_CONTROL.owner}/${MISSION_CONTROL.repo}`;
+const PI_SMOKE_TASK_TITLE =
+  "Pi dev smoke: add a short NOTES-PI-SMOKE.md summarizing this repo's purpose";
+const PI_SMOKE_TASK_DESCRIPTION =
+  "This is an automated dev-tools smoke test for the Pi Harness adapter. Add a short NOTES-PI-SMOKE.md file (2-3 sentences) summarizing what this repository is for, then stop.";
+const PI_SMOKE_MONITOR_DEADLINE_MS = 5 * 60_000;
+
+/** Authenticated developer smoke against the fixed mission-control repo. Pair with monitorPiSmokeSandbox, then stopOpencodeSmokeSandbox (harness-neutral). */
+export const startPiSmokeSandbox = action({
+  args: {
+    providerId: piRunConfigurationProviderIdValidator,
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    providerId: v.string(),
+    modelId: v.string(),
+    modelReference: v.union(v.string(), v.null()),
+    githubUrl: v.string(),
+    sandboxId: v.union(v.string(), v.null()),
+    commandId: v.union(v.string(), v.null()),
+    installedVersion: v.union(v.string(), v.null()),
+    error: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+    const runConfigurationInput = devPiRunConfigurations[args.providerId];
+    const { providerId, modelId } = runConfigurationInput;
+    const githubUrl = DEFAULT_PI_SMOKE_GITHUB_URL;
+
+    if (!areDevToolsEnabled()) {
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        modelReference: null,
+        githubUrl,
+        sandboxId: null,
+        commandId: null,
+        installedVersion: null,
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
+    let sandbox: Sandbox | undefined;
+    try {
+      const parsed = parseRunConfiguration({ harnessId: "pi", ...runConfigurationInput });
+      if (!parsed.ok) {
+        throw new Error(parsed.error);
+      }
+
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (!githubToken) {
+        throw new Error("GITHUB_TOKEN is not set; sandbox git clone will 403 on private repos");
+      }
+
+      sandbox = await Sandbox.create({
+        ...requireSandboxAccessConfig(),
+        source: { type: "git", url: githubUrl },
+        runtime: "node24",
+        timeout: 10 * 60 * 1000,
+        env: { GITHUB_TOKEN: githubToken },
+      });
+      await configureGitIdentity(sandbox, SANDBOX_GIT_USER_NAME, SANDBOX_GIT_USER_EMAIL);
+
+      const installedVersion = await installPi(sandbox);
+
+      const command = await startPiHarnessCommand(sandbox, {
+        todo: {
+          title: PI_SMOKE_TASK_TITLE,
+          description: PI_SMOKE_TASK_DESCRIPTION,
+          githubUrl,
+        },
+        todoId: "dev-pi-smoke",
+        runConfiguration: parsed.value,
+      });
+
+      return {
+        ok: true,
+        providerId,
+        modelId,
+        modelReference: buildPiModelReference(parsed.value),
+        githubUrl,
+        sandboxId: sandbox.sandboxId,
+        commandId: command.cmdId,
+        installedVersion,
+        error: null,
+      };
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      if (sandbox) {
+        try {
+          await sandbox.stop();
+        } catch (stopErr) {
+          console.warn("Failed to stop failed dev Pi smoke sandbox", {
+            sandboxId: sandbox.sandboxId,
+            error: stopErr,
+          });
+        }
+      }
+
+      return {
+        ok: false,
+        providerId,
+        modelId,
+        modelReference: null,
+        githubUrl,
+        sandboxId: sandbox?.sandboxId ?? null,
+        commandId: null,
+        installedVersion: null,
+        error,
+      };
+    }
+  },
+});
+
+/** Authenticated monitor for the fixed-repository Pi smoke. Does not stop the Sandbox; call stopOpencodeSmokeSandbox after. */
+export const monitorPiSmokeSandbox = action({
+  args: {
+    sandboxId: v.string(),
+    commandId: v.string(),
+  },
+  returns: v.object({
+    ok: v.boolean(),
+    terminalState: v.union(v.literal("COMPLETED"), v.literal("FAILED"), v.null()),
+    terminalReason: v.union(v.string(), v.null()),
+    capturedEventCount: v.number(),
+    capturedEventKinds: v.array(v.string()),
+    pr: v.union(
+      v.object({
+        kind: v.literal("created"),
+        prUrl: v.string(),
+        prNumber: v.number(),
+        branchName: v.string(),
+      }),
+      v.object({ kind: v.literal("noChanges") }),
+      v.null(),
+    ),
+    error: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    await requireAuthenticated(ctx);
+    if (!areDevToolsEnabled()) {
+      return {
+        ok: false,
+        terminalState: null,
+        terminalReason: null,
+        capturedEventCount: 0,
+        capturedEventKinds: [],
+        pr: null,
+        error: DEV_TOOLS_DISABLED_ERROR,
+      };
+    }
+
+    const capturedEventKinds: string[] = [];
+    let capturedEventCount = 0;
+
+    try {
+      const sandbox = await getSandbox(args.sandboxId);
+      const command = await sandbox.getCommand(args.commandId);
+
+      const deadline = Date.now() + PI_SMOKE_MONITOR_DEADLINE_MS;
+      let outcome: Awaited<ReturnType<typeof waitForPiTerminalState>> | undefined;
+      while (Date.now() < deadline) {
+        outcome = await waitForPiTerminalState(command, "dev_pi_smoke", async (event) => {
+          capturedEventCount += 1;
+          capturedEventKinds.push(event.event.kind);
+        });
+        if (outcome.kind === "terminal") break;
+      }
+      if (!outcome || outcome.kind !== "terminal") {
+        throw new Error("Pi dev smoke timed out waiting for a terminal state");
+      }
+
+      if (outcome.terminalState !== "COMPLETED") {
+        return {
+          ok: true,
+          terminalState: outcome.terminalState,
+          terminalReason: outcome.terminalReason ?? null,
+          capturedEventCount,
+          capturedEventKinds,
+          pr: null,
+          error: null,
+        };
+      }
+
+      const prResult = await createPullRequest(sandbox, {
+        title: PI_SMOKE_TASK_TITLE,
+        description: PI_SMOKE_TASK_DESCRIPTION,
+        repoUrl: DEFAULT_PI_SMOKE_GITHUB_URL,
+      });
+
+      return {
+        ok: true,
+        terminalState: outcome.terminalState,
+        terminalReason: outcome.terminalReason ?? null,
+        capturedEventCount,
+        capturedEventKinds,
+        pr:
+          prResult.kind === "created"
+            ? {
+                kind: "created" as const,
+                prUrl: prResult.prUrl,
+                prNumber: prResult.prNumber,
+                branchName: prResult.branchName,
+              }
+            : { kind: "noChanges" as const },
+        error: null,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        terminalState: null,
+        terminalReason: null,
+        capturedEventCount,
+        capturedEventKinds,
+        pr: null,
         error: err instanceof Error ? err.message : String(err),
       };
     }

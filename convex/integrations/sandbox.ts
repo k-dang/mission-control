@@ -3,8 +3,11 @@
 import { APIError, Sandbox } from "@vercel/sandbox";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
+import type { ActionCtx } from "../_generated/server";
 import { internalAction } from "../_generated/server";
 import { OPENCODE_PORT } from "../lib/opencodeConfig";
+import type { RunConfigurationHarnessId } from "../lib/runConfiguration";
 import {
   configureGitIdentity,
   requireSandboxAccessConfig,
@@ -14,6 +17,17 @@ import {
 } from "../lib/sandboxHelpers";
 
 const STOP_AFTER_SANDBOX_CREATE_ENV = "STOP_AFTER_SANDBOX_CREATE";
+
+/** Dispatches to the Harness-specific `runTodo` action for the Attempt's Run Configuration. */
+function scheduleHarnessRunTodo(
+  ctx: ActionCtx,
+  harnessId: RunConfigurationHarnessId | undefined,
+  args: { todoId: Id<"todos">; attemptId: Id<"todoAttempts"> },
+) {
+  const runTodoRef =
+    harnessId === "pi" ? internal.integrations.pi.runTodo : internal.integrations.opencode.runTodo;
+  return ctx.scheduler.runAfter(0, runTodoRef, args);
+}
 
 export const spawnSandboxForTodo = internalAction({
   args: {
@@ -29,7 +43,7 @@ export const spawnSandboxForTodo = internalAction({
     ]);
     if (!todo || !attempt || attempt.todoId !== args.todoId) return null;
     if (attempt.sandboxId) {
-      await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
+      await scheduleHarnessRunTodo(ctx, attempt.harnessId, {
         todoId: args.todoId,
         attemptId: args.attemptId,
       });
@@ -82,7 +96,7 @@ export const spawnSandboxForTodo = internalAction({
         await sandbox.stop();
         return null;
       }
-      await ctx.scheduler.runAfter(0, internal.integrations.opencode.runTodo, {
+      await scheduleHarnessRunTodo(ctx, attempt.harnessId, {
         todoId: args.todoId,
         attemptId: args.attemptId,
       });

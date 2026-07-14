@@ -26,13 +26,31 @@ export const terminalTodoStatusValidator = v.union(
   v.literal("FAILED"),
 );
 
-export const runConfigurationProviderIdValidator = v.union(
+/** OpenCode's own provider catalog, scoped for OpenCode-only dev tooling args. */
+export const opencodeRunConfigurationProviderIdValidator = v.union(
   v.literal("vercel"),
   v.literal("openrouter"),
   v.literal("opencode"),
 );
 
-export const runConfigurationHarnessIdValidator = v.literal("opencode");
+/** Pi's own provider catalog, scoped for Pi-only dev tooling args. */
+export const piRunConfigurationProviderIdValidator = v.union(
+  v.literal("vercel-ai-gateway"),
+  v.literal("openrouter"),
+);
+
+/** Every provider id valid under any harness; used by the harness-neutral run configuration shape. */
+export const runConfigurationProviderIdValidator = v.union(
+  v.literal("vercel"),
+  v.literal("openrouter"),
+  v.literal("opencode"),
+  v.literal("vercel-ai-gateway"),
+);
+
+export const runConfigurationHarnessIdValidator = v.union(
+  v.literal("opencode"),
+  v.literal("pi"),
+);
 
 export const runConfigurationValidator = v.object({
   harnessId: v.optional(runConfigurationHarnessIdValidator),

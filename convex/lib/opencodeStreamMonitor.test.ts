@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Event } from "@opencode-ai/sdk/v2";
 import {
-  decideAttemptLifetime,
   isUnrecoverableSseErrorMessage,
-  resolveMaxAttemptDurationMs,
   type AppendTodoEventCallback,
   waitForOpencodeTerminalState,
 } from "./opencodeStreamMonitor";
@@ -63,55 +61,6 @@ describe("isUnrecoverableSseErrorMessage", () => {
   });
 });
 
-describe("decideAttemptLifetime", () => {
-  it("extends a near-deadline sandbox far enough to stay two slices ahead", () => {
-    const now = 1_000 + 5 * 60_000;
-    expect(
-      decideAttemptLifetime({
-        startedAt: 1_000,
-        now,
-        maxAttemptDurationMs: 30 * 60_000,
-        sandboxDeadlineAt: now + 60_000,
-      }),
-    ).toEqual({ kind: "extend", extendByMs: 180_000 });
-  });
-
-  it("requests no extension when the sandbox deadline is already far enough out", () => {
-    const now = 1_000 + 5 * 60_000;
-    expect(
-      decideAttemptLifetime({
-        startedAt: 1_000,
-        now,
-        maxAttemptDurationMs: 30 * 60_000,
-        sandboxDeadlineAt: now + 10 * 60_000,
-      }),
-    ).toEqual({ kind: "extend", extendByMs: 0 });
-  });
-
-  it("times out an attempt that reaches the maximum duration", () => {
-    const now = 1_000 + 30 * 60_000;
-    expect(
-      decideAttemptLifetime({
-        startedAt: 1_000,
-        now,
-        maxAttemptDurationMs: 30 * 60_000,
-        sandboxDeadlineAt: now + 60_000,
-      }),
-    ).toEqual({ kind: "timedOut" });
-  });
-});
-
-describe("resolveMaxAttemptDurationMs", () => {
-  it("uses the configured value when set to a positive number of milliseconds", () => {
-    expect(resolveMaxAttemptDurationMs("3600000")).toBe(3_600_000);
-  });
-
-  it("falls back to the default when unset or invalid", () => {
-    expect(resolveMaxAttemptDurationMs(undefined)).toBe(30 * 60_000);
-    expect(resolveMaxAttemptDurationMs("not-a-number")).toBe(30 * 60_000);
-    expect(resolveMaxAttemptDurationMs("-5")).toBe(30 * 60_000);
-  });
-});
 
 describe("waitForOpencodeTerminalState", () => {
   it("returns COMPLETED for an idle terminal event", async () => {

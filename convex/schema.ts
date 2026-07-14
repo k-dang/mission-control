@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { todoEventPayloadValidator } from "./lib/todoEventValidator";
 import {
   attemptStreamStateValidator,
+  runConfigurationHarnessIdValidator,
   runConfigurationValidator,
   todoStatusValidator,
 } from "./lib/todoValidators";
@@ -20,7 +21,7 @@ export default defineSchema({
 
   todoAttempts: defineTable({
     todoId: v.id("todos"),
-    harnessId: v.literal("opencode"),
+    harnessId: runConfigurationHarnessIdValidator,
     runConfiguration: v.optional(runConfigurationValidator),
     sandboxId: v.optional(v.string()),
     harnessRunId: v.optional(v.string()),
