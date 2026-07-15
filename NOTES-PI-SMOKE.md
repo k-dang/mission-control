@@ -1,0 +1,1 @@
+Mission Control is an AI-powered task board that lets users create coding tasks from GitHub repositories, then automatically spawns sandboxed coding agents to complete them autonomously while tracking progress in real-time.
