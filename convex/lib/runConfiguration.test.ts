@@ -4,7 +4,6 @@ import {
   RUN_CONFIGURATION_HARNESSES,
   RUN_CONFIGURATION_PROVIDERS,
   UNKNOWN_RUN_CONFIGURATION_LABEL,
-  VISIBLE_RUN_CONFIGURATION_HARNESSES,
   describeRunConfiguration,
   isSupportedRunConfiguration,
   parseRunConfiguration,
@@ -16,12 +15,6 @@ describe("run configuration catalog", () => {
       "opencode",
       "pi",
     ]);
-  });
-
-  it("keeps Pi out of the visible (UI-facing) harness catalog", () => {
-    expect(
-      VISIBLE_RUN_CONFIGURATION_HARNESSES.map((harness) => harness.id),
-    ).toEqual(["opencode"]);
   });
 
   it("includes Vercel AI Gateway, OpenRouter, and OpenCode Zen providers", () => {

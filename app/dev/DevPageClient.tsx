@@ -13,6 +13,7 @@ import {
   Send,
   Square,
   Trash2,
+  Activity,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -24,7 +25,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { RUN_CONFIGURATION_PROVIDERS } from "@/convex/lib/runConfiguration";
+import {
+  PI_RUN_CONFIGURATION_PROVIDER_OPTIONS,
+  RUN_CONFIGURATION_PROVIDERS,
+} from "@/convex/lib/runConfiguration";
 import { api } from "../../convex/_generated/api";
 
 type CheckResult = {
@@ -87,6 +91,33 @@ type StopSmokeSandboxResult = {
   error: string | null;
 };
 
+type PiSmokeProviderId = "vercel-ai-gateway" | "openrouter";
+
+type PiSmokeSandboxResult = {
+  ok: boolean;
+  providerId: string;
+  modelId: string;
+  modelReference: string | null;
+  githubUrl: string;
+  sandboxId: string | null;
+  commandId: string | null;
+  installedVersion: string | null;
+  error: string | null;
+};
+
+type PiSmokeMonitorResult = {
+  ok: boolean;
+  terminalState: "COMPLETED" | "FAILED" | null;
+  terminalReason: string | null;
+  capturedEventCount: number;
+  capturedEventKinds: string[];
+  pr:
+    | { kind: "created"; prUrl: string; prNumber: number; branchName: string }
+    | { kind: "noChanges" }
+    | null;
+  error: string | null;
+};
+
 type ClearRecordsResult = {
   deleted: {
     todos: number;
@@ -110,6 +141,8 @@ export default function DevPageClient() {
   const startSmokeSandbox = useAction(api.devTools.startOpencodeSmokeSandbox);
   const sendSmokePrompt = useAction(api.devTools.sendOpencodeSmokePrompt);
   const stopSmokeSandbox = useAction(api.devTools.stopOpencodeSmokeSandbox);
+  const startPiSmokeSandbox = useAction(api.devTools.startPiSmokeSandbox);
+  const monitorPiSmokeSandbox = useAction(api.devTools.monitorPiSmokeSandbox);
   const clearRecords = useMutation(api.devDatabase.clearRecords);
   const [result, setResult] = useState<CheckResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -141,6 +174,18 @@ export default function DevPageClient() {
   const [smokePrompt, setSmokePrompt] = useState(
     "Reply with the active model and say whether this OpenCode session is healthy.",
   );
+  const [piSmokeProviderId, setPiSmokeProviderId] =
+    useState<PiSmokeProviderId>("openrouter");
+  const [piSmokeSandbox, setPiSmokeSandbox] =
+    useState<PiSmokeSandboxResult | null>(null);
+  const [piSmokeMonitorResult, setPiSmokeMonitorResult] =
+    useState<PiSmokeMonitorResult | null>(null);
+  const [piStopSmokeSandboxResult, setPiStopSmokeSandboxResult] =
+    useState<StopSmokeSandboxResult | null>(null);
+  const [piSmokeSandboxLoading, setPiSmokeSandboxLoading] = useState(false);
+  const [piSmokeMonitorLoading, setPiSmokeMonitorLoading] = useState(false);
+  const [piStopSmokeSandboxLoading, setPiStopSmokeSandboxLoading] =
+    useState(false);
 
   const handleCheck = async () => {
     setLoading(true);
@@ -239,6 +284,52 @@ export default function DevPageClient() {
     }
   };
 
+  const handleStartPiSmokeSandbox = async () => {
+    setPiSmokeSandboxLoading(true);
+    setPiSmokeSandbox(null);
+    setPiSmokeMonitorResult(null);
+    setPiStopSmokeSandboxResult(null);
+    try {
+      const res = await startPiSmokeSandbox({ providerId: piSmokeProviderId });
+      setPiSmokeSandbox(res);
+    } finally {
+      setPiSmokeSandboxLoading(false);
+    }
+  };
+
+  const handleMonitorPiSmokeSandbox = async () => {
+    if (!piSmokeSandbox?.sandboxId || !piSmokeSandbox.commandId) {
+      return;
+    }
+
+    setPiSmokeMonitorLoading(true);
+    setPiSmokeMonitorResult(null);
+    try {
+      const res = await monitorPiSmokeSandbox({
+        sandboxId: piSmokeSandbox.sandboxId,
+        commandId: piSmokeSandbox.commandId,
+      });
+      setPiSmokeMonitorResult(res);
+    } finally {
+      setPiSmokeMonitorLoading(false);
+    }
+  };
+
+  const handleStopPiSmokeSandbox = async () => {
+    if (!piSmokeSandbox?.sandboxId) {
+      return;
+    }
+
+    setPiStopSmokeSandboxLoading(true);
+    setPiStopSmokeSandboxResult(null);
+    try {
+      const res = await stopSmokeSandbox({ sandboxId: piSmokeSandbox.sandboxId });
+      setPiStopSmokeSandboxResult(res);
+    } finally {
+      setPiStopSmokeSandboxLoading(false);
+    }
+  };
+
   const handleClearRecords = async () => {
     if (
       !window.confirm(
@@ -304,6 +395,21 @@ export default function DevPageClient() {
     !smokePromptLoading &&
     !stopSmokeSandboxLoading;
 
+  const canMonitorPiSmoke =
+    piSmokeSandbox?.ok === true &&
+    Boolean(piSmokeSandbox.sandboxId) &&
+    Boolean(piSmokeSandbox.commandId) &&
+    piStopSmokeSandboxResult?.ok !== true &&
+    !piSmokeMonitorLoading &&
+    !piStopSmokeSandboxLoading;
+
+  const canStopPiSmokeSandbox =
+    Boolean(piSmokeSandbox?.sandboxId) &&
+    piStopSmokeSandboxResult?.ok !== true &&
+    !piSmokeSandboxLoading &&
+    !piSmokeMonitorLoading &&
+    !piStopSmokeSandboxLoading;
+
   return (
     <main className="min-h-screen space-y-8 p-10">
       <Link
@@ -315,7 +421,8 @@ export default function DevPageClient() {
       </Link>
       <h1 className="text-2xl font-bold">Dev Tools</h1>
 
-      <section className="max-w-md space-y-4 rounded-lg border border-destructive/40 p-4">
+      <div className="grid items-start gap-6 md:grid-cols-2">
+      <section className="space-y-4 rounded-lg border border-destructive/40 p-4">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">Database Records</h2>
           <p className="text-sm text-muted-foreground">
@@ -358,7 +465,7 @@ export default function DevPageClient() {
         )}
       </section>
 
-      <section className="max-w-md space-y-4">
+      <section className="space-y-4 rounded-lg border p-4">
         <h2 className="text-lg font-semibold">GitHub Token</h2>
         <p className="text-sm text-muted-foreground">
           Verifies that <code className="font-mono">GITHUB_TOKEN</code> is
@@ -562,7 +669,7 @@ export default function DevPageClient() {
         )}
       </section>
 
-      <section className="max-w-2xl space-y-4 rounded-lg border p-4">
+      <section className="space-y-4 rounded-lg border p-4">
         <div className="space-y-1">
           <h2 className="text-lg font-semibold">OpenCode config smoke test</h2>
           <p className="text-sm text-muted-foreground">
@@ -730,6 +837,203 @@ export default function DevPageClient() {
           </div>
         )}
       </section>
+
+      <section className="space-y-4 rounded-lg border p-4">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Pi config smoke test</h2>
+          <p className="text-sm text-muted-foreground">
+            Pick a curated Pi provider, start a temporary sandbox that installs
+            Pi and runs a fixed task against{" "}
+            <a
+              href="https://github.com/k-dang/mission-control"
+              className="underline underline-offset-2 hover:text-foreground"
+              target="_blank"
+              rel="noreferrer"
+            >
+              k-dang/mission-control
+            </a>
+            , then monitor it to a terminal state (opens a PR on success).
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="pi-smoke-run-config">Provider</Label>
+          <Select
+            value={piSmokeProviderId}
+            disabled={piSmokeSandboxLoading || piSmokeMonitorLoading}
+            onValueChange={(value) => {
+              setPiSmokeProviderId(value as PiSmokeProviderId);
+              setPiSmokeSandbox(null);
+              setPiSmokeMonitorResult(null);
+              setPiStopSmokeSandboxResult(null);
+            }}
+          >
+            <SelectTrigger id="pi-smoke-run-config" className="max-w-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {PI_RUN_CONFIGURATION_PROVIDER_OPTIONS.map((provider) => (
+                <SelectItem key={provider.id} value={provider.id}>
+                  {provider.label} · {provider.models[0]?.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            onClick={handleStartPiSmokeSandbox}
+            disabled={
+              piSmokeSandboxLoading ||
+              piSmokeMonitorLoading ||
+              piStopSmokeSandboxLoading
+            }
+            variant="secondary"
+          >
+            {piSmokeSandboxLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Terminal className="h-4 w-4" />
+            )}
+            {piSmokeSandboxLoading ? "Starting sandbox..." : "Start smoke sandbox"}
+          </Button>
+          <Button
+            onClick={handleMonitorPiSmokeSandbox}
+            disabled={!canMonitorPiSmoke}
+            variant="secondary"
+          >
+            {piSmokeMonitorLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Activity className="h-4 w-4" />
+            )}
+            {piSmokeMonitorLoading ? "Monitoring (up to 5m)..." : "Monitor run"}
+          </Button>
+          <Button
+            onClick={handleStopPiSmokeSandbox}
+            disabled={!canStopPiSmokeSandbox}
+            variant="secondary"
+          >
+            {piStopSmokeSandboxLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Square className="h-4 w-4" />
+            )}
+            {piStopSmokeSandboxLoading ? "Stopping sandbox..." : "Stop sandbox"}
+          </Button>
+        </div>
+
+        {piSmokeSandbox !== null && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <Row
+              label="Sandbox ready"
+              ok={piSmokeSandbox.ok}
+              value={piSmokeSandbox.ok ? "Yes" : "No"}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="shrink-0 text-muted-foreground">Run config</span>
+              <span className="break-all text-right font-mono text-xs">
+                {piSmokeSandbox.providerId}/{piSmokeSandbox.modelId}
+              </span>
+            </div>
+            {piSmokeSandbox.modelReference && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Pi model ref</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {piSmokeSandbox.modelReference}
+                </span>
+              </div>
+            )}
+            {piSmokeSandbox.installedVersion && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Pi version</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {piSmokeSandbox.installedVersion}
+                </span>
+              </div>
+            )}
+            {piSmokeSandbox.sandboxId && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Sandbox</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {piSmokeSandbox.sandboxId}
+                </span>
+              </div>
+            )}
+            {piSmokeSandbox.commandId && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Command</span>
+                <span className="break-all text-right font-mono text-xs">
+                  {piSmokeSandbox.commandId}
+                </span>
+              </div>
+            )}
+            {piSmokeSandbox.error && (
+              <p className="pt-1 text-destructive">{piSmokeSandbox.error}</p>
+            )}
+          </div>
+        )}
+
+        {piSmokeMonitorResult !== null && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <Row
+              label="Terminal state"
+              ok={piSmokeMonitorResult.terminalState === "COMPLETED"}
+              value={piSmokeMonitorResult.terminalState ?? "Unknown"}
+            />
+            {piSmokeMonitorResult.terminalReason && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="shrink-0 text-muted-foreground">Reason</span>
+                <span className="break-all text-right text-xs">
+                  {piSmokeMonitorResult.terminalReason}
+                </span>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2">
+              <span className="shrink-0 text-muted-foreground">Events</span>
+              <span className="break-all text-right font-mono text-xs">
+                {piSmokeMonitorResult.capturedEventCount} (
+                {piSmokeMonitorResult.capturedEventKinds.join(", ")})
+              </span>
+            </div>
+            {piSmokeMonitorResult.pr?.kind === "created" && (
+              <a
+                href={piSmokeMonitorResult.pr.prUrl}
+                className="block break-all text-primary underline underline-offset-2"
+                target="_blank"
+                rel="noreferrer"
+              >
+                {piSmokeMonitorResult.pr.prUrl}
+              </a>
+            )}
+            {piSmokeMonitorResult.pr?.kind === "noChanges" && (
+              <p className="text-muted-foreground">
+                Pi made no repository changes; no PR opened.
+              </p>
+            )}
+            {piSmokeMonitorResult.error && (
+              <p className="pt-1 text-destructive">{piSmokeMonitorResult.error}</p>
+            )}
+          </div>
+        )}
+
+        {piStopSmokeSandboxResult !== null && (
+          <div className="space-y-2 rounded-lg border p-4 text-sm">
+            <Row
+              label="Sandbox stopped"
+              ok={piStopSmokeSandboxResult.ok}
+              value={piStopSmokeSandboxResult.ok ? "Yes" : "No"}
+            />
+            {piStopSmokeSandboxResult.error && (
+              <p className="pt-1 text-destructive">
+                {piStopSmokeSandboxResult.error}
+              </p>
+            )}
+          </div>
+        )}
+      </section>
+      </div>
     </main>
   );
 }

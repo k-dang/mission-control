@@ -68,6 +68,59 @@ describe("todo run start transition", () => {
     expect((await authed.query(api.todos.get, { todoId }))?.status).toBe("TODO");
   });
 
+  describe("Pi Run Configuration", () => {
+    it("rejects a forged Pi Run Configuration outside the curated catalog", async () => {
+      const t = convexTest(schema, modules);
+      const authed = t.withIdentity(identity);
+      const todoId = await insertTodo(t);
+
+      await expect(
+        authed.mutation(api.todoRuns.start, {
+          todoId,
+          runConfiguration: {
+            harnessId: "pi",
+            providerId: "openrouter",
+            modelId: "not-a-curated-model",
+          },
+        }),
+      ).rejects.toThrow("Unsupported run configuration: pi/openrouter/not-a-curated-model");
+    });
+
+    it("starts a Pi Attempt (OpenRouter)", async () => {
+      const t = convexTest(schema, modules);
+      const authed = t.withIdentity(identity);
+      const todoId = await insertTodo(t, { githubUrl: "https://github.com/example/repo" });
+
+      const result = await authed.mutation(api.todoRuns.start, {
+        todoId,
+        runConfiguration: {
+          harnessId: "pi",
+          providerId: "openrouter",
+          modelId: "cohere/north-mini-code:free",
+        },
+      });
+
+      expect(result).toMatchObject({ todoId, status: "INPROGRESS" });
+    });
+
+    it("starts a Pi Attempt (Vercel AI Gateway)", async () => {
+      const t = convexTest(schema, modules);
+      const authed = t.withIdentity(identity);
+      const todoId = await insertTodo(t, { githubUrl: "https://github.com/example/repo" });
+
+      const result = await authed.mutation(api.todoRuns.start, {
+        todoId,
+        runConfiguration: {
+          harnessId: "pi",
+          providerId: "vercel-ai-gateway",
+          modelId: "moonshotai/kimi-k2.5",
+        },
+      });
+
+      expect(result).toMatchObject({ todoId, status: "INPROGRESS" });
+    });
+  });
+
   it("allows a failed Todo Task to be edited and creates a new Attempt on retry", async () => {
     const t = convexTest(schema, modules);
     const authed = t.withIdentity(identity);

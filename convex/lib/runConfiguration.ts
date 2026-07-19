@@ -50,13 +50,6 @@ export const RUN_CONFIGURATION_PROVIDER_OPTIONS = [
   models: readonly RunConfigurationModel[];
 }[];
 
-/**
- * Pi's provider catalog. Provider ids are scoped to Pi and use Pi's own native
- * values (e.g. "vercel-ai-gateway"), which differ from OpenCode's provider id
- * scheme even where the underlying service is the same. Every entry here must
- * pass a live end-to-end Sandbox smoke before it is exposed in the UI catalog
- * (see {@link VISIBLE_RUN_CONFIGURATION_HARNESSES} and issue 04).
- */
 export const PI_RUN_CONFIGURATION_PROVIDER_OPTIONS = [
   {
     id: "vercel-ai-gateway",
@@ -70,11 +63,7 @@ export const PI_RUN_CONFIGURATION_PROVIDER_OPTIONS = [
       { id: "cohere/north-mini-code:free", label: "Cohere North Mini Code Free" },
     ],
   },
-] as const satisfies readonly {
-  id: string;
-  label: string;
-  models: readonly RunConfigurationModel[];
-}[];
+] as const satisfies readonly RunConfigurationProviderCatalogEntry[];
 
 export const RUN_CONFIGURATION_HARNESSES = [
   {
@@ -88,15 +77,6 @@ export const RUN_CONFIGURATION_HARNESSES = [
     providers: PI_RUN_CONFIGURATION_PROVIDER_OPTIONS,
   },
 ] as const satisfies readonly RunConfigurationHarnessCatalogEntry[];
-
-/**
- * Harnesses shown in the start dialog and dev catalog UI. Pi is implemented
- * and startable (e.g. via the dev smoke), but stays out of user-facing
- * catalogs until its curated entries are live-smoked and issue 04 exposes it.
- */
-export const VISIBLE_RUN_CONFIGURATION_HARNESSES = RUN_CONFIGURATION_HARNESSES.filter(
-  (harness) => harness.id !== PI_HARNESS_ID,
-);
 
 export const RUN_CONFIGURATION_PROVIDERS = RUN_CONFIGURATION_PROVIDER_OPTIONS;
 
