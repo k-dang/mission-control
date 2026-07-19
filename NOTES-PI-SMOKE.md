@@ -1,0 +1,1 @@
+Mission Control is an AI-powered task board that spawns sandboxed coding agents when tasks are moved to "In Progress". Built with Next.js, Convex, Clerk, OpenCode, and Vercel Sandbox, it enables autonomous PR creation by running AI agents in isolated environments.
